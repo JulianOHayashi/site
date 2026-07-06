@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --magenta: #e5007e;
+  --ciano: #00a8e0;
+  --amarelo: #ffc400;
+  --tinta: #17121f;
+  --papel: #fbfaf6;
+  --papel-2: #f1efe8;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-papel text-tinta font-body antialiased;
+}
+
+h1,
+h2,
+h3,
+.display {
+  @apply font-display font-bold tracking-tight;
+}
+
+/* Foco visível e consistente */
+:focus-visible {
+  outline: 3px solid var(--ciano);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-magenta px-6 py-3 font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-tinta bg-transparent px-6 py-3 font-semibold text-tinta transition hover:bg-tinta hover:text-white;
+  }
+  .card {
+    @apply rounded-2xl border border-borda bg-white shadow-sm;
+  }
+}
