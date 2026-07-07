@@ -240,7 +240,7 @@ export default function BrazilMap({
       >
         <svg
           viewBox={`0 0 ${LARGURA} ${ALTURA}`}
-          className="h-auto w-full drop-shadow-[0_4px_16px_rgba(23,18,31,0.5)]"
+          className="h-auto w-full drop-shadow-[0_10px_24px_rgba(23,18,31,0.16)]"
           role="group"
         >
           <defs>
@@ -248,10 +248,10 @@ export default function BrazilMap({
                 os estados). Reserva em gradiente verde/amarelo caso a
                 imagem não carregue. */}
             <linearGradient id="brasil-reserva" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#009739" />
-              <stop offset="45%" stopColor="#FEDD00" />
-              <stop offset="55%" stopColor="#FEDD00" />
-              <stop offset="100%" stopColor="#009739" />
+              <stop offset="0%" stopColor="#009739" stopOpacity="0.5" />
+              <stop offset="45%" stopColor="#FEDD00" stopOpacity="0.5" />
+              <stop offset="55%" stopColor="#FEDD00" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#009739" stopOpacity="0.5" />
             </linearGradient>
             <pattern
               id="bandeira-brasil"
@@ -261,6 +261,8 @@ export default function BrazilMap({
               width={LARGURA}
               height={ALTURA}
             >
+              {/* base branca + imagem translúcida = bandeira suavizada */}
+              <rect width={LARGURA} height={ALTURA} fill="#FFFFFF" />
               <image
                 href={`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(
                   "Flag_of_Brazil.svg"
@@ -268,6 +270,7 @@ export default function BrazilMap({
                 width={LARGURA}
                 height={ALTURA}
                 preserveAspectRatio="xMidYMid slice"
+                opacity="0.55"
               />
             </pattern>
             {features.map((f, i) => {
@@ -319,21 +322,20 @@ export default function BrazilMap({
 
             return (
               <g key={nome || i}>
-                {/* reserva verde/amarela por baixo (aparece se a imagem
-                    da bandeira do Brasil falhar) */}
+                {/* reserva por baixo (aparece se a imagem falhar) */}
                 {!ativo && (
                   <path d={d} fill="url(#brasil-reserva)" pointerEvents="none" />
                 )}
-                {/* camada principal: bandeira do Brasil contínua no mapa;
-                    no hover, vira as faixas do estado (reserva da bandeira
-                    estadual) */}
+                {/* camada principal: bandeira do Brasil suavizada; no hover,
+                    faixas do estado (reserva da bandeira estadual) */}
                 <path
                   d={d}
                   fill={
                     ativo ? `url(#faixas-${i})` : "url(#bandeira-brasil)"
                   }
-                  stroke="#FBFAF6"
-                  strokeWidth={ativo ? 1.6 : 0.9}
+                  stroke="#17121F"
+                  strokeOpacity={ativo ? 0.85 : 0.35}
+                  strokeWidth={ativo ? 1.4 : 0.8}
                   style={{ cursor: "pointer", transition: "stroke-width 150ms" }}
                   tabIndex={0}
                   role="button"
@@ -355,8 +357,9 @@ export default function BrazilMap({
                   <path
                     d={d}
                     fill={`url(#bandeira-${i})`}
-                    stroke="#FBFAF6"
-                    strokeWidth={1.6}
+                    stroke="#17121F"
+                    strokeOpacity={0.85}
+                    strokeWidth={1.4}
                     pointerEvents="none"
                   />
                 )}

@@ -56,7 +56,26 @@ h3,
   }
 }
 
-/* ===== Nuvens do panorama (página inicial) ===== */
+/* ===== Manchas de cor da marca (fundo da home) ===== */
+.mancha {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.4;
+  animation: flutuar 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes flutuar {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(60px, -40px) scale(1.12);
+  }
+}
+
+/* ===== Nuvens (usadas pela versão /classica) ===== */
 .nuvem {
   position: absolute;
   left: -260px;
