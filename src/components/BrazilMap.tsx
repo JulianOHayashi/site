@@ -83,7 +83,12 @@ const UFS = [
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
 
-export default function BrazilMap() {
+export default function BrazilMap({
+  onSelectState,
+}: {
+  /** Se fornecido, o mapa NÃO navega: avisa a página, que rola até a vitrine. */
+  onSelectState?: (nome: string, isES: boolean) => void;
+}) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const [features, setFeatures] = useState<Feature[] | null>(null);
@@ -104,8 +109,17 @@ export default function BrazilMap() {
   }, []);
 
   const irPara = (nome: string) => {
-    const destino = normalizar(nome) === ES ? "/produtos" : "/em-breve";
-    navigate(destino, { state: { estado: nome } });
+    const isES = normalizar(nome) === ES;
+    if (onSelectState) {
+      onSelectState(nome, isES);
+      // permanece na página: desfaz o zoom depois que a rolagem começou
+      window.setTimeout(() => {
+        setZooming(false);
+        setSelecionado(null);
+      }, 450);
+      return;
+    }
+    navigate(isES ? "/produtos" : "/em-breve", { state: { estado: nome } });
   };
 
   const handleClick = (nome: string, e: React.MouseEvent) => {
@@ -138,9 +152,7 @@ export default function BrazilMap() {
             <button
               key={uf}
               onClick={() =>
-                navigate(uf === "ES" ? "/produtos" : "/em-breve", {
-                  state: { estado: uf },
-                })
+                irPara(uf === "ES" ? "Espírito Santo" : uf)
               }
               className="card px-2 py-3 font-display font-bold transition hover:text-white"
               onMouseEnter={(e) =>

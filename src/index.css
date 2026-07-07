@@ -55,3 +55,40 @@ h3,
     @apply rounded-2xl border border-borda bg-white shadow-sm;
   }
 }
+
+/* ===== Nuvens do panorama (página inicial) ===== */
+.nuvem {
+  position: absolute;
+  left: -260px;
+  background: #ffffff;
+  border-radius: 9999px;
+  filter: drop-shadow(0 6px 12px rgba(40, 90, 130, 0.12));
+  animation-name: deriva;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.nuvem::before,
+.nuvem::after {
+  content: "";
+  position: absolute;
+  background: #ffffff;
+  border-radius: 50%;
+}
+.nuvem::before {
+  width: 55%;
+  height: 170%;
+  left: 14%;
+  bottom: 18%;
+}
+.nuvem::after {
+  width: 38%;
+  height: 120%;
+  right: 12%;
+  bottom: 32%;
+}
+
+@keyframes deriva {
+  to {
+    transform: translateX(calc(100vw + 520px));
+  }
+}
