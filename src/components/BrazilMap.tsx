@@ -31,7 +31,53 @@ function nomeDoEstado(f: Feature): string {
 
 const ES = normalizar("Espírito Santo");
 
-// Lista de fallback caso o GeoJSON não carregue (sem internet, URL fora do ar…)
+/**
+ * Cores predominantes da bandeira de cada estado (aproximadas),
+ * exibidas em faixas quando o estado recebe hover/clique.
+ * Chave: nome normalizado (sem acentos, minúsculo).
+ */
+const CORES_BANDEIRA: Record<string, string[]> = {
+  acre: ["#FEDD00", "#009739", "#CE1126"],
+  alagoas: ["#CE1126", "#FFFFFF", "#0B5BA5"],
+  amapa: ["#009739", "#FEDD00", "#FFFFFF", "#0033A0"],
+  amazonas: ["#FFFFFF", "#CE1126", "#00205B"],
+  bahia: ["#FFFFFF", "#CE1126", "#003DA5"],
+  ceara: ["#009739", "#FEDD00", "#FFFFFF"],
+  "distrito federal": ["#FFFFFF", "#FEDD00", "#009739"],
+  "espirito santo": ["#E75CA8", "#FFFFFF", "#0072CE"],
+  goias: ["#009739", "#FEDD00", "#0033A0"],
+  maranhao: ["#CE1126", "#FFFFFF", "#000000", "#0033A0"],
+  "mato grosso": ["#0033A0", "#FEDD00", "#FFFFFF"],
+  "mato grosso do sul": ["#FFFFFF", "#009739", "#0072CE", "#FEDD00"],
+  "minas gerais": ["#FFFFFF", "#CE1126"],
+  para: ["#CE1126", "#FFFFFF", "#0033A0"],
+  paraiba: ["#000000", "#CE1126", "#FFFFFF"],
+  parana: ["#009739", "#FFFFFF", "#0033A0"],
+  pernambuco: ["#0033A0", "#FFFFFF", "#FEDD00"],
+  piaui: ["#009739", "#FEDD00", "#0033A0"],
+  "rio de janeiro": ["#FFFFFF", "#0033A0"],
+  "rio grande do norte": ["#009739", "#FFFFFF", "#FEDD00"],
+  "rio grande do sul": ["#009739", "#CE1126", "#FEDD00"],
+  rondonia: ["#0033A0", "#009739", "#FEDD00", "#FFFFFF"],
+  roraima: ["#0072CE", "#FFFFFF", "#009739", "#CE1126"],
+  "santa catarina": ["#CE1126", "#FFFFFF", "#009739"],
+  "sao paulo": ["#000000", "#FFFFFF", "#CE1126"],
+  sergipe: ["#009739", "#FEDD00", "#0033A0"],
+  tocantins: ["#FFFFFF", "#0033A0", "#FEDD00"],
+};
+
+/** Gera as paradas de um gradiente em faixas duras (estilo bandeira). */
+function paradasDeFaixas(cores: string[]) {
+  const n = cores.length;
+  const paradas: { offset: string; cor: string }[] = [];
+  cores.forEach((cor, i) => {
+    paradas.push({ offset: `${(i / n) * 100}%`, cor });
+    paradas.push({ offset: `${((i + 1) / n) * 100}%`, cor });
+  });
+  return paradas;
+}
+
+// Lista de fallback caso o GeoJSON não carregue
 const UFS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
@@ -43,6 +89,7 @@ export default function BrazilMap() {
   const [features, setFeatures] = useState<Feature[] | null>(null);
   const [erro, setErro] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [selecionado, setSelecionado] = useState<string | null>(null);
   const [zooming, setZooming] = useState(false);
   const [origin, setOrigin] = useState("50% 50%");
 
@@ -74,6 +121,7 @@ export default function BrazilMap() {
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setOrigin(`${x}% ${y}%`);
+    setSelecionado(nome); // mantém a bandeira acesa durante o zoom
     setZooming(true);
     window.setTimeout(() => irPara(nome), 700);
   };
@@ -130,7 +178,10 @@ export default function BrazilMap() {
   const path = geoPath(projection);
 
   return (
-    <div className="relative mx-auto max-w-3xl overflow-hidden" aria-label="Mapa do Brasil — clique no seu estado">
+    <div
+      className="relative mx-auto max-w-3xl overflow-hidden"
+      aria-label="Mapa do Brasil — clique no seu estado"
+    >
       <div
         ref={containerRef}
         style={{
@@ -145,17 +196,39 @@ export default function BrazilMap() {
           className="h-auto w-full"
           role="group"
         >
+          {/* Gradientes de bandeira (faixas horizontais) de cada estado */}
+          <defs>
+            {features.map((f, i) => {
+              const nome = normalizar(nomeDoEstado(f));
+              const cores = CORES_BANDEIRA[nome] ?? [TINTAS[i % 3]];
+              return (
+                <linearGradient
+                  key={`grad-${i}`}
+                  id={`bandeira-${i}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  {paradasDeFaixas(cores).map((p, j) => (
+                    <stop key={j} offset={p.offset} stopColor={p.cor} />
+                  ))}
+                </linearGradient>
+              );
+            })}
+          </defs>
+
           {features.map((f, i) => {
             const nome = nomeDoEstado(f);
-            const ativo = hovered === nome;
+            const ativo = hovered === nome || selecionado === nome;
             return (
               <path
                 key={nome || i}
                 d={path(f.geometry) ?? undefined}
-                fill={ativo ? TINTAS[i % 3] : "#FFFFFF"}
+                fill={ativo ? `url(#bandeira-${i})` : "#FFFFFF"}
                 stroke="#17121F"
                 strokeWidth={ativo ? 1.4 : 0.8}
-                style={{ cursor: "pointer", transition: "fill 150ms" }}
+                style={{ cursor: "pointer", transition: "stroke-width 150ms" }}
                 tabIndex={0}
                 role="button"
                 aria-label={`${nome}${normalizar(nome) === ES ? "" : " — em breve"}`}
@@ -177,10 +250,18 @@ export default function BrazilMap() {
       </div>
 
       {hovered && !zooming && (
-        <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-tinta px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
+        <div className="pointer-events-none absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-tinta px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
+          {/* mini-bandeira no tooltip */}
+          <span className="flex h-3.5 w-5 flex-col overflow-hidden rounded-[2px]">
+            {(CORES_BANDEIRA[normalizar(hovered)] ?? ["#FFFFFF"]).map(
+              (cor, j) => (
+                <span key={j} className="w-full flex-1" style={{ backgroundColor: cor }} />
+              )
+            )}
+          </span>
           {hovered}
           {normalizar(hovered) !== ES && (
-            <span className="ml-1.5 font-normal opacity-70">· em breve</span>
+            <span className="font-normal opacity-70">· em breve</span>
           )}
         </div>
       )}
