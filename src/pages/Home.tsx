@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import BrazilMap from "../components/BrazilMap";
 import DemoBanner from "../components/DemoBanner";
 import ProductOrbit from "../components/ProductOrbit";
@@ -9,178 +9,155 @@ import { useProducts } from "../hooks/useProducts";
 import { formatarPreco } from "../lib/format";
 
 /**
- * Página única em panorama vertical:
- *  ── CÉU     → título + mapa do Brasil flutuando entre nuvens
- *  ── ESTRADA → horizonte com estrada em perspectiva; a vitrine de
- *               camisas "pousa" sobre a estrada. Clicar num estado
- *               NÃO troca de página: a tela rola até aqui.
- *               Estado ≠ ES → mostra "Em breve" nesta mesma seção.
- *  ── ASFALTO → base escura com os dois caminhos e o rodapé.
+ * HOME "DECOLAGEM" — página sobre uma única foto panorâmica vertical
+ * (/panorama.jpg), percorrida DE BAIXO PARA CIMA:
+ *
+ *   TOPO    · céu + montanha  → "Quem somos" e informações
+ *   MEIO    · carro/estrada   → vitrine de camisas
+ *   BASE    · asfalto         → título + mapa do Brasil  ← o site ABRE aqui
+ *
+ * Ao escolher um estado no mapa, a página SOBE automaticamente até a
+ * vitrine. Bolinhas de navegação fixas à direita permitem saltar entre
+ * as três alturas. A rolagem manual continua funcionando.
+ *
+ * A versão anterior do site continua acessível na rota /classica.
  */
 
-function Nuvem({
-  top,
-  largura,
-  duracao,
-  atraso,
-  opacidade = 0.9,
-}: {
-  top: string;
-  largura: number;
-  duracao: string;
-  atraso: string;
-  opacidade?: number;
-}) {
-  return (
-    <div
-      className="nuvem"
-      style={{
-        top,
-        width: largura,
-        height: largura * 0.32,
-        animationDuration: duracao,
-        animationDelay: atraso,
-        opacity: opacidade,
-      }}
-      aria-hidden
-    />
-  );
-}
-
 export default function Home() {
-  const navigate = useNavigate();
   const { products, loading } = useProducts();
-  const vitrineRef = useRef<HTMLElement>(null);
-  const topoRef = useRef<HTMLElement>(null);
+  const mapaRef = useRef<HTMLDivElement>(null);
+  const vitrineRef = useRef<HTMLDivElement>(null);
+  const sobreRef = useRef<HTMLDivElement>(null);
   const [selecao, setSelecao] = useState<{ nome: string; es: boolean } | null>(
     null
   );
+  const [imgCarregada, setImgCarregada] = useState(false);
 
   const reduzMovimento =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  const irAte = (
+    ref: React.RefObject<HTMLDivElement>,
+    instantaneo = false
+  ) => {
+    ref.current?.scrollIntoView({
+      behavior: instantaneo || reduzMovimento ? "auto" : "smooth",
+      block: "center",
+    });
+  };
+
+  // O site ABRE na base (mapa): rola até lá assim que a foto define a altura
+  useEffect(() => {
+    if (!imgCarregada) return;
+    mapaRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [imgCarregada]);
+
   const aoEscolherEstado = (nome: string, es: boolean) => {
     setSelecao({ nome, es });
-    vitrineRef.current?.scrollIntoView({
-      behavior: reduzMovimento ? "auto" : "smooth",
-    });
+    irAte(vitrineRef); // decola: sobe até a vitrine
   };
 
   const mostrarProdutos = !selecao || selecao.es;
 
   return (
-    <main className="overflow-x-clip">
+    <main>
       <DemoBanner />
 
-      {/* ============ SEÇÃO 1 · CÉU ============ */}
-      <section
-        ref={topoRef}
-        className="relative min-h-screen"
-        style={{
-          background: "linear-gradient(180deg, #7FC4E8 0%, #C7E5F4 100%)",
-        }}
-      >
-        {/* nuvens à deriva */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <Nuvem top="8%" largura={180} duracao="70s" atraso="-10s" />
-          <Nuvem top="18%" largura={120} duracao="55s" atraso="-30s" opacidade={0.75} />
-          <Nuvem top="30%" largura={220} duracao="90s" atraso="-50s" />
-          <Nuvem top="55%" largura={140} duracao="65s" atraso="-20s" opacidade={0.7} />
-          <Nuvem top="70%" largura={190} duracao="80s" atraso="-60s" opacidade={0.8} />
-        </div>
+      {/* PALCO: foto panorâmica de fundo, conteúdo sobreposto por altura */}
+      <div className="relative" style={{ height: "max(300vh, 225vw)" }}>
+        <img
+          src="/panorama.jpg"
+          alt=""
+          aria-hidden
+          onLoad={() => setImgCarregada(true)}
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        {/* leve escurecida geral para contraste dos cartões */}
+        <div className="absolute inset-0 bg-tinta/10" />
 
-        <div className="relative mx-auto max-w-5xl px-4 pb-10 pt-14 text-center sm:pt-20">
-          <h1 className="text-4xl leading-[1.05] text-tinta sm:text-6xl md:text-7xl">
-            CAMISAS QUE <span className="text-magenta">CONTAM</span>
-            <br />A SUA <span className="text-white drop-shadow-[0_2px_6px_rgba(0,90,140,0.45)]">
-              MARCA
-            </span>
-            <span className="text-amarelo">.</span>
-          </h1>
-          <p className="mx-auto mt-5 max-w-md text-tinta/80">
-            Estamos começando pelo Espírito Santo.{" "}
-            <span className="font-semibold text-tinta">
-              Clique no seu estado para descer até os modelos.
-            </span>
-          </p>
+        {/* ============ TOPO · QUEM SOMOS (céu e montanha) ============ */}
+        <div
+          ref={sobreRef}
+          className="absolute left-1/2 top-[6%] w-full max-w-2xl -translate-x-1/2 px-4"
+        >
+          <div className="rounded-3xl bg-white/85 p-8 shadow-xl backdrop-blur-md sm:p-10">
+            <h2 className="text-3xl sm:text-4xl">
+              Quem somos
+              <span className="mt-3 block h-2 w-28 rounded-full bg-ciano" />
+            </h2>
+            {/* ⚠️ TEXTO PROVISÓRIO — A DEFINIR pelo dono do site */}
+            <p className="mt-5 text-tinta/80">
+              Somos uma estamparia capixaba que transforma a identidade da sua
+              empresa em camisas de qualidade. Cada peça é produzida no
+              Espírito Santo, com arte revisada uma a uma pela nossa equipe
+              antes de ir para a máquina.
+            </p>
+            <p className="mt-3 text-tinta/80">
+              Começamos pelo ES — e, como a estrada aí embaixo sugere, estamos
+              a caminho de todo o Brasil.
+            </p>
 
-          {/* mapa flutuando entre as nuvens */}
-          <div className="mt-8 rounded-3xl bg-white/60 p-3 shadow-xl backdrop-blur-sm sm:p-5">
-            <BrazilMap onSelectState={aoEscolherEstado} />
+            <div className="mt-7 grid gap-3 text-sm sm:grid-cols-2">
+              {/* ⚠️ CONTATOS PROVISÓRIOS — A DEFINIR */}
+              <div className="rounded-xl bg-papel2 p-4">
+                <p className="font-semibold">Contato</p>
+                <p className="mt-1 text-tinta/70">contato@exemplo.com.br</p>
+              </div>
+              <div className="rounded-xl bg-papel2 p-4">
+                <p className="font-semibold">Onde estamos</p>
+                <p className="mt-1 text-tinta/70">Espírito Santo, Brasil</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-tinta/50">
+              <span>
+                Política de trocas (em breve) · Termos (em breve) · Privacidade
+                (em breve)
+              </span>
+              <Link to="/admin" className="hover:text-tinta">
+                Admin
+              </Link>
+            </div>
           </div>
 
-          <p className="mt-6 animate-bounce text-2xl text-tinta/50" aria-hidden>
-            ↓
-          </p>
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => irAte(vitrineRef)}
+              className="rounded-full bg-tinta/70 px-5 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-tinta"
+            >
+              ↓ Descer até os modelos
+            </button>
+          </div>
         </div>
-      </section>
 
-      {/* ============ SEÇÃO 2 · ESTRADA (vitrine) ============ */}
-      <section ref={vitrineRef} className="relative min-h-screen scroll-mt-4">
-        {/* paisagem: céu → horizonte → estrada em perspectiva */}
-        <svg
-          className="absolute inset-0 h-full w-full"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          aria-hidden
+        {/* ============ MEIO · VITRINE (sobre o carro) ============ */}
+        <div
+          ref={vitrineRef}
+          className="absolute left-1/2 top-[47%] w-full max-w-5xl -translate-x-1/2 px-4"
         >
-          <defs>
-            <linearGradient id="ceu2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C7E5F4" />
-              <stop offset="100%" stopColor="#EAF6FC" />
-            </linearGradient>
-            <linearGradient id="campo" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#A8D48F" />
-              <stop offset="100%" stopColor="#7FB86B" />
-            </linearGradient>
-            <linearGradient id="pista" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4A4756" />
-              <stop offset="100%" stopColor="#2E2B38" />
-            </linearGradient>
-          </defs>
-
-          {/* céu até o horizonte */}
-          <rect x="0" y="0" width="100" height="38" fill="url(#ceu2)" />
-          {/* brilho do horizonte */}
-          <rect x="0" y="37.2" width="100" height="1.6" fill="#FFFFFF" opacity="0.55" />
-          {/* campo */}
-          <rect x="0" y="38" width="100" height="62" fill="url(#campo)" />
-          {/* estrada em perspectiva */}
-          <polygon points="47.5,38 52.5,38 88,100 12,100" fill="url(#pista)" />
-          {/* acostamento (linhas brancas das bordas) */}
-          <polygon points="47.5,38 48.1,38 14.5,100 12,100" fill="#FBFAF6" opacity="0.8" />
-          <polygon points="51.9,38 52.5,38 88,100 85.5,100" fill="#FBFAF6" opacity="0.8" />
-          {/* faixa central tracejada (amarela, afinando no horizonte) */}
-          <polygon points="49.8,42 50.2,42 50.25,49 49.75,49" fill="#FFC400" />
-          <polygon points="49.6,55 50.4,55 50.5,64 49.5,64" fill="#FFC400" />
-          <polygon points="49.3,70 50.7,70 50.9,81 49.1,81" fill="#FFC400" />
-          <polygon points="48.9,87 51.1,87 51.4,100 48.6,100" fill="#FFC400" />
-        </svg>
-
-        <div className="relative mx-auto max-w-5xl px-4 pb-24 pt-16">
           {mostrarProdutos ? (
             <>
-              <h2 className="text-center text-3xl text-tinta sm:text-5xl">
+              <h2 className="text-center text-3xl text-white drop-shadow-[0_2px_10px_rgba(23,18,31,0.8)] sm:text-5xl">
                 {selecao?.es ? (
                   <>
-                    Bem-vindo, <span className="text-magenta">Espírito Santo</span>!
+                    Bem-vindo,{" "}
+                    <span className="text-amarelo">Espírito Santo</span>!
                   </>
                 ) : (
                   "Escolha o modelo"
                 )}
               </h2>
-              <p className="mt-2 text-center text-tinta/70">
+              <p className="mt-2 text-center font-medium text-white/90 drop-shadow">
                 Tamanho único · Área de estampa horizontal de 49×30cm
               </p>
 
-              <div className="mt-10">
+              <div className="mt-8">
                 {loading ? (
                   <div className="flex justify-center">
-                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-white border-t-magenta" />
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/40 border-t-magenta" />
                   </div>
                 ) : reduzMovimento ? (
-                  /* grade estática para quem reduz movimento */
                   <div className="grid gap-6 md:grid-cols-3">
                     {products.map((p) => {
                       const esgotado = p.estoque === 0;
@@ -191,11 +168,17 @@ export default function Home() {
                           onClick={(e) => esgotado && e.preventDefault()}
                           className={`card block p-4 ${esgotado ? "cursor-not-allowed opacity-60" : "hover:-translate-y-1 hover:shadow-lg"}`}
                         >
-                          <ShirtPreview corBase={p.cor_base} fraseFixa={p.frase_fixa} compacto />
+                          <ShirtPreview
+                            corBase={p.cor_base}
+                            fraseFixa={p.frase_fixa}
+                            compacto
+                          />
                           <div className="mt-3 flex items-center justify-between gap-2">
                             <div>
                               <p className="font-display font-bold">{p.nome}</p>
-                              <p className="font-bold">{formatarPreco(p.preco)}</p>
+                              <p className="font-bold">
+                                {formatarPreco(p.preco)}
+                              </p>
                             </div>
                             <EstoqueBadge estoque={p.estoque} />
                           </div>
@@ -204,13 +187,11 @@ export default function Home() {
                     })}
                   </div>
                 ) : (
-                  /* vitrine orbital pousada sobre a estrada */
                   <ProductOrbit products={products} />
                 )}
               </div>
             </>
           ) : (
-            /* estado ≠ ES: "Em breve" na própria página */
             <div className="mx-auto max-w-lg rounded-3xl bg-white/90 p-10 text-center shadow-xl backdrop-blur">
               <h2 className="text-3xl sm:text-4xl">
                 Em breve em {selecao?.nome}!
@@ -222,88 +203,68 @@ export default function Home() {
               </p>
               <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
                 <button
-                  onClick={() =>
-                    topoRef.current?.scrollIntoView({
-                      behavior: reduzMovimento ? "auto" : "smooth",
-                    })
-                  }
+                  onClick={() => irAte(mapaRef)}
                   className="btn-secondary"
                 >
                   Escolher outro estado
                 </button>
-                <button
-                  onClick={() => setSelecao(null)}
-                  className="btn-primary"
-                >
+                <button onClick={() => setSelecao(null)} className="btn-primary">
                   Ver os modelos mesmo assim
                 </button>
               </div>
             </div>
           )}
-        </div>
-      </section>
 
-      {/* ============ SEÇÃO 3 · ASFALTO (base) ============ */}
-      <section
-        className="relative"
-        style={{
-          backgroundColor: "#2B2933",
-          backgroundImage:
-            "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)",
-          backgroundSize: "18px 18px, 31px 31px",
-          backgroundPosition: "0 0, 9px 12px",
-        }}
+          <div className="mt-5 flex justify-center">
+            <button
+              onClick={() => irAte(sobreRef)}
+              className="rounded-full bg-tinta/70 px-5 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-tinta"
+            >
+              ↑ Subir: quem somos
+            </button>
+          </div>
+        </div>
+
+        {/* ============ BASE · MAPA (asfalto) — o site abre aqui ============ */}
+        <div
+          ref={mapaRef}
+          className="absolute bottom-[1.5%] left-1/2 w-full max-w-3xl -translate-x-1/2 px-4"
+        >
+          <h1 className="text-center text-3xl leading-[1.05] text-white drop-shadow-[0_3px_12px_rgba(23,18,31,0.85)] sm:text-5xl">
+            CAMISAS QUE <span className="text-magenta">CONTAM</span> A SUA{" "}
+            <span className="text-amarelo">MARCA.</span>
+          </h1>
+          <p className="mt-3 text-center font-medium text-white/90 drop-shadow">
+            Clique no seu estado — e decole até os modelos. 🛫
+          </p>
+
+          <div className="mt-5 rounded-3xl bg-white/75 p-3 shadow-2xl backdrop-blur-md sm:p-5">
+            <BrazilMap onSelectState={aoEscolherEstado} />
+          </div>
+        </div>
+      </div>
+
+      {/* NAVEGAÇÃO FIXA (as 3 alturas) */}
+      <nav
+        className="fixed right-3 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-2"
+        aria-label="Navegar entre as seções"
       >
-        {/* faixa dupla amarela — divisa da pista */}
-        <div className="h-1.5 w-full bg-amarelo" />
-        <div className="mt-1 h-1.5 w-full bg-amarelo/70" />
-
-        <div className="mx-auto grid max-w-5xl gap-5 px-4 pb-10 pt-12 md:grid-cols-2">
+        {[
+          { rotulo: "Quem somos", ref: sobreRef, icone: "☁️" },
+          { rotulo: "Modelos", ref: vitrineRef, icone: "👕" },
+          { rotulo: "Mapa", ref: mapaRef, icone: "🗺️" },
+        ].map((s) => (
           <button
-            onClick={() =>
-              vitrineRef.current?.scrollIntoView({
-                behavior: reduzMovimento ? "auto" : "smooth",
-              })
-            }
-            className="group rounded-2xl bg-magenta p-7 text-left text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-xl"
+            key={s.rotulo}
+            onClick={() => irAte(s.ref)}
+            title={s.rotulo}
+            aria-label={`Ir para ${s.rotulo}`}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-tinta/60 text-base backdrop-blur transition hover:scale-110 hover:bg-tinta"
           >
-            <p className="text-xs font-bold uppercase tracking-widest opacity-80">
-              Caminho 1
-            </p>
-            <h2 className="mt-1 text-3xl">Empresarial</h2>
-            <p className="mt-2 text-sm opacity-90">
-              Camisas para sua empresa. Você está aqui — suba até a vitrine e
-              escolha um modelo.
-            </p>
-            <span className="mt-4 inline-block text-sm font-semibold underline-offset-4 group-hover:underline">
-              Ver modelos ↑
-            </span>
+            {s.icone}
           </button>
-
-          <button
-            onClick={() => navigate("/em-breve", { state: { origem: "individual" } })}
-            className="group relative rounded-2xl border-2 border-ciano bg-white p-7 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-          >
-            <span className="absolute right-5 top-5 rounded-full bg-amarelo px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-tinta">
-              Em breve
-            </span>
-            <p className="text-xs font-bold uppercase tracking-widest text-ciano">
-              Caminho 2
-            </p>
-            <h2 className="mt-1 text-3xl text-tinta">Individual</h2>
-            <p className="mt-2 text-sm text-tinta/70">
-              Compre uma camisa avulsa para você. Em construção.
-            </p>
-          </button>
-        </div>
-
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 pb-8 text-xs text-white/40">
-          <span>camisas.es — feito no Espírito Santo</span>
-          <Link to="/admin" className="hover:text-white/80">
-            Admin
-          </Link>
-        </div>
-      </section>
+        ))}
+      </nav>
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
+import HomeClassica from "./pages/HomeClassica";
 import EmBreve from "./pages/EmBreve";
 import Produtos from "./pages/Produtos";
 import ProdutoDetalhe from "./pages/ProdutoDetalhe";
@@ -12,6 +13,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        {/* Cópia de segurança da versão anterior do site */}
+        <Route path="/classica" element={<HomeClassica />} />
         <Route path="/em-breve" element={<EmBreve />} />
         <Route path="/produtos" element={<Produtos />} />
         <Route path="/produto/:slug" element={<ProdutoDetalhe />} />
