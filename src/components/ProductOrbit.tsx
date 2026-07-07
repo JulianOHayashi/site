@@ -6,14 +6,35 @@ import { formatarPreco } from "../lib/format";
 import type { Product } from "../types";
 
 /**
- * Vitrine orbital: as camisas giram continuamente em círculo.
- * - A camisa da frente fica maior, nítida e clicável (vai para o detalhe).
- * - Clicar em uma camisa do fundo a traz suavemente para a frente.
- * - Passa o mouse por cima → a órbita pausa. Setas ‹ › giram manualmente.
- * - Com "reduzir movimento" ativo no sistema, a página usa a grade estática.
+ * Vitrine orbital — inspirada no efeito "World Orbit":
+ * palco escuro estrelado, planeta com brilho no horizonte e os cards
+ * das camisas orbitando em arco por cima dele.
+ *
+ * - Giro contínuo e suave; o card da frente fica maior e clicável.
+ * - Cards laterais recuam, descem pelo arco e inclinam levemente.
+ * - Mouse sobre o palco pausa a órbita. Setas ‹ › giram manualmente.
+ * - Clicar num card lateral o traz para a frente.
  */
 
-const VELOCIDADE = 14; // graus por segundo (volta completa em ~26s)
+const VELOCIDADE = 12; // graus/segundo (volta completa em 30s)
+const ARCO_Y = 34; // quanto os cards descem nas laterais (px por unidade)
+const INCLINACAO = 13; // inclinação máxima dos cards laterais (graus)
+
+/** Estrelas com posições determinísticas (sem aleatório a cada render). */
+const ESTRELAS = Array.from({ length: 42 }, (_, i) => ({
+  left: `${(i * 37) % 100}%`,
+  top: `${(i * 53) % 62}%`,
+  size: 1 + ((i * 7) % 3),
+  cor:
+    i % 9 === 0
+      ? "#E5007E"
+      : i % 7 === 0
+        ? "#00A8E0"
+        : i % 5 === 0
+          ? "#FFC400"
+          : "#FBFAF6",
+  pisca: i % 4 === 0,
+}));
 
 interface Props {
   products: Product[];
@@ -31,18 +52,18 @@ export default function ProductOrbit({ products }: Props) {
   const [, forceRender] = useState(0);
   const [raio, setRaio] = useState(260);
 
-  // Raio responsivo conforme a largura disponível
+  // Raio responsivo conforme a largura do palco
   useEffect(() => {
     const medir = () => {
       const w = palcoRef.current?.clientWidth ?? 900;
-      setRaio(Math.max(120, Math.min(300, w / 2 - 160)));
+      setRaio(Math.max(120, Math.min(300, w / 2 - 150)));
     };
     medir();
     window.addEventListener("resize", medir);
     return () => window.removeEventListener("resize", medir);
   }, []);
 
-  // Loop de animação
+  // Loop da órbita
   useEffect(() => {
     let raf = 0;
     let ultimo = performance.now();
@@ -60,7 +81,7 @@ export default function ProductOrbit({ products }: Props) {
           a = alvo;
           alvoRef.current = null;
         } else {
-          a += diff * Math.min(1, dt * 6); // easing suave até o alvo
+          a += diff * Math.min(1, dt * 6); // easing até o alvo
         }
       } else if (!pausadoRef.current) {
         a += dt * VELOCIDADE; // órbita contínua
@@ -75,11 +96,11 @@ export default function ProductOrbit({ products }: Props) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  /** Traz o item i para a frente com animação. */
+  /** Traz o item i para a frente pelo caminho mais curto. */
   const trazerParaFrente = (i: number) => {
     const atual = anguloRef.current;
     let alvo = -passo * i;
-    alvo += Math.round((atual - alvo) / 360) * 360; // caminho mais curto
+    alvo += Math.round((atual - alvo) / 360) * 360;
     alvoRef.current = alvo;
   };
 
@@ -92,22 +113,62 @@ export default function ProductOrbit({ products }: Props) {
   const angulo = anguloRef.current;
 
   return (
-    <div className="relative">
-      {/* PALCO */}
+    <div>
+      {/* PALCO ESPACIAL */}
       <div
         ref={palcoRef}
-        className="relative mx-auto h-[420px] max-w-4xl sm:h-[460px]"
+        className="relative mx-auto h-[440px] max-w-4xl overflow-hidden rounded-3xl bg-tinta sm:h-[480px]"
         onMouseEnter={() => (pausadoRef.current = true)}
         onMouseLeave={() => (pausadoRef.current = false)}
         role="region"
         aria-label="Vitrine giratória de modelos de camisa"
       >
+        {/* céu com leve gradiente */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(120% 90% at 50% 0%, rgba(0,168,224,0.10) 0%, rgba(229,0,126,0.06) 45%, transparent 70%)",
+          }}
+        />
+
+        {/* estrelas */}
+        {ESTRELAS.map((e, i) => (
+          <span
+            key={i}
+            className={`pointer-events-none absolute rounded-full ${e.pisca ? "animate-pulse" : ""}`}
+            style={{
+              left: e.left,
+              top: e.top,
+              width: e.size,
+              height: e.size,
+              backgroundColor: e.cor,
+              opacity: 0.8,
+            }}
+          />
+        ))}
+
+        {/* planeta no horizonte, com brilho magenta/ciano */}
+        <div
+          className="pointer-events-none absolute left-1/2 top-[76%] aspect-square w-[170%] -translate-x-1/2 rounded-full"
+          style={{
+            background:
+              "radial-gradient(closest-side, #241C33 0%, #1D1628 55%, #17121F 100%)",
+            boxShadow:
+              "0 -18px 70px rgba(229,0,126,0.35), 0 -6px 28px rgba(0,168,224,0.35), inset 0 24px 60px rgba(251,250,246,0.05)",
+          }}
+        />
+
+        {/* CARDS EM ÓRBITA */}
         {products.map((p, i) => {
           const rad = ((angulo + passo * i) * Math.PI) / 180;
-          const x = Math.sin(rad) * raio;
-          const profundidade = (Math.cos(rad) + 1) / 2; // 0 (fundo) → 1 (frente)
-          const escala = 0.68 + 0.32 * profundidade;
-          const opacidade = 0.4 + 0.6 * profundidade;
+          const seno = Math.sin(rad);
+          const profundidade = (Math.cos(rad) + 1) / 2; // 0 fundo → 1 frente
+          const x = seno * raio;
+          const y = (1 - Math.cos(rad)) * ARCO_Y; // desce pelo arco nas laterais
+          const inclinacao = seno * INCLINACAO; // inclina acompanhando a curva
+          const escala = 0.64 + 0.36 * profundidade;
+          const opacidade = 0.38 + 0.62 * profundidade;
           const naFrente = profundidade > 0.88;
           const esgotado = p.estoque === 0;
 
@@ -125,23 +186,23 @@ export default function ProductOrbit({ products }: Props) {
                     : `Ver detalhes de ${p.nome}`
                   : `Trazer ${p.nome} para a frente`
               }
-              className={`absolute left-1/2 top-1/2 w-[240px] text-left sm:w-[300px] ${
-                naFrente && !esgotado ? "cursor-pointer" : "cursor-pointer"
-              }`}
+              className="absolute left-1/2 top-[42%] w-[230px] cursor-pointer text-left sm:w-[290px]"
               style={{
-                transform: `translate(-50%, -50%) translateX(${x}px) scale(${escala})`,
+                transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${inclinacao}deg) scale(${escala})`,
                 opacity: esgotado ? opacidade * 0.7 : opacidade,
                 zIndex: Math.round(profundidade * 100),
-                transition: "box-shadow 200ms",
                 willChange: "transform, opacity",
               }}
             >
               <div
-                className={`card p-3 sm:p-4 ${
-                  naFrente
-                    ? "border-2 border-magenta shadow-xl"
-                    : "border border-borda"
+                className={`rounded-2xl bg-white p-3 sm:p-4 ${
+                  naFrente ? "ring-2 ring-magenta" : ""
                 }`}
+                style={{
+                  boxShadow: naFrente
+                    ? "0 10px 50px rgba(229,0,126,0.45)"
+                    : "0 8px 30px rgba(0,0,0,0.45)",
+                }}
               >
                 <ShirtPreview
                   corBase={p.cor_base}
@@ -171,7 +232,7 @@ export default function ProductOrbit({ products }: Props) {
       </div>
 
       {/* CONTROLES */}
-      <div className="mt-2 flex items-center justify-center gap-4">
+      <div className="mt-4 flex items-center justify-center gap-4">
         <button
           onClick={() => girar(-1)}
           aria-label="Girar para o modelo anterior"
