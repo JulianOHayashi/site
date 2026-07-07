@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "../components/Header";
 import DemoBanner from "../components/DemoBanner";
 import ShirtPreview from "../components/ShirtPreview";
 import EstoqueBadge from "../components/EstoqueBadge";
+import ProductOrbit from "../components/ProductOrbit";
 import { useProducts } from "../hooks/useProducts";
 import { formatarPreco } from "../lib/format";
 
@@ -14,14 +16,26 @@ const TINTAS = [
 
 export default function Produtos() {
   const { products, loading } = useProducts();
+  const [reduzMovimento, setReduzMovimento] = useState(false);
+
+  // Quem prefere menos movimento (config do sistema) vê a grade estática.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduzMovimento(mq.matches);
+    const ouvir = (e: MediaQueryListEvent) => setReduzMovimento(e.matches);
+    mq.addEventListener("change", ouvir);
+    return () => mq.removeEventListener("change", ouvir);
+  }, []);
+
+  const usarOrbita = !reduzMovimento && products.length > 1;
 
   return (
     <>
       <Header />
       <DemoBanner />
       <main className="mx-auto max-w-6xl px-4 pb-20 pt-10">
-        <h1 className="text-3xl sm:text-5xl">Escolha o modelo</h1>
-        <p className="mt-2 text-tinta/70">
+        <h1 className="text-center text-3xl sm:text-5xl">Escolha o modelo</h1>
+        <p className="mt-2 text-center text-tinta/70">
           Tamanho único · Área de estampa horizontal de 49×30cm
         </p>
 
@@ -29,7 +43,12 @@ export default function Produtos() {
           <div className="mt-16 flex justify-center">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-papel2 border-t-magenta" />
           </div>
+        ) : usarOrbita ? (
+          <div className="mt-6">
+            <ProductOrbit products={products} />
+          </div>
         ) : (
+          /* GRADE ESTÁTICA — fallback para reduzir movimento ou 1 produto só */
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {products.map((p, i) => {
               const esgotado = p.estoque === 0;
