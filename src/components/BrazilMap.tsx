@@ -244,6 +244,32 @@ export default function BrazilMap({
           role="group"
         >
           <defs>
+            {/* BANDEIRA DO BRASIL cobrindo o mapa inteiro (contínua entre
+                os estados). Reserva em gradiente verde/amarelo caso a
+                imagem não carregue. */}
+            <linearGradient id="brasil-reserva" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#009739" />
+              <stop offset="45%" stopColor="#FEDD00" />
+              <stop offset="55%" stopColor="#FEDD00" />
+              <stop offset="100%" stopColor="#009739" />
+            </linearGradient>
+            <pattern
+              id="bandeira-brasil"
+              patternUnits="userSpaceOnUse"
+              x="0"
+              y="0"
+              width={LARGURA}
+              height={ALTURA}
+            >
+              <image
+                href={`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(
+                  "Flag_of_Brazil.svg"
+                )}?width=1200`}
+                width={LARGURA}
+                height={ALTURA}
+                preserveAspectRatio="xMidYMid slice"
+              />
+            </pattern>
             {features.map((f, i) => {
               const nomeN = normalizar(nomeDoEstado(f));
               const cores = CORES_BANDEIRA[nomeN] ?? [TINTAS[i % 3]];
@@ -293,16 +319,22 @@ export default function BrazilMap({
 
             return (
               <g key={nome || i}>
-                {/* camada base: translúcida mostrando o terreno; no hover,
-                    vira as faixas de cor (reserva por baixo da bandeira) */}
+                {/* reserva verde/amarela por baixo (aparece se a imagem
+                    da bandeira do Brasil falhar) */}
+                {!ativo && (
+                  <path d={d} fill="url(#brasil-reserva)" pointerEvents="none" />
+                )}
+                {/* camada principal: bandeira do Brasil contínua no mapa;
+                    no hover, vira as faixas do estado (reserva da bandeira
+                    estadual) */}
                 <path
                   d={d}
                   fill={
-                    ativo ? `url(#faixas-${i})` : "rgba(251,250,246,0.22)"
+                    ativo ? `url(#faixas-${i})` : "url(#bandeira-brasil)"
                   }
                   stroke="#FBFAF6"
                   strokeWidth={ativo ? 1.6 : 0.9}
-                  style={{ cursor: "pointer", transition: "fill 150ms" }}
+                  style={{ cursor: "pointer", transition: "stroke-width 150ms" }}
                   tabIndex={0}
                   role="button"
                   aria-label={`${nome}${nomeN === ES ? "" : " — em breve"}`}
