@@ -205,6 +205,7 @@ export default function Home() {
             <button onClick={() => irAte(solucoesRef)} className="hover:text-magenta">Soluções</button>
             <button onClick={() => irAte(timeRef)} className="hover:text-magenta">Quem somos</button>
             <button onClick={() => irAte(faqRef)} className="hover:text-magenta">FAQ</button>
+            <Link to="/parceiros" className="hover:text-magenta">Parceiros</Link>
           </nav>
           <button
             onClick={() => irAte(contatoRef)}
@@ -530,7 +531,10 @@ export default function Home() {
             </div>
             <div className="text-sm text-papel/60">
               <p className="font-semibold text-papel">Institucional</p>
-              <p className="mt-2">Termos de uso (em breve)</p>
+              <p className="mt-2">
+                <Link to="/parceiros" className="hover:text-papel">Área de parceiros</Link>
+              </p>
+              <p>Termos de uso (em breve)</p>
               <p>Privacidade (em breve)</p>
               <Link to="/admin" className="hover:text-papel">Admin</Link>
             </div>
