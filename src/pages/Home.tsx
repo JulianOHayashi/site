@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BrazilMap from "../components/BrazilMap";
 import DemoBanner from "../components/DemoBanner";
+import ScrollTilt from "../components/ScrollTilt";
 
 /**
  * HOME — formato "agência moderna" (referência: spun.com.br),
@@ -218,30 +219,40 @@ export default function Home() {
 
       {/* ===== 1 · HERO DE DECLARAÇÃO ===== */}
       <section className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:pt-28">
-        <Revelar>
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
-            Espírito Santo → Brasil
-          </p>
-          <h1 className="mt-5 text-5xl leading-[0.98] sm:text-7xl md:text-8xl">
-            IDENTIDADE
-            <br />
-            <span className="text-magenta">→</span> EM MOVIMENTO
-            <span className="text-amarelo">.</span>
-          </h1>
-          {/* ⚠️ SUBTÍTULO PROVISÓRIO — A DEFINIR */}
-          <p className="mt-7 max-w-xl text-lg text-tinta/70">
-            Vestimos marcas e movemos mensagens: da estampa que a sua empresa
-            usa ao anúncio que o Brasil inteiro vê.
-          </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <button onClick={() => irAte(solucoesRef)} className="btn-primary">
-              Para empresas
-            </button>
-            <button onClick={() => irAte(solucoesRef)} className="btn-secondary">
-              Para anunciantes
-            </button>
-          </div>
-        </Revelar>
+        <p className="entrar inline-flex items-center gap-2 rounded-full border border-borda bg-white/70 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.3em] text-magenta backdrop-blur">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-magenta" />
+          Espírito Santo → Brasil
+        </p>
+        <h1 className="entrar entrar-2 mt-6 text-5xl leading-[0.98] sm:text-7xl md:text-8xl">
+          IDENTIDADE
+          <br />
+          <span className="text-magenta">→</span> EM{" "}
+          <span className="relative inline-block">
+            MOVIMENTO
+            <span className="absolute -bottom-1 left-0 -z-10 h-4 w-full -rotate-1 rounded bg-amarelo/70 sm:h-6" />
+          </span>
+        </h1>
+        {/* ⚠️ SUBTÍTULO PROVISÓRIO — A DEFINIR */}
+        <p className="entrar entrar-3 mt-7 max-w-xl text-lg text-tinta/70">
+          Vestimos marcas e movemos mensagens: da estampa que a sua empresa
+          usa ao anúncio que o Brasil inteiro vê.
+        </p>
+        <div className="entrar entrar-4 mt-9 flex flex-wrap gap-3">
+          <button
+            onClick={() => irAte(solucoesRef)}
+            className="btn-primary group"
+          >
+            Para empresas{" "}
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+          <button
+            onClick={() => irAte(solucoesRef)}
+            className="btn-secondary group"
+          >
+            Para anunciantes{" "}
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+        </div>
       </section>
 
       {/* ===== 2 · LETREIRO EM MOVIMENTO ===== */}
@@ -265,8 +276,21 @@ export default function Home() {
           </p>
         </Revelar>
         <Revelar atraso={150}>
-          <div className="mx-auto mt-10 max-w-2xl">
-            <BrazilMap onSelectState={aoEscolherEstado} />
+          <div className="mx-auto mt-12 max-w-3xl">
+            <ScrollTilt>
+              {/* moldura de "tela" onde o mapa pousa em 3D */}
+              <div className="rounded-[2rem] border-2 border-tinta bg-white p-3 shadow-[0_30px_80px_rgba(23,18,31,0.25)] sm:p-5">
+                <div className="mb-3 flex items-center gap-1.5 px-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-magenta" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amarelo" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-ciano" />
+                  <span className="ml-3 text-[10px] font-semibold uppercase tracking-widest text-tinta/30">
+                    brasil.mapa
+                  </span>
+                </div>
+                <BrazilMap onSelectState={aoEscolherEstado} />
+              </div>
+            </ScrollTilt>
           </div>
         </Revelar>
       </section>
@@ -342,7 +366,7 @@ export default function Home() {
         </Revelar>
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           <Revelar>
-            <article className="group flex h-full flex-col rounded-3xl bg-magenta p-9 text-white shadow-lg transition hover:-translate-y-1 hover:shadow-2xl">
+            <article className="group flex h-full flex-col rounded-3xl bg-magenta p-9 text-white shadow-lg transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(229,0,126,0.45)]">
               <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-80">Para empresas</p>
               <h3 className="mt-3 text-3xl sm:text-4xl">Sua marca, vestida.</h3>
               {/* ⚠️ TEXTO PROVISÓRIO — A DEFINIR */}
@@ -365,7 +389,7 @@ export default function Home() {
             </article>
           </Revelar>
           <Revelar atraso={150}>
-            <article className="group flex h-full flex-col rounded-3xl border-2 border-tinta bg-tinta p-9 text-papel shadow-lg transition hover:-translate-y-1 hover:shadow-2xl">
+            <article className="group flex h-full flex-col rounded-3xl border-2 border-tinta bg-tinta p-9 text-papel shadow-lg transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(0,168,224,0.4)]">
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-ciano">Para anunciantes</p>
               <h3 className="mt-3 text-3xl sm:text-4xl">Sua mensagem, em movimento.</h3>
               {/* ⚠️ TEXTO PROVISÓRIO — A DEFINIR (modelo de anúncios) */}
@@ -496,7 +520,14 @@ export default function Home() {
       </section>
 
       {/* ===== 10 · CTA FINAL ===== */}
-      <section ref={contatoRef} className="relative scroll-mt-24 border-t-2 border-tinta bg-tinta py-24 text-center text-papel">
+      <section ref={contatoRef} className="relative scroll-mt-24 overflow-hidden border-t-2 border-tinta bg-tinta py-24 text-center text-papel">
+        {/* palavra gigante de contorno ao fundo */}
+        <span
+          aria-hidden
+          className="texto-contorno pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 whitespace-nowrap font-display text-[22vw] font-bold leading-none"
+        >
+          MOVIMENTO
+        </span>
         <Revelar>
           <h2 className="mx-auto max-w-3xl px-4 text-4xl leading-[1.02] sm:text-6xl">
             VAMOS COLOCAR A SUA MARCA{" "}

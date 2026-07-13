@@ -1,43 +1,34 @@
-# Atualização: área de parceiros (login + cadastro + painel)
+# Atualização: polimento visual + efeito 3D da skill Pro Max
 
 ## O que muda
 
-1. NOVA PÁGINA /parceiros — login e cadastro em abas:
-   - Cadastro: nome da empresa + CNPJ (validação real de dígitos)
-     + e-mail + senha. O CNPJ fica vinculado à conta — é ele que
-     liga o parceiro ao desconto fidelidade automaticamente.
-   - Login: e-mail + senha → painel.
-   - Se o projeto Supabase estiver com confirmação de e-mail ligada,
-     o site avisa "confirme seu e-mail" após o cadastro.
+1. HERO — entrada em cascata (badge com pulso → título → subtítulo
+   → botões, um após o outro ao carregar). "MOVIMENTO" ganhou um
+   grifo amarelo de marca-texto inclinado. CTAs com seta que desliza
+   no hover.
 
-2. NOVO PAINEL /parceiros/painel (protegido — exige login):
-   - Saudação com nome da empresa e CNPJ
-   - Status de fidelidade (ativo ou "primeira compra libera")
-   - Histórico de pedidos (cada parceiro vê SÓ os seus — RLS)
-   - Espaços "Materiais do parceiro" (mídia kit, guias de arte)
-     marcados ⚠️ A DEFINIR
-   - Botão sair
+2. MAPA EM 3D — o efeito assinatura da sua skill (ContainerScroll)
+   adaptado para o seu stack SEM dependências novas: o mapa vive
+   dentro de uma "tela" (moldura branca com 3 pontinhos nas cores
+   da marca e rótulo brasil.mapa) que entra INCLINADA em 3D e vai
+   pousando conforme a rolagem. Respeita "reduzir movimento".
 
-3. NAVEGAÇÃO: link "Parceiros" no cabeçalho e no rodapé da home.
+3. BRILHOS DE MARCA — os cards Para empresas / Para anunciantes
+   ganham glow magenta / ciano no hover.
 
-## Pré-requisitos no Supabase (quando conectar)
-- Rodar o supabase/precificacao.sql (cria a tabela profiles usada aqui)
-- Authentication → Providers → Email: habilitado (padrão)
-- Dica para testes: Authentication → Providers → Email →
-  desmarcar "Confirm email" agiliza o cadastro (sem link por e-mail)
+4. CTA FINAL — a palavra gigante "MOVIMENTO" em contorno sutil
+   atravessa o fundo escuro atrás do título.
 
-Em modo demonstração (sem Supabase), a página aparece com os
-formulários desativados e um aviso — nada quebra.
+5. DETALHES DE ACABAMENTO — seleção de texto amarela (marca),
+   barra de rolagem discreta que fica magenta no hover.
 
 ## Arquivos desta atualização
-- src/pages/Parceiros.tsx        → NOVO
-- src/pages/ParceirosPainel.tsx  → NOVO
-- src/hooks/useAuth.ts           → NOVO
-- src/App.tsx                    → SUBSTITUI (rotas novas)
-- src/pages/Home.tsx             → SUBSTITUI (links Parceiros)
+- src/components/ScrollTilt.tsx → NOVO (efeito 3D, zero dependências)
+- src/pages/Home.tsx            → SUBSTITUI
+- src/index.css                 → SUBSTITUI
 
 ## Como aplicar no GitHub (github.com/JulianOHayashi/site)
 1. Add file → Upload files
 2. Arraste a pasta `src`
-3. Confirme os 5 caminhos → Commit changes
+3. Confirme os 3 caminhos → Commit changes
 4. Vercel publica sozinha em ~1 minuto

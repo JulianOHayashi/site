@@ -125,3 +125,51 @@ h3,
     transform: translateX(-50%);
   }
 }
+
+/* ===== Polimento visual ===== */
+
+/* seleção de texto nas cores da marca */
+::selection {
+  background: var(--amarelo);
+  color: var(--tinta);
+}
+
+/* barra de rolagem discreta */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--papel);
+}
+::-webkit-scrollbar-thumb {
+  background: #d8d4c8;
+  border-radius: 8px;
+  border: 2px solid var(--papel);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--magenta);
+}
+
+/* entrada em cascata do hero */
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.entrar {
+  animation: entrar 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.entrar-2 { animation-delay: 0.12s; }
+.entrar-3 { animation-delay: 0.24s; }
+.entrar-4 { animation-delay: 0.36s; }
+
+/* palavra gigante de contorno (CTA final) */
+.texto-contorno {
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(251, 250, 246, 0.07);
+}
