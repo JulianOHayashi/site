@@ -207,6 +207,12 @@ export default function Home() {
             <button onClick={() => irAte(timeRef)} className="hover:text-magenta">Quem somos</button>
             <button onClick={() => irAte(faqRef)} className="hover:text-magenta">FAQ</button>
             <Link to="/parceiros" className="hover:text-magenta">Parceiros</Link>
+            <Link
+              to="/produtos"
+              className="rounded-full bg-amarelo px-4 py-1.5 font-bold text-tinta transition hover:bg-magenta hover:text-white"
+            >
+              Loja 👕
+            </Link>
           </nav>
           <button
             onClick={() => irAte(contatoRef)}
@@ -238,9 +244,13 @@ export default function Home() {
           usa ao anúncio que o Brasil inteiro vê.
         </p>
         <div className="entrar entrar-4 mt-9 flex flex-wrap gap-3">
+          <Link to="/produtos" className="btn-primary group">
+            Comprar camisas{" "}
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </Link>
           <button
             onClick={() => irAte(solucoesRef)}
-            className="btn-primary group"
+            className="btn-secondary group"
           >
             Para empresas{" "}
             <span className="transition-transform group-hover:translate-x-1">→</span>
@@ -305,11 +315,11 @@ export default function Home() {
                   Já estamos no <span className="text-magenta">Espírito Santo</span>! 🎉
                 </h3>
                 <p className="mt-3 text-tinta/70">
-                  É daqui que tudo parte. Fale com a gente e comece agora.
+                  É daqui que tudo parte. Escolha um modelo e comece agora.
                 </p>
-                <button onClick={() => irAte(contatoRef)} className="btn-primary mt-5">
-                  Começar pelo ES
-                </button>
+                <Link to="/produtos" className="btn-primary mt-5">
+                  Ver modelos e comprar →
+                </Link>
               </>
             ) : (
               <>
@@ -379,13 +389,13 @@ export default function Home() {
                 <li>✦ Produção própria e controle de qualidade</li>
                 <li>✦ Do pedido à entrega, sem intermediários</li>
               </ul>
-              <button
-                onClick={() => irAte(contatoRef)}
+              <Link
+                to="/produtos"
                 className="mt-auto w-fit rounded-xl bg-white px-6 py-3 pt-3 font-semibold text-magenta transition group-hover:scale-105"
                 style={{ marginTop: "2rem" }}
               >
                 Quero vestir minha marca →
-              </button>
+              </Link>
             </article>
           </Revelar>
           <Revelar atraso={150}>
