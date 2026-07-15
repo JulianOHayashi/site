@@ -46,10 +46,8 @@ function Revelar({
     }
     const obs = new IntersectionObserver(
       ([e]) => {
-        if (e.isIntersecting) {
-          setVisivel(true);
-          obs.disconnect();
-        }
+        // reanima sempre: aparece ao entrar na tela, esconde ao sair
+        setVisivel(e.isIntersecting);
       },
       { threshold: 0.15 }
     );
@@ -90,24 +88,32 @@ function Contador({
       setValor(ate);
       return;
     }
+    let raf = 0;
     const obs = new IntersectionObserver(
       ([e]) => {
-        if (!e.isIntersecting) return;
-        obs.disconnect();
+        cancelAnimationFrame(raf);
+        if (!e.isIntersecting) {
+          // saiu da tela: zera para recontar na próxima visita
+          setValor(0);
+          return;
+        }
         const inicio = performance.now();
         const dur = 1600;
         const tick = (agora: number) => {
           const t = Math.min(1, (agora - inicio) / dur);
           const suave = 1 - Math.pow(1 - t, 3); // ease-out cúbico
           setValor(Math.round(ate * suave));
-          if (t < 1) requestAnimationFrame(tick);
+          if (t < 1) raf = requestAnimationFrame(tick);
         };
-        requestAnimationFrame(tick);
+        raf = requestAnimationFrame(tick);
       },
       { threshold: 0.5 }
     );
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => {
+      cancelAnimationFrame(raf);
+      obs.disconnect();
+    };
   }, [ate]);
 
   return (
