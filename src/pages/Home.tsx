@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import BrazilMap from "../components/BrazilMap";
 import DemoBanner from "../components/DemoBanner";
+import SiteHeader from "../components/SiteHeader";
 import ScrollTilt from "../components/ScrollTilt";
 
 /**
@@ -201,33 +202,8 @@ export default function Home() {
 
       <DemoBanner />
 
-      {/* ===== CABEÇALHO ===== */}
-      <header className="sticky top-0 z-40 border-b border-borda/60 bg-papel/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link to="/" className="display text-xl">
-            camisas<span className="text-magenta">.</span>es
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium sm:flex">
-            <button onClick={() => irAte(mapaRef)} className="hover:text-magenta">O mapa</button>
-            <button onClick={() => irAte(solucoesRef)} className="hover:text-magenta">Soluções</button>
-            <button onClick={() => irAte(timeRef)} className="hover:text-magenta">Quem somos</button>
-            <button onClick={() => irAte(faqRef)} className="hover:text-magenta">FAQ</button>
-            <Link to="/parceiros" className="hover:text-magenta">Parceiros</Link>
-            <Link
-              to="/produtos"
-              className="rounded-full bg-amarelo px-4 py-1.5 font-bold text-tinta transition hover:bg-magenta hover:text-white"
-            >
-              Loja 👕
-            </Link>
-          </nav>
-          <button
-            onClick={() => irAte(contatoRef)}
-            className="rounded-full bg-tinta px-5 py-2 text-sm font-semibold text-white transition hover:bg-magenta"
-          >
-            Fale conosco
-          </button>
-        </div>
-      </header>
+      {/* ===== CABEÇALHO (navegação moderna compartilhada) ===== */}
+      <SiteHeader />
 
       {/* ===== 1 · HERO DE DECLARAÇÃO ===== */}
       <section className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:pt-28">
@@ -280,7 +256,7 @@ export default function Home() {
       </div>
 
       {/* ===== 3 · MAPA — MOMENTO ASSINATURA ===== */}
-      <section ref={mapaRef} className="relative mx-auto max-w-5xl scroll-mt-24 px-4 pb-10 pt-24 text-center">
+      <section id="mapa" ref={mapaRef} className="relative mx-auto max-w-5xl scroll-mt-24 px-4 pb-10 pt-24 text-center">
         <Revelar>
           <h2 className="text-3xl sm:text-5xl">
             Um Brasil inteiro para a sua marca
@@ -376,7 +352,7 @@ export default function Home() {
       </section>
 
       {/* ===== 5 · DIVISÃO DE PÚBLICOS ===== */}
-      <section ref={solucoesRef} className="relative mx-auto max-w-6xl scroll-mt-24 px-4 py-24">
+      <section id="solucoes" ref={solucoesRef} className="relative mx-auto max-w-6xl scroll-mt-24 px-4 py-24">
         <Revelar>
           <h2 className="text-center text-3xl sm:text-5xl">Dois caminhos, um só movimento</h2>
         </Revelar>
@@ -481,7 +457,7 @@ export default function Home() {
       </section>
 
       {/* ===== 8 · QUEM ESTÁ POR TRÁS ===== */}
-      <section ref={timeRef} className="relative mx-auto max-w-6xl scroll-mt-24 px-4 py-24">
+      <section id="time" ref={timeRef} className="relative mx-auto max-w-6xl scroll-mt-24 px-4 py-24">
         <Revelar>
           <h2 className="text-center text-3xl sm:text-5xl">Quem está por trás</h2>
           <p className="mx-auto mt-3 max-w-md text-center text-tinta/60">
@@ -509,7 +485,7 @@ export default function Home() {
       </section>
 
       {/* ===== 9 · FAQ ===== */}
-      <section ref={faqRef} className="relative mx-auto max-w-3xl scroll-mt-24 px-4 pb-24">
+      <section id="faq" ref={faqRef} className="relative mx-auto max-w-3xl scroll-mt-24 px-4 pb-24">
         <Revelar>
           <h2 className="text-center text-3xl sm:text-5xl">Perguntas frequentes</h2>
         </Revelar>
@@ -536,7 +512,7 @@ export default function Home() {
       </section>
 
       {/* ===== 10 · CTA FINAL ===== */}
-      <section ref={contatoRef} className="relative scroll-mt-24 overflow-hidden border-t-2 border-tinta bg-tinta py-24 text-center text-papel">
+      <section id="contato" ref={contatoRef} className="relative scroll-mt-24 overflow-hidden border-t-2 border-tinta bg-tinta py-24 text-center text-papel">
         {/* palavra gigante de contorno ao fundo */}
         <span
           aria-hidden
