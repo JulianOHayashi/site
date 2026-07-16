@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import HomeClassica from "./pages/HomeClassica";
 import EmBreve from "./pages/EmBreve";
@@ -9,6 +9,10 @@ import Checkout from "./pages/Checkout";
 import Admin from "./pages/Admin";
 import Parceiros from "./pages/Parceiros";
 import ParceirosPainel from "./pages/ParceirosPainel";
+import PortalLogin from "./pages/portal/PortalLogin";
+import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalValidar from "./pages/portal/PortalValidar";
+import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 
 export default function App() {
   return (
@@ -18,14 +22,22 @@ export default function App() {
         {/* Cópia de segurança de versão anterior do site */}
         <Route path="/classica" element={<HomeClassica />} />
         <Route path="/em-breve" element={<EmBreve />} />
+        {/* Comércio do site (Supabase do SITE) */}
         <Route path="/produtos" element={<Produtos />} />
         <Route path="/produto/:slug" element={<ProdutoDetalhe />} />
         <Route path="/personalizar/:slug" element={<Personalizar />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/admin" element={<Admin />} />
-        {/* Área de parceiros (login/cadastro + painel protegido) */}
         <Route path="/parceiros" element={<Parceiros />} />
         <Route path="/parceiros/painel" element={<ParceirosPainel />} />
+        {/* Portal do parceiro BDFlow (APP Supabase — RPC only) */}
+        <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
+        <Route path="/portal/login" element={<PortalLogin />} />
+        <Route path="/portal/dashboard" element={<PortalDashboard />} />
+        <Route path="/portal/validar" element={<PortalValidar />} />
+        <Route path="/portal/solicitacoes" element={<PortalSolicitacoes />} />
+        {/* rota antiga do portal */}
+        <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
         <Route path="*" element={<EmBreve />} />
       </Routes>
     </BrowserRouter>
