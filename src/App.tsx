@@ -7,6 +7,9 @@ import ProdutoDetalhe from "./pages/ProdutoDetalhe";
 import Personalizar from "./pages/Personalizar";
 import Checkout from "./pages/Checkout";
 import Admin from "./pages/Admin";
+import AdminLogin from "./pages/AdminLogin";
+import AdminGuard from "./components/AdminGuard";
+import PortalGuard from "./components/PortalGuard";
 import Parceiros from "./pages/Parceiros";
 import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
@@ -27,15 +30,23 @@ export default function App() {
         <Route path="/produto/:slug" element={<ProdutoDetalhe />} />
         <Route path="/personalizar/:slug" element={<Personalizar />} />
         <Route path="/checkout" element={<Checkout />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminGuard>
+              <Admin />
+            </AdminGuard>
+          }
+        />
         <Route path="/parceiros" element={<Parceiros />} />
         <Route path="/parceiros/painel" element={<ParceirosPainel />} />
         {/* Portal do parceiro BDFlow (APP Supabase — RPC only) */}
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
-        <Route path="/portal/dashboard" element={<PortalDashboard />} />
-        <Route path="/portal/validar" element={<PortalValidar />} />
-        <Route path="/portal/solicitacoes" element={<PortalSolicitacoes />} />
+        <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
+        <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
+        <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
         {/* rota antiga do portal */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
         <Route path="*" element={<EmBreve />} />

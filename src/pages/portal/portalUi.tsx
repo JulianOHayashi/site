@@ -1,16 +1,12 @@
-import { useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { portalConfigurado } from "../../lib/appSupabaseClient";
-import { usePortalAuth } from "../../hooks/usePortalAuth";
+import { Link } from "react-router-dom";
 
 /* =====================================================================
-   Utilitários compartilhados das páginas /portal (BDFlow — parceiro
-   comercial). Exibição defensiva: apenas campos seguros retornados
-   pelos RPCs; nunca CPF completo, telefone, e-mail, endereço, GPS,
-   fotos, Pix/banco ou flags internas.
+   Utilitários visuais das páginas /portal.
+   Nesta etapa o portal autentica no Supabase do SITE; nenhum helper
+   aqui importa ou referencia o cliente do aplicativo.
 ===================================================================== */
 
-/** Rótulos PT-BR dos status de solicitação */
+/** Rótulos PT-BR dos status de solicitação (reuso futuro) */
 export const STATUS_SOLICITACAO: Record<
   string,
   { rotulo: string; classes: string }
@@ -65,7 +61,7 @@ export function dataBr(v: unknown): string | null {
   });
 }
 
-/** Extrai o primeiro campo presente entre candidatos (exibição defensiva) */
+/** Extrai o primeiro campo presente entre candidatos */
 export function pegar(
   obj: Record<string, unknown> | null | undefined,
   chaves: string[]
@@ -77,7 +73,7 @@ export function pegar(
   return undefined;
 }
 
-/** Cabeçalho comum das páginas do portal */
+/** Cabeçalho comum das páginas internas do portal */
 export function PortalTopo({
   titulo,
   onSair,
@@ -137,31 +133,8 @@ export function CarregandoPortal() {
 export function PortalNaoConfigurado() {
   return (
     <div className="mx-auto mt-10 max-w-md rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
-      Portal em configuração — defina VITE_APP_SUPABASE_URL e
-      VITE_APP_SUPABASE_ANON_KEY na Vercel e faça Redeploy.
+      Portal em configuração — defina VITE_SUPABASE_URL e
+      VITE_SUPABASE_ANON_KEY na Vercel e faça Redeploy.
     </div>
   );
-}
-
-/**
- * Guarda de sessão: exige login do APP Supabase.
- * Sem sessão → redireciona a /portal/login preservando o destino
- * (inclusive o ?qt= da validação).
- */
-export function useExigirSessaoPortal() {
-  const { session, carregando } = usePortalAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (!portalConfigurado) return;
-    if (!carregando && !session) {
-      const destino = encodeURIComponent(
-        location.pathname + location.search
-      );
-      navigate(`/portal/login?next=${destino}`, { replace: true });
-    }
-  }, [carregando, session, navigate, location]);
-
-  return { session, carregando };
 }
