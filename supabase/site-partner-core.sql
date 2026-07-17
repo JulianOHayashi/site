@@ -71,6 +71,41 @@ create unique index if not exists uq_one_owner_per_partner
   on public.site_partner_members(partner_id)
   where role = 'partner_owner' and status <> 'archived';
 
+-- ===== REGRA DEFINITIVA: 1 empresa por owner =====
+-- Antes de criar os índices únicos, verificar dados conflitantes
+-- (a tabela é nova nesta migração; a checagem protege re-execuções).
+do $$
+begin
+  if exists (
+    select user_id from public.site_partner_members
+    where role = 'partner_owner' and status <> 'archived'
+    group by user_id having count(*) > 1
+  ) then
+    raise exception 'CONFLITO_EXISTENTE_USER_ID_COM_MULTIPLAS_EMPRESAS';
+  end if;
+  if exists (
+    select cpf from public.site_partner_members
+    where role = 'partner_owner' and status <> 'archived'
+    group by cpf having count(*) > 1
+  ) then
+    raise exception 'CONFLITO_EXISTENTE_CPF_COM_MULTIPLAS_EMPRESAS';
+  end if;
+end $$;
+
+-- Um único partner_owner por usuário (parcial: NÃO afeta futuros
+-- vínculos de partner_manager). Suspenso continua ocupando o vínculo;
+-- somente 'archived' (exclusivo da administração) libera.
+create unique index if not exists uq_owner_por_usuario
+  on public.site_partner_members(user_id)
+  where role = 'partner_owner' and status <> 'archived';
+
+-- Um único partner_owner por CPF normalizado (parcial: não vale para
+-- managers, cujo fluxo será definido depois). Mesmo criando outra
+-- conta de login, o CPF não cadastra segunda empresa.
+create unique index if not exists uq_owner_por_cpf
+  on public.site_partner_members(cpf)
+  where role = 'partner_owner' and status <> 'archived';
+
 -- ============ 3. PROTEÇÕES (imutabilidade e não-exclusão) ============
 
 -- updated_at automático
@@ -99,6 +134,14 @@ begin
        or new.cpf is distinct from old.cpf
        or new.identity_fingerprint is distinct from old.identity_fingerprint then
       raise exception 'ALTERACAO_RESTRITA_A_ADMINISTRACAO';
+    end if;
+    -- O owner NÃO altera o próprio status (nem para 'archived' na
+    -- tentativa de liberar o vínculo e cadastrar outra empresa).
+    -- Suspensão, arquivamento e troca de owner são EXCLUSIVOS da
+    -- administração BDFlow.
+    if old.role = 'partner_owner'
+       and new.status is distinct from old.status then
+      raise exception 'STATUS_DO_OWNER_RESTRITO_A_ADMINISTRACAO';
     end if;
   end if;
   return new;
@@ -144,10 +187,11 @@ create trigger trg_proteger_parceiro
 
 -- Registra a empresa + primeiro owner numa única transação.
 -- - Usa auth.uid() internamente: o navegador NUNCA envia user_id.
--- - Idempotente: se o usuário já é owner ativo, retorna o vínculo
---   existente em vez de duplicar.
+-- - REGRA DEFINITIVA: cada usuário E cada CPF normalizado podem ser
+--   partner_owner de UMA única empresa. Verificado aqui E garantido
+--   por índices únicos parciais (à prova de concorrência).
 -- - Se qualquer etapa falhar, TUDO reverte (função = 1 transação):
---   nunca fica empresa sem owner.
+--   não cria empresa, não cria membro, não altera site_profiles.
 create or replace function public.create_my_partner_owner_registration(
   p_full_name text,
   p_cpf text,
@@ -169,7 +213,6 @@ declare
   v_cnpj text := public.somente_digitos(p_cnpj);
   v_partner_id uuid;
   v_member_id uuid;
-  v_existente record;
 begin
   -- exige usuário autenticado (Supabase do SITE)
   if v_uid is null then
@@ -183,25 +226,26 @@ begin
   if length(v_cpf) <> 11 then raise exception 'CPF_INVALIDO'; end if;
   if length(v_cnpj) <> 14 then raise exception 'CNPJ_INVALIDO'; end if;
 
-  -- IDEMPOTÊNCIA: usuário já é owner não-arquivado? Retorna o existente.
-  select m.id as member_id, m.partner_id, m.role, m.status as member_status,
-         p.status as partner_status
-    into v_existente
-    from public.site_partner_members m
-    join public.site_monthly_partners p on p.id = m.partner_id
-   where m.user_id = v_uid
-     and m.role = 'partner_owner'
-     and m.status <> 'archived'
-   limit 1;
+  -- REGRA 1: este usuário já é owner (ativo, pendente OU suspenso)?
+  -- Erro seguro: nenhum dado da conta/empresa existente é revelado.
+  if exists (
+    select 1 from public.site_partner_members
+     where user_id = v_uid
+       and role = 'partner_owner'
+       and status <> 'archived'
+  ) then
+    raise exception 'USUARIO_JA_POSSUI_EMPRESA_PARCEIRA';
+  end if;
 
-  if found then
-    return jsonb_build_object(
-      'partner_id', v_existente.partner_id,
-      'member_id', v_existente.member_id,
-      'role', v_existente.role,
-      'partner_status', v_existente.partner_status,
-      'member_status', v_existente.member_status
-    );
+  -- REGRA 2: este CPF já está vinculado como owner (mesmo em outra
+  -- conta de login)? Erro seguro, sem revelar nada do vínculo.
+  if exists (
+    select 1 from public.site_partner_members
+     where cpf = v_cpf
+       and role = 'partner_owner'
+       and status <> 'archived'
+  ) then
+    raise exception 'CPF_JA_VINCULADO_A_EMPRESA_PARCEIRA';
   end if;
 
   -- CNPJ já cadastrado por outra empresa não-arquivada?
@@ -255,6 +299,19 @@ begin
     'partner_status', 'pending',
     'member_status', 'active'
   );
+
+exception
+  -- Corrida entre duas requisições simultâneas: os índices únicos
+  -- parciais são a barreira final. Convertemos a violação para os
+  -- mesmos erros seguros (sem vazar nomes de constraint/dados).
+  when unique_violation then
+    if sqlerrm ilike '%uq_owner_por_usuario%' then
+      raise exception 'USUARIO_JA_POSSUI_EMPRESA_PARCEIRA';
+    elsif sqlerrm ilike '%uq_owner_por_cpf%' then
+      raise exception 'CPF_JA_VINCULADO_A_EMPRESA_PARCEIRA';
+    else
+      raise exception 'CADASTRO_DUPLICADO';
+    end if;
 end $$;
 
 -- somente usuários autenticados executam; navegantes anônimos não
