@@ -14,6 +14,7 @@ import Parceiros from "./pages/Parceiros";
 import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalCadastro from "./pages/portal/PortalCadastro";
 import PortalValidar from "./pages/portal/PortalValidar";
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
         <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
+        <Route path="/portal/cadastro" element={<PortalGuard><PortalCadastro /></PortalGuard>} />
         <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
         <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
         {/* rota antiga do portal */}

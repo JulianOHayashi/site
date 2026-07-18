@@ -1,34 +1,33 @@
-# Migração: empresa parceira + owner (Supabase do SITE)
+# Atualização: /portal/cadastro (empresa parceira + owner)
 
-## Escopo
-SOMENTE banco do site. Nenhuma página nova, nenhum toque em
-/parceiros, produtos, checkout, pedidos, /admin, auth do portal,
-aplicativo ou Supabase do APP.
+## O que muda
+- NOVA rota protegida /portal/cadastro (dentro do PortalGuard):
+  · Pré-verificação no banco (RLS): owner existente
+    (active/pending_admin_review/suspended) → tela "conta já
+    vinculada" com acesso ao painel, SEM formulário e sem exibir CPF;
+    vínculo archived → "necessário atendimento administrativo BDFlow".
+  · Formulário em 2 seções (Responsável principal / Empresa
+    parceira); e-mail vem da sessão; máscaras + validação real de
+    CPF (dígitos verificadores), CNPJ (lib existente) e telefone BR.
+  · Envio EXCLUSIVO pela RPC create_my_partner_owner_registration
+    (nomes de parâmetros conferidos no SQL executado); sem INSERT
+    direto; sem user_id; máscaras removidas antes do envio.
+  · Anti duplo-clique; sem retry automático; dados sensíveis limpos
+    do estado após sucesso; zero console.log.
+  · Sucesso: mensagens definidas na spec + status pendente vindo do
+    retorno da função. Erros seguros traduzidos (7 códigos + fallback).
+- /portal/dashboard: sem vínculo → botão "Cadastrar empresa
+  parceira"; com vínculo → card com nome fantasia + status
+  (Aguardando análise da BDFlow / Ativa / Suspensa). Resto intacto.
+- App.tsx: rota nova registrada.
 
-## Onde rodar
-SQL Editor do projeto do SITE (SiteDBFLOW) → colar
-supabase/site-partner-core.sql → Run.
-Migração ADITIVA: pode rodar com o banco atual em produção — nada
-é excluído, renomeado ou reescrito; registros existentes de
-site_monthly_partners (inclusive status 'lead') são preservados.
+## Arquivos
+- src/lib/cpf.ts                         → NOVO
+- src/lib/telefone.ts                    → NOVO
+- src/pages/portal/PortalCadastro.tsx    → NOVO
+- src/pages/portal/PortalDashboard.tsx   → SUBSTITUI
+- src/App.tsx                            → SUBSTITUI
 
-## O que ela cria/adapta (resumo)
-- site_monthly_partners: + owner_user_id; status ganha os valores
-  pending/active/suspended/archived via CHECK "NOT VALID" (não
-  quebra dados antigos); índices; app_partner_id segue nullable e
-  IMUTÁVEL pelo navegador (trigger).
-- site_partner_members (NOVA): papéis partner_owner/partner_manager,
-  status, CPF normalizado, identity_fingerprint reservado (sem hash
-  neste passo), proteção total: papel/vínculo imutáveis fora da
-  administração, DELETE bloqueado (use status).
-- create_my_partner_owner_registration(...): função transacional e
-  idempotente; usa auth.uid() (navegador nunca envia user_id);
-  valida e normaliza CPF/CNPJ; empresa nasce 'pending', owner nasce
-  'active'; atualiza site_profiles de forma compatível; retorna só
-  partner_id, member_id, role, partner_status, member_status.
-- RLS: membro vê a própria associação e SOMENTE a própria empresa;
-  sem policy de INSERT para o navegador (criação apenas pela
-  função); administração via is_site_admin() — sem e-mail fixo.
-
-## Nada de GitHub neste passo
-O pacote contém apenas o SQL — nenhuma mudança de frontend.
+## Como aplicar no GitHub
+Add file → Upload files → arraste a pasta src → Commit changes.
+Nada muda no Supabase (o banco já está pronto, 7/7 PASS).

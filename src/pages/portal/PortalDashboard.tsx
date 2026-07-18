@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { supabase } from "../../lib/supabase";
@@ -12,9 +13,43 @@ import { PortalTopo } from "./portalUi";
  * integração voltará por uma camada segura de servidor em etapa
  * futura. Sem dados falsos: mostramos o estado real ("em preparação").
  */
+type Empresa = { trade_name: string; status: string } | null;
+
+const STATUS_EMPRESA: Record<string, string> = {
+  pending: "Aguardando análise da BDFlow",
+  active: "Ativa",
+  suspended: "Suspensa",
+  archived: "Arquivada",
+};
+
 export default function PortalDashboard() {
   const navigate = useNavigate();
   const { session } = usePortalSiteAuth(); // sessão garantida pelo PortalGuard
+  const [empresa, setEmpresa] = useState<Empresa>(null);
+  const [temVinculo, setTemVinculo] = useState<boolean | null>(null);
+
+  // Consulta via RLS: o usuário já é owner de uma empresa?
+  useEffect(() => {
+    if (!supabase || !session) return;
+    let ativo = true;
+    supabase
+      .from("site_partner_members")
+      .select("status, site_monthly_partners(trade_name, status)")
+      .eq("user_id", session.user.id)
+      .eq("role", "partner_owner")
+      .neq("status", "archived")
+      .then(({ data }) => {
+        if (!ativo) return;
+        const v = data?.[0] as
+          | { site_monthly_partners: { trade_name: string; status: string } | null }
+          | undefined;
+        setTemVinculo(Boolean(v));
+        setEmpresa(v?.site_monthly_partners ?? null);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [session]);
 
   const sair = async () => {
     await supabase?.auth.signOut();
@@ -35,18 +70,36 @@ export default function PortalDashboard() {
           <h2 className="mt-1 text-xl font-bold">{session?.user.email}</h2>
         </section>
 
-        {/* Estado real desta etapa: cadastro comercial em preparação */}
-        <section className="mt-5 rounded-3xl border-2 border-dashed border-borda bg-papel p-8 text-center">
-          <p className="text-2xl">🏗️</p>
-          <h2 className="mt-2 text-2xl font-bold">
-            Cadastro comercial em preparação
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-tinta/70">
-            Estamos preparando a área de cadastro da sua empresa parceira —
-            contrato, unidades e equipe. A validação de benefícios será
-            liberada em seguida, por uma integração segura.
-          </p>
-        </section>
+        {/* Empresa: botão de cadastro (sem vínculo) OU card da empresa */}
+        {temVinculo === false && (
+          <section className="mt-5 rounded-3xl border-2 border-dashed border-ciano/40 bg-ciano/5 p-8 text-center">
+            <p className="text-2xl">🏢</p>
+            <h2 className="mt-2 text-2xl font-bold">
+              Cadastre sua empresa parceira
+            </h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-tinta/70">
+              Para começar no Portal BDFlow, cadastre a empresa e torne-se o
+              responsável principal. A análise é feita pela BDFlow.
+            </p>
+            <Link to="/portal/cadastro" className="btn-primary mt-5 inline-block">
+              Cadastrar empresa parceira
+            </Link>
+          </section>
+        )}
+
+        {temVinculo === true && empresa && (
+          <section className="mt-5 rounded-3xl border border-borda bg-white/85 p-6 backdrop-blur">
+            <p className="text-xs font-bold uppercase tracking-widest text-tinta/40">
+              Empresa parceira
+            </p>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-bold">{empresa.trade_name}</h2>
+              <span className="rounded-full bg-amarelo/30 px-3 py-1 text-xs font-semibold">
+                {STATUS_EMPRESA[empresa.status] ?? empresa.status}
+              </span>
+            </div>
+          </section>
+        )}
 
         {/* Atalhos (páginas existem, com estado de indisponibilidade) */}
         <section className="mt-8 grid gap-4 sm:grid-cols-2">
