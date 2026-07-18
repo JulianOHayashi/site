@@ -1,7 +1,8 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import DemoBanner from "../components/DemoBanner";
 import { useProductsByState } from "../hooks/useProductsByState";
+import { obterUF } from "../lib/estado";
 import { formatarPreco } from "../lib/format";
 
 /** Badge de estoque estadual — compacta, dentro do card */
@@ -88,9 +89,9 @@ const BORDAS_HOVER = [
 ];
 
 export default function Produtos() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const state = (location.state as { estado?: string })?.estado ?? "ES";
+  // UF da fonte única (EstadoGuard garante que existe; sem fallback "ES")
+  const state = obterUF() ?? "";
   const { products, loading, demo } = useProductsByState(state);
 
   return (
@@ -110,10 +111,10 @@ export default function Produtos() {
             </p>
           </div>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/selecionar-estado?next=%2Fprodutos")}
             className="rounded-xl border-2 border-borda px-4 py-2 text-sm font-semibold transition hover:border-tinta"
           >
-            ← Trocar estado
+            ← Alterar estado
           </button>
         </div>
 
@@ -124,11 +125,17 @@ export default function Produtos() {
         ) : products.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-borda p-16 text-center">
             <p className="text-lg font-semibold">
-              Nenhum produto disponível em {state} no momento.
+              Ainda não temos produtos disponíveis para este estado.
             </p>
             <p className="mt-2 text-sm text-tinta/60">
-              Verifique outros estados ou entre em contato.
+              Você está vendo {state}. Escolha outro estado ou volte em breve.
             </p>
+            <button
+              onClick={() => navigate("/selecionar-estado?next=%2Fprodutos")}
+              className="btn-secondary mt-5"
+            >
+              Escolher outro estado
+            </button>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

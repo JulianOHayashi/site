@@ -15,6 +15,8 @@ import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCadastro from "./pages/portal/PortalCadastro";
+import SelecionarEstado from "./pages/SelecionarEstado";
+import EstadoGuard from "./components/EstadoGuard";
 import PortalValidar from "./pages/portal/PortalValidar";
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 
@@ -22,15 +24,16 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<EstadoGuard><Home /></EstadoGuard>} />
+        <Route path="/selecionar-estado" element={<SelecionarEstado />} />
         {/* Cópia de segurança de versão anterior do site */}
         <Route path="/classica" element={<HomeClassica />} />
         <Route path="/em-breve" element={<EmBreve />} />
         {/* Comércio do site (Supabase do SITE) */}
-        <Route path="/produtos" element={<Produtos />} />
-        <Route path="/produto/:slug" element={<ProdutoDetalhe />} />
-        <Route path="/personalizar/:slug" element={<Personalizar />} />
-        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/produtos" element={<EstadoGuard><Produtos /></EstadoGuard>} />
+        <Route path="/produto/:slug" element={<EstadoGuard><ProdutoDetalhe /></EstadoGuard>} />
+        <Route path="/personalizar/:slug" element={<EstadoGuard><Personalizar /></EstadoGuard>} />
+        <Route path="/checkout" element={<EstadoGuard><Checkout /></EstadoGuard>} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"

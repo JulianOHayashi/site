@@ -2,12 +2,13 @@ import { Link, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import ShirtPreview from "../components/ShirtPreview";
 import EstoqueBadge from "../components/EstoqueBadge";
-import { useProducts } from "../hooks/useProducts";
+import { useProductsByState } from "../hooks/useProductsByState";
+import { obterUF } from "../lib/estado";
 import { formatarPreco } from "../lib/format";
 
 export default function ProdutoDetalhe() {
   const { slug } = useParams();
-  const { products, loading } = useProducts();
+  const { products, loading } = useProductsByState(obterUF() ?? "");
   const produto = products.find((p) => p.slug === slug);
 
   if (loading) {

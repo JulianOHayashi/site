@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { UFS, obterUF } from "../lib/estado";
 
 /**
  * SiteHeader — navegação moderna compartilhada por todo o site.
@@ -16,7 +17,6 @@ import { Link, useLocation } from "react-router-dom";
 
 const LINKS_CENTRAIS = [
   { rotulo: "Soluções", href: "/#solucoes" },
-  { rotulo: "O mapa", href: "/#mapa" },
   { rotulo: "Quem somos", href: "/#time" },
   { rotulo: "FAQ", href: "/#faq" },
 ];
@@ -42,6 +42,7 @@ export default function SiteHeader() {
   const [entrarAberto, setEntrarAberto] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const entrarRef = useRef<HTMLDivElement>(null);
+  const ufAtual = obterUF();
 
   // sombra ao rolar
   useEffect(() => {
@@ -94,6 +95,18 @@ export default function SiteHeader() {
 
         {/* Ações (desktop) */}
         <div className="hidden items-center gap-2 lg:flex">
+          {/* UF comercial atual — ação discreta de troca */}
+          {ufAtual && (
+            <Link
+              to={`/selecionar-estado?next=${encodeURIComponent(location.pathname + location.search)}`}
+              aria-label={`Você está vendo produtos para ${UFS[ufAtual]}. Alterar estado.`}
+              title={`Entregar para: ${UFS[ufAtual]} — alterar estado`}
+              className="flex items-center gap-1.5 rounded-full border border-borda px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-magenta hover:text-magenta"
+            >
+              📍 {ufAtual}
+              <span className="hidden xl:inline">· Alterar</span>
+            </Link>
+          )}
           {/* Dropdown Entrar */}
           <div ref={entrarRef} className="relative">
             <button
@@ -196,9 +209,17 @@ export default function SiteHeader() {
             ))}
           </div>
 
+          {ufAtual && (
+            <Link
+              to={`/selecionar-estado?next=${encodeURIComponent(location.pathname + location.search)}`}
+              className="mt-4 block rounded-xl border border-borda px-4 py-3 text-center text-sm font-semibold text-tinta/70"
+            >
+              📍 Entregar para: {UFS[ufAtual]} — alterar estado
+            </Link>
+          )}
           <Link
             to="/produtos"
-            className="mt-4 block rounded-xl bg-tinta py-3 text-center font-bold text-white transition hover:bg-magenta"
+            className="mt-3 block rounded-xl bg-tinta py-3 text-center font-bold text-white transition hover:bg-magenta"
           >
             Ir para a Loja
           </Link>

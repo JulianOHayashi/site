@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import BrazilMap from "../components/BrazilMap";
 import DemoBanner from "../components/DemoBanner";
 import SiteHeader from "../components/SiteHeader";
-import ScrollTilt from "../components/ScrollTilt";
 
 /**
  * HOME — formato "agência moderna" (referência: spun.com.br),
@@ -158,33 +156,10 @@ function Letreiro({
 
 /* ---------- Página ---------- */
 export default function Home() {
-  const mapaRef = useRef<HTMLDivElement>(null);
   const solucoesRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLDivElement>(null);
   const faqRef = useRef<HTMLDivElement>(null);
   const contatoRef = useRef<HTMLDivElement>(null);
-  const presencaRef = useRef<HTMLDivElement>(null);
-  const [selecao, setSelecao] = useState<{ nome: string; es: boolean } | null>(
-    null
-  );
-
-  const reduzMovimento =
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  const irAte = (ref: React.RefObject<HTMLDivElement>) =>
-    ref.current?.scrollIntoView({
-      behavior: reduzMovimento ? "auto" : "smooth",
-      block: "start",
-    });
-
-  const aoEscolherEstado = (nome: string, es: boolean) => {
-    setSelecao({ nome, es });
-    presencaRef.current?.scrollIntoView({
-      behavior: reduzMovimento ? "auto" : "smooth",
-      block: "center",
-    });
-  };
 
   return (
     <main className="relative overflow-x-clip">
@@ -256,76 +231,6 @@ export default function Home() {
       </div>
 
       {/* ===== 3 · MAPA — MOMENTO ASSINATURA ===== */}
-      <section id="mapa" ref={mapaRef} className="relative mx-auto max-w-5xl scroll-mt-24 px-4 pb-10 pt-24 text-center">
-        <Revelar>
-          <h2 className="text-3xl sm:text-5xl">
-            Um Brasil inteiro para a sua marca
-            <span className="mx-auto mt-4 block h-2 w-32 rounded-full bg-ciano" />
-          </h2>
-          <p className="mx-auto mt-4 max-w-lg text-tinta/60">
-            Passe o mouse e veja cada estado vestir a própria bandeira.
-            Clique no seu.
-          </p>
-        </Revelar>
-        <Revelar atraso={150}>
-          <div className="mx-auto mt-12 max-w-3xl">
-            <ScrollTilt>
-              {/* moldura de "tela" onde o mapa pousa em 3D */}
-              <div className="rounded-[2rem] border-2 border-tinta bg-white p-3 shadow-[0_30px_80px_rgba(23,18,31,0.25)] sm:p-5">
-                <div className="mb-3 flex items-center gap-1.5 px-1">
-                  <span className="h-2.5 w-2.5 rounded-full bg-magenta" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-amarelo" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-ciano" />
-                  <span className="ml-3 text-[10px] font-semibold uppercase tracking-widest text-tinta/30">
-                    brasil.mapa
-                  </span>
-                </div>
-                <BrazilMap onSelectState={aoEscolherEstado} />
-              </div>
-            </ScrollTilt>
-          </div>
-        </Revelar>
-      </section>
-
-      {/* faixa de presença */}
-      <div ref={presencaRef} className="relative mx-auto max-w-3xl px-4 pb-24">
-        {selecao ? (
-          <div className="rounded-3xl border border-borda bg-white/85 p-8 text-center shadow-lg backdrop-blur">
-            {selecao.es ? (
-              <>
-                <h3 className="text-2xl sm:text-3xl">
-                  Já estamos no <span className="text-magenta">Espírito Santo</span>! 🎉
-                </h3>
-                <p className="mt-3 text-tinta/70">
-                  É daqui que tudo parte. Escolha um modelo e comece agora.
-                </p>
-                <Link to="/produtos" className="btn-primary mt-5">
-                  Ver modelos e comprar →
-                </Link>
-              </>
-            ) : (
-              <>
-                <h3 className="text-2xl sm:text-3xl">
-                  Em breve em {selecao.nome}!
-                  <span className="mx-auto mt-3 block h-1.5 w-28 rounded-full bg-amarelo" />
-                </h3>
-                <p className="mt-3 text-tinta/70">
-                  Estamos chegando. Deixe seu contato e avisamos quando o seu
-                  estado acender no mapa.
-                </p>
-                <button onClick={() => irAte(contatoRef)} className="btn-secondary mt-5">
-                  Quero ser avisado
-                </button>
-              </>
-            )}
-          </div>
-        ) : (
-          <p className="text-center text-sm text-tinta/40">
-            👆 Clique num estado para ver nossa presença por lá.
-          </p>
-        )}
-      </div>
-
       {/* ===== 4 · NÚMEROS GRANDES ===== */}
       <section className="relative border-y-2 border-tinta bg-tinta py-20 text-papel">
         <div className="mx-auto grid max-w-6xl gap-12 px-4 text-center sm:grid-cols-2 lg:grid-cols-4">
@@ -493,7 +398,7 @@ export default function Home() {
           {/* ⚠️ PERGUNTAS/RESPOSTAS PROVISÓRIAS — A DEFINIR */}
           {[
             { p: "O que exatamente vocês fazem?", r: "Estampamos camisas personalizadas para empresas e oferecemos espaços de mídia para anunciantes. (⚠️ resposta a definir)" },
-            { p: "Vocês atendem fora do Espírito Santo?", r: "Estamos começando pelo ES, com expansão planejada para todo o Brasil — clique no seu estado no mapa e deixe seu contato. (⚠️ a definir)" },
+            { p: "Vocês atendem fora do Espírito Santo?", r: "Estamos começando pelo ES, com expansão planejada para todo o Brasil — escolha seu estado na tela inicial e deixe seu contato. (⚠️ a definir)" },
             { p: "Como funciona para anunciar com vocês?", r: "Fale com a gente pelo contato no rodapé e apresentamos os formatos e espaços disponíveis. (⚠️ modelo de anúncios a definir)" },
             { p: "Qual o prazo de produção e entrega?", r: "Depende do volume e do destino — respondemos com o prazo exato no orçamento. (⚠️ prazos a definir)" },
             { p: "Posso enviar minha própria arte?", r: "Sim! Toda arte enviada passa por revisão da nossa equipe antes da produção. (⚠️ política de revisões a definir)" },
@@ -559,7 +464,6 @@ export default function Home() {
               </p>
               <p>Termos de uso (em breve)</p>
               <p>Privacidade (em breve)</p>
-              <Link to="/admin" className="hover:text-papel">Admin</Link>
             </div>
           </div>
           <p className="mt-10 pb-2 text-center text-xs text-papel/30">

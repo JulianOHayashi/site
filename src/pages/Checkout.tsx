@@ -1,35 +1,73 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import ShirtPreview from "../components/ShirtPreview";
-import { useProducts } from "../hooks/useProducts";
+import { useProductsByState } from "../hooks/useProductsByState";
+import { obterUF } from "../lib/estado";
 import { formatarCNPJ, validarCNPJ } from "../lib/cnpj";
 import { formatarPreco } from "../lib/format";
+import {
+  consultarDescontoFidelidade,
+  DESCONTO_FIDELIDADE_DEMO,
+} from "../lib/fidelidade";
+import {
+  QUANTIDADE_MINIMA,
+  FAIXAS_PADRAO,
+  carregarFaixas,
+  descontoPorQuantidade,
+  type Faixa,
+} from "../lib/precificacao";
+import { supabaseConfigurado } from "../lib/supabase";
 import type { Customization } from "../types";
 
 /*
- * ⚠️ TODOs desta página (decisões futuras — manter como placeholders):
- * - Integração de pagamento: Stripe OU Mercado Pago
- * - Regras de parcelamento e absorção de taxas
- * - Desconto fidelidade: % A DEFINIR, calculado pelo histórico do CNPJ (Supabase)
- * - Criação real do pedido (INSERT em orders — o trigger do banco baixa o estoque)
- * - Emissão de NF-e/NFS-e (NFe.io, Bling ou outro) enviada por email
- * - Email transacional de confirmação (Resend, SendGrid ou outro)
- * - Política de trocas/devoluções e termos LGPD
+ * DECISÕES JÁ TOMADAS (integrações a implementar):
+ * - Pagamento: MERCADO PAGO (Pix, cartão, parcelas)
+ * - Nota fiscal: BLING (NF-e automática após o pagamento, via API)
+ * - Precificação: mínimo 10 un. (preço cheio) + desconto por volume
+ *   em faixas + fidelidade por CNPJ em cascata. O cálculo REAL é do
+ *   banco (trigger aplicar_precificacao); aqui apenas exibimos.
+ *
+ * ⚠️ AINDA A DEFINIR: percentuais finais (volume e fidelidade),
+ * parcelamento, email transacional, políticas/termos.
  */
 
 export default function Checkout() {
   const { state } = useLocation() as { state?: Customization };
-  const { products } = useProducts();
+  const { products } = useProductsByState(obterUF() ?? "");
   const produto = products.find((p) => p.slug === state?.productSlug);
+  const quantidade = Math.max(
+    QUANTIDADE_MINIMA,
+    state?.quantidade ?? QUANTIDADE_MINIMA
+  );
 
   const [empresa, setEmpresa] = useState("");
   const [email, setEmail] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [erroCnpj, setErroCnpj] = useState<string | null>(null);
+  const [descontoFid, setDescontoFid] = useState<number | null>(null);
+  const [faixas, setFaixas] = useState<Faixa[]>(FAIXAS_PADRAO);
+
+  useEffect(() => {
+    carregarFaixas().then(setFaixas);
+  }, []);
 
   const cnpjValido = validarCNPJ(cnpj);
   const formularioOk = empresa.trim() && email.includes("@") && cnpjValido;
+
+  useEffect(() => {
+    if (!cnpjValido) {
+      setDescontoFid(null);
+      return;
+    }
+    let ativo = true;
+    consultarDescontoFidelidade(cnpj).then((pct) => {
+      if (ativo) setDescontoFid(pct);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [cnpj, cnpjValido]);
 
   const validarCampoCnpj = () => {
     if (!cnpj) return setErroCnpj(null);
@@ -54,6 +92,17 @@ export default function Checkout() {
       </>
     );
   }
+
+  // ---- Cálculo exibido (o oficial é feito pelo banco no pedido) ----
+  const descVolume = descontoPorQuantidade(quantidade, faixas);
+  const fidPct = descontoFid ?? 0;
+  const temFidelidade = fidPct > 0;
+
+  const subtotal = produto.preco * quantidade;
+  const valorVolume = subtotal * (descVolume / 100);
+  const aposVolume = subtotal - valorVolume;
+  const valorFid = aposVolume * (fidPct / 100);
+  const total = aposVolume - valorFid;
 
   return (
     <>
@@ -91,8 +140,8 @@ export default function Checkout() {
                 className="w-full rounded-xl border border-borda px-4 py-3 outline-none focus:border-ciano"
               />
               <p className="mt-1 text-xs text-tinta/50">
-                Você receberá a confirmação do pedido e a nota fiscal por
-                e-mail.
+                Você receberá a confirmação do pedido e a nota fiscal (emitida
+                via Bling) por e-mail.
               </p>
             </div>
 
@@ -128,26 +177,51 @@ export default function Checkout() {
             </div>
           </div>
 
-          {/* Fidelidade — visual apenas; regra real virá do Supabase */}
-          <div className="mt-4 rounded-2xl bg-papel2 p-4 text-sm">
-            💛 Clientes com compras anteriores recebem{" "}
-            <span className="font-semibold">desconto fidelidade</span>{" "}
-            automaticamente. <span className="text-tinta/50">(% a definir)</span>
-          </div>
+          {/* FIDELIDADE — dinâmico conforme o CNPJ digitado */}
+          {cnpjValido && descontoFid !== null ? (
+            temFidelidade ? (
+              <div className="mt-4 rounded-2xl border-2 border-green-200 bg-green-50 p-4 text-sm">
+                💚 <span className="font-semibold">Bem-vindo de volta!</span>{" "}
+                Cliente que retorna paga menos:{" "}
+                <span className="font-bold">{fidPct}% de fidelidade</span>{" "}
+                aplicado por cima do desconto de volume.
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl bg-papel2 p-4 text-sm">
+                💛 <span className="font-semibold">Primeira compra?</span> O
+                desconto por volume já vale pra você — e na próxima, seu CNPJ
+                ganha{" "}
+                <span className="font-bold">
+                  +{DESCONTO_FIDELIDADE_DEMO}% de fidelidade
+                </span>{" "}
+                automaticamente.
+                <span className="ml-1 text-tinta/40">(% a confirmar)</span>
+              </div>
+            )
+          ) : (
+            <div className="mt-4 rounded-2xl bg-papel2 p-4 text-sm">
+              💛 Pedido mínimo de {QUANTIDADE_MINIMA} unidades; quanto maior o
+              volume, menor o preço — e quem retorna ganha fidelidade extra
+              pelo CNPJ.
+            </div>
+          )}
 
-          {/* PAGAMENTO — PLACEHOLDER */}
+          {/* PAGAMENTO — MERCADO PAGO (integração a implementar) */}
           <div className="mt-6 rounded-2xl border-2 border-dashed border-borda p-6">
             <h2 className="text-xl">Pagamento</h2>
             <p className="mt-2 text-sm text-tinta/70">
-              Integração de pagamento em configuração (Stripe ou Mercado Pago —
-              a definir). Parcelamento: condições a definir.
+              Via <span className="font-semibold">Mercado Pago</span> — Pix,
+              cartão e parcelamento. Integração em configuração.
+              <span className="ml-1 text-tinta/40">
+                (condições de parcelamento a definir)
+              </span>
             </p>
             <button
               disabled
               className="btn-primary mt-4"
               title="Disponível em breve"
             >
-              Pagar {formularioOk ? formatarPreco(produto.preco) : ""}
+              Pagar {formularioOk ? formatarPreco(total) : ""}
             </button>
           </div>
 
@@ -174,17 +248,49 @@ export default function Checkout() {
               <dt className="text-tinta/60">Modelo</dt>
               <dd className="font-semibold">{produto.nome}</dd>
             </div>
+            <div className="flex justify-between">
+              <dt className="text-tinta/60">Quantidade</dt>
+              <dd className="font-semibold">{quantidade} un.</dd>
+            </div>
+            <div className="flex justify-between border-b border-borda/60 py-2 text-sm">
+              <dt className="text-tinta/60">Estado comercial</dt>
+              <dd className="font-semibold">{obterUF()}</dd>
+            </div>
             {state.fraseCustomizada && (
               <div className="flex justify-between">
                 <dt className="text-tinta/60">Sua frase</dt>
                 <dd className="font-semibold">“{state.fraseCustomizada}”</dd>
               </div>
             )}
+            <div className="flex justify-between border-t border-borda pt-2">
+              <dt className="text-tinta/60">
+                Subtotal ({formatarPreco(produto.preco)} / un.)
+              </dt>
+              <dd>{formatarPreco(subtotal)}</dd>
+            </div>
+            {descVolume > 0 && (
+              <div className="flex justify-between text-[#0B7A3E]">
+                <dt>Volume ({descVolume}%)</dt>
+                <dd>−{formatarPreco(valorVolume)}</dd>
+              </div>
+            )}
+            {temFidelidade && (
+              <div className="flex justify-between text-green-700">
+                <dt>Fidelidade ({fidPct}%)</dt>
+                <dd>−{formatarPreco(valorFid)}</dd>
+              </div>
+            )}
             <div className="flex justify-between border-t border-borda pt-2 text-base">
               <dt className="font-semibold">Total</dt>
-              <dd className="font-bold">{formatarPreco(produto.preco)}</dd>
+              <dd className="font-bold">{formatarPreco(total)}</dd>
             </div>
           </dl>
+          {!supabaseConfigurado && (
+            <p className="mt-3 text-xs text-tinta/40">
+              Modo demonstração: o cálculo oficial (volume + fidelidade) é
+              feito pelo banco quando o Supabase estiver conectado.
+            </p>
+          )}
         </aside>
       </main>
     </>
