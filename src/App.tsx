@@ -19,6 +19,10 @@ import SelecionarEstado from "./pages/SelecionarEstado";
 import EstadoGuard from "./components/EstadoGuard";
 import PortalValidar from "./pages/portal/PortalValidar";
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
+import SelecionarLocalidade from "./pages/SelecionarLocalidade";
+import Oportunidades from "./pages/Oportunidades";
+import OportunidadeDetalhe from "./pages/OportunidadeDetalhe";
+import CommercialTerritoryGuard from "./components/CommercialTerritoryGuard";
 
 export default function App() {
   return (
@@ -26,6 +30,25 @@ export default function App() {
       <Routes>
         <Route path="/" element={<EstadoGuard><Home /></EstadoGuard>} />
         <Route path="/selecionar-estado" element={<SelecionarEstado />} />
+
+        {/* Fase 1 — domínio comercial BDFlow */}
+        <Route path="/selecionar-localidade" element={<SelecionarLocalidade />} />
+        <Route
+          path="/oportunidades"
+          element={
+            <CommercialTerritoryGuard>
+              <Oportunidades />
+            </CommercialTerritoryGuard>
+          }
+        />
+        <Route
+          path="/oportunidades/:nicheCode"
+          element={
+            <CommercialTerritoryGuard>
+              <OportunidadeDetalhe />
+            </CommercialTerritoryGuard>
+          }
+        />
         {/* Cópia de segurança de versão anterior do site */}
         <Route path="/classica" element={<HomeClassica />} />
         <Route path="/em-breve" element={<EmBreve />} />

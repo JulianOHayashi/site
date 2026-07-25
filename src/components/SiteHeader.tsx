@@ -150,12 +150,12 @@ export default function SiteHeader() {
             )}
           </div>
 
-          {/* CTA Loja */}
+          {/* CTA Oportunidades comerciais (novo fluxo BDFlow) */}
           <Link
-            to="/produtos"
+            to="/oportunidades"
             className="rounded-full bg-tinta px-5 py-2 text-sm font-bold text-white transition hover:bg-magenta"
           >
-            Loja
+            Oportunidades
           </Link>
         </div>
 
@@ -218,10 +218,10 @@ export default function SiteHeader() {
             </Link>
           )}
           <Link
-            to="/produtos"
+            to="/oportunidades"
             className="mt-3 block rounded-xl bg-tinta py-3 text-center font-bold text-white transition hover:bg-magenta"
           >
-            Ir para a Loja
+            Ver oportunidades
           </Link>
         </div>
       )}
