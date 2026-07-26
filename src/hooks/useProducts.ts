@@ -107,7 +107,7 @@ export function useProducts() {
 
     return () => {
       ativo = false;
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     };
   }, []);
 

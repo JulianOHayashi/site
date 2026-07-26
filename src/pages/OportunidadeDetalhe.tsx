@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import ReferenciaOperacional from "../components/commercial/ReferenciaOperacional";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { fetchCurrentFormation } from "../services/commercialService";
-import { nicheByCode, nicheCodeFromRoute } from "../domain/commercial/niches";
+import {
+  nicheByCode,
+  nicheCodeFromSlug,
+  canonicalSlugFromLegacy,
+} from "../domain/commercial/niches";
 import {
   OPPORTUNITY_STATUS_LABEL,
   EXCLUSIVITY_STATUS_LABEL,
@@ -24,8 +28,11 @@ type Estado =
  * quantidade, unidade, CNPJ, reserva, pagamento ou contrato.
  */
 export default function OportunidadeDetalhe() {
-  const { nicheCode: rota } = useParams();
-  const codigo = rota ? nicheCodeFromRoute(rota) : null;
+  const { nicheSlug: rota } = useParams();
+  // URL legada com underscore → redireciona UMA vez ao slug canônico (hífen).
+  const redirecionarPara = rota ? canonicalSlugFromLegacy(rota) : null;
+  // Aceita SOMENTE o slug canônico (hífen). Desconhecido → null → inválido.
+  const codigo = rota ? nicheCodeFromSlug(rota) : null;
   const [estado, setEstado] = useState<Estado>({ fase: "loading" });
 
   const carregar = useCallback(async () => {
@@ -61,6 +68,12 @@ export default function OportunidadeDetalhe() {
   }, [carregar]);
 
   const meta = codigo ? nicheByCode(codigo) : null;
+
+  // Redirecionamento interno único de URL legada (underscore) → hífen.
+  // Sem loop: o slug de destino já é canônico e cai em nicheCodeFromSlug.
+  if (redirecionarPara) {
+    return <Navigate to={`/oportunidades/${redirecionarPara}`} replace />;
+  }
 
   return (
     <>

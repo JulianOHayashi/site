@@ -1,6 +1,10 @@
 import { Link } from "react-router-dom";
 import type { CommercialOpportunity } from "../../domain/commercial/types";
-import { nicheByCode, isNicheCode } from "../../domain/commercial/niches";
+import {
+  nicheByCode,
+  isNicheCode,
+  slugByCode,
+} from "../../domain/commercial/niches";
 import {
   OPPORTUNITY_STATUS_LABEL,
   opportunityStatusTone,
@@ -61,7 +65,7 @@ export default function OpportunityCard({
       <div className="mt-auto pt-4">
         {opportunity.status === "available" ? (
           <Link
-            to={`/oportunidades/${opportunity.nicheCode}`}
+            to={`/oportunidades/${slugByCode(opportunity.nicheCode)}`}
             className="btn-secondary w-full text-center"
           >
             Ver oportunidade

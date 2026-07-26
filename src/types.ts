@@ -29,4 +29,5 @@ export interface Customization {
   productSlug: string;
   imagemUrl: string | null;
   fraseCustomizada: string;
+  quantidade: number;
 }

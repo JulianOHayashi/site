@@ -5,14 +5,11 @@ import ShirtPreview from "../components/ShirtPreview";
 import { useProductsByState } from "../hooks/useProductsByState";
 import { obterUF } from "../lib/estado";
 import { formatarPreco } from "../lib/format";
-import {
-  QUANTIDADE_MINIMA,
-  FAIXAS_PADRAO,
-  carregarFaixas,
-  descontoPorQuantidade,
-  proximaFaixa,
-  type Faixa,
-} from "../lib/precificacao";
+
+// TEMPORÁRIO: fluxo legado de camisas mantido apenas até a
+// substituição pelo módulo de exclusividades comerciais. Não usar
+// como regra do BDFlow.
+const QUANTIDADE_MINIMA_LEGADA = 10;
 
 const LIMITE_FRASE = 20; // ⚠️ limite exato A DEFINIR (~20 caracteres)
 
@@ -26,12 +23,7 @@ export default function Personalizar() {
   const [imagemUrl, setImagemUrl] = useState<string | null>(null);
   const [frase, setFrase] = useState("");
   const [arrastando, setArrastando] = useState(false);
-  const [quantidade, setQuantidade] = useState(QUANTIDADE_MINIMA);
-  const [faixas, setFaixas] = useState<Faixa[]>(FAIXAS_PADRAO);
-
-  useEffect(() => {
-    carregarFaixas().then(setFaixas);
-  }, []);
+  const [quantidade, setQuantidade] = useState(QUANTIDADE_MINIMA_LEGADA);
 
   const receberArquivo = (file: File | undefined) => {
     if (!file) return;
@@ -43,7 +35,7 @@ export default function Personalizar() {
   };
 
   const mudarQuantidade = (delta: number) =>
-    setQuantidade((q) => Math.max(QUANTIDADE_MINIMA, q + delta));
+    setQuantidade((q) => Math.max(QUANTIDADE_MINIMA_LEGADA, q + delta));
 
   if (loading) {
     return (
@@ -70,9 +62,8 @@ export default function Personalizar() {
     );
   }
 
-  const descVolume = descontoPorQuantidade(quantidade, faixas);
-  const proxima = proximaFaixa(quantidade, faixas);
-  const precoUnitario = produto.preco * (1 - descVolume / 100);
+  // TEMPORÁRIO: preço legado × quantidade, sem qualquer regra de volume.
+  const precoUnitario = produto.preco;
   const totalEstimado = precoUnitario * quantidade;
 
   return (
@@ -179,19 +170,19 @@ export default function Personalizar() {
             </div>
           </div>
 
-          {/* 4. Quantidade — mínimo 10, preço cai por volume */}
+          {/* 4. Quantidade temporária do fluxo legado */}
           <div>
             <label className="mb-2 block font-semibold">
               Quantidade{" "}
               <span className="font-normal text-tinta/50">
-                — mínimo {QUANTIDADE_MINIMA} unidades
+                — mínimo {QUANTIDADE_MINIMA_LEGADA} unidades
               </span>
             </label>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => mudarQuantidade(-5)}
-                disabled={quantidade <= QUANTIDADE_MINIMA}
+                disabled={quantidade <= QUANTIDADE_MINIMA_LEGADA}
                 aria-label="Diminuir 5 unidades"
                 className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-tinta text-xl font-bold transition hover:bg-tinta hover:text-white disabled:cursor-not-allowed disabled:border-borda disabled:text-tinta/30 disabled:hover:bg-transparent"
               >
@@ -199,13 +190,13 @@ export default function Personalizar() {
               </button>
               <input
                 type="number"
-                min={QUANTIDADE_MINIMA}
+                min={QUANTIDADE_MINIMA_LEGADA}
                 value={quantidade}
                 onChange={(e) =>
                   setQuantidade(
                     Math.max(
-                      QUANTIDADE_MINIMA,
-                      parseInt(e.target.value || "0", 10) || QUANTIDADE_MINIMA
+                      QUANTIDADE_MINIMA_LEGADA,
+                      parseInt(e.target.value || "0", 10) || QUANTIDADE_MINIMA_LEGADA
                     )
                   )
                 }
@@ -220,37 +211,23 @@ export default function Personalizar() {
                 +
               </button>
 
-              {descVolume > 0 && (
-                <span className="rounded-full bg-[#E8F7EE] px-3 py-1.5 text-xs font-bold text-[#0B7A3E]">
-                  −{descVolume}% por volume
-                </span>
-              )}
             </div>
-
-            {/* dica da próxima faixa */}
-            {proxima && (
-              <p className="mt-2 text-xs text-tinta/50">
-                💡 Faltam{" "}
-                <span className="font-bold text-tinta">
-                  {proxima.min - quantidade} unidades
-                </span>{" "}
-                para {proxima.pct}% de desconto por volume.
-              </p>
-            )}
 
             {/* preço estimado ao vivo */}
             <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-papel2 px-4 py-3">
               <span className="text-sm text-tinta/60">
                 {formatarPreco(precoUnitario)} / un. × {quantidade}
-                <span className="ml-1 text-tinta/40">(valores provisórios)</span>
+                <span className="ml-1 text-tinta/40">
+                  (fluxo legado em transição)
+                </span>
               </span>
               <span className="font-display text-xl font-bold">
                 {formatarPreco(totalEstimado)}
               </span>
             </div>
             <p className="mt-1 text-xs text-tinta/40">
-              Cliente que já comprou ganha desconto fidelidade adicional no
-              checkout, identificado pelo CNPJ.
+              Valores do fluxo legado, apenas ilustrativos. Não representam as
+              exclusividades comerciais BDFlow.
             </p>
           </div>
 
