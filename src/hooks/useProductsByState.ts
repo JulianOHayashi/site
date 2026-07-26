@@ -8,6 +8,9 @@ export interface ProductWithState extends Product {
   preco_b: number;
   restock_date: string | null;
   reserved: number;
+  // UF do produto carregado (a função mapear já a preenche). Declarada
+  // aqui para o tipo local refletir o objeto realmente retornado.
+  state: string;
 }
 
 interface ProdutoV3 {
@@ -143,7 +146,7 @@ export function useProductsByState(state: string) {
 
     return () => {
       ativo = false;
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     };
   }, [state]);
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { UFS, obterUF } from "../lib/estado";
+import { obterTerritorio } from "../lib/commercialTerritory";
 
 /**
  * SiteHeader — navegação moderna compartilhada por todo o site.
@@ -16,15 +17,15 @@ import { UFS, obterUF } from "../lib/estado";
  */
 
 const LINKS_CENTRAIS = [
-  { rotulo: "Soluções", href: "/#solucoes" },
-  { rotulo: "Quem somos", href: "/#time" },
-  { rotulo: "FAQ", href: "/#faq" },
+  { rotulo: "Oportunidades", to: "/oportunidades" },
+  { rotulo: "Parceiros", to: "/parceiros" },
+  { rotulo: "Portal", to: "/portal/login" },
 ];
 
 const AREAS_ENTRAR = [
   {
-    rotulo: "Área de pedidos",
-    descricao: "Empresas: pedidos, fidelidade e histórico",
+    rotulo: "Área de parceiros",
+    descricao: "Empresas acompanham oportunidades por região",
     to: "/parceiros",
     icone: "🧾",
   },
@@ -42,7 +43,41 @@ export default function SiteHeader() {
   const [entrarAberto, setEntrarAberto] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const entrarRef = useRef<HTMLDivElement>(null);
+
+  // ---------------------------------------------------------------------------
+  // Contexto territorial do cabeçalho.
+  //   • Rotas comerciais BDFlow (/, /oportunidades*, /selecionar-localidade)
+  //     exibem a LOCALIDADE comercial e o link "Alterar localidade" →
+  //     /selecionar-localidade. NÃO exibem a UF legada de camisas nem apontam
+  //     para /selecionar-estado.
+  //   • Rotas legadas de camisas (/produtos, /produto, /personalizar, /checkout,
+  //     /selecionar-estado) mantêm o chip da UF antiga → /selecionar-estado.
+  //   • Demais rotas (portal, admin, parceiros) não exibem chip de localidade.
+  //
+  // O território comercial vem do localStorage APENAS para rótulo de navegação;
+  // NÃO é autoridade — /oportunidades re-resolve a região pelo backend.
+  const caminho = location.pathname;
+  const destinoNext = encodeURIComponent(caminho + location.search);
+  const ehLegado =
+    caminho.startsWith("/produtos") ||
+    caminho.startsWith("/produto/") ||
+    caminho.startsWith("/personalizar") ||
+    caminho.startsWith("/checkout") ||
+    caminho.startsWith("/selecionar-estado");
+  const ehComercial =
+    caminho === "/" ||
+    caminho.startsWith("/oportunidades") ||
+    caminho.startsWith("/selecionar-localidade");
+
   const ufAtual = obterUF();
+  const territorio = obterTerritorio();
+  const temLocalidadeComercial =
+    !!territorio &&
+    territorio.regionStatus === "active" &&
+    !!territorio.regionName;
+  const rotuloLocalidade = temLocalidadeComercial
+    ? `${territorio!.regionName} · ${territorio!.uf}`
+    : "Selecionar localidade";
 
   // sombra ao rolar
   useEffect(() => {
@@ -75,30 +110,52 @@ export default function SiteHeader() {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
-        {/* Logo */}
-        <Link to="/" className="display text-xl">
-          camisas<span className="text-magenta">.</span>es
+        {/* Logo — identidade principal BDFlow */}
+        <Link to="/" className="display text-xl" aria-label="BDFlow — início">
+          BD<span className="text-magenta">Flow</span>
         </Link>
 
         {/* Links centrais (desktop) */}
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Principal">
           {LINKS_CENTRAIS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
+            <Link
+              key={l.to}
+              to={l.to}
               className="rounded-full px-4 py-2 text-sm font-medium text-tinta/70 transition hover:bg-papel2 hover:text-tinta"
             >
               {l.rotulo}
-            </a>
+            </Link>
           ))}
         </nav>
 
         {/* Ações (desktop) */}
         <div className="hidden items-center gap-2 lg:flex">
-          {/* UF comercial atual — ação discreta de troca */}
-          {ufAtual && (
+          {/* Localidade COMERCIAL (rotas BDFlow) → /selecionar-localidade */}
+          {ehComercial && (
             <Link
-              to={`/selecionar-estado?next=${encodeURIComponent(location.pathname + location.search)}`}
+              to={`/selecionar-localidade?next=${destinoNext}`}
+              aria-label={
+                temLocalidadeComercial
+                  ? `Localidade comercial: ${rotuloLocalidade}. Alterar localidade.`
+                  : "Selecionar localidade comercial"
+              }
+              title={
+                temLocalidadeComercial
+                  ? `${rotuloLocalidade} — alterar localidade`
+                  : "Selecionar localidade"
+              }
+              className="flex items-center gap-1.5 rounded-full border border-borda px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-magenta hover:text-magenta"
+            >
+              📍 {rotuloLocalidade}
+              {temLocalidadeComercial && (
+                <span className="hidden xl:inline">· Alterar</span>
+              )}
+            </Link>
+          )}
+          {/* UF LEGADA (somente rotas de camisas) → /selecionar-estado */}
+          {!ehComercial && ehLegado && ufAtual && (
+            <Link
+              to={`/selecionar-estado?next=${destinoNext}`}
               aria-label={`Você está vendo produtos para ${UFS[ufAtual]}. Alterar estado.`}
               title={`Entregar para: ${UFS[ufAtual]} — alterar estado`}
               className="flex items-center gap-1.5 rounded-full border border-borda px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-magenta hover:text-magenta"
@@ -179,14 +236,14 @@ export default function SiteHeader() {
         <div className="border-t border-borda bg-papel px-4 pb-6 pt-3 lg:hidden">
           <nav className="space-y-1" aria-label="Menu">
             {LINKS_CENTRAIS.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
+              <Link
+                key={l.to}
+                to={l.to}
                 onClick={() => setMenuAberto(false)}
                 className="block rounded-xl px-4 py-3 font-medium text-tinta/80 transition hover:bg-papel2"
               >
                 {l.rotulo}
-              </a>
+              </Link>
             ))}
           </nav>
 
@@ -209,9 +266,19 @@ export default function SiteHeader() {
             ))}
           </div>
 
-          {ufAtual && (
+          {ehComercial && (
             <Link
-              to={`/selecionar-estado?next=${encodeURIComponent(location.pathname + location.search)}`}
+              to={`/selecionar-localidade?next=${destinoNext}`}
+              className="mt-4 block rounded-xl border border-borda px-4 py-3 text-center text-sm font-semibold text-tinta/70"
+            >
+              📍 {temLocalidadeComercial
+                ? `${rotuloLocalidade} — alterar localidade`
+                : "Selecionar localidade"}
+            </Link>
+          )}
+          {!ehComercial && ehLegado && ufAtual && (
+            <Link
+              to={`/selecionar-estado?next=${destinoNext}`}
               className="mt-4 block rounded-xl border border-borda px-4 py-3 text-center text-sm font-semibold text-tinta/70"
             >
               📍 Entregar para: {UFS[ufAtual]} — alterar estado

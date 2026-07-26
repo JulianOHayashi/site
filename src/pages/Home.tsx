@@ -1,29 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import DemoBanner from "../components/DemoBanner";
 import SiteHeader from "../components/SiteHeader";
 
 /**
- * HOME — formato "agência moderna" (referência: spun.com.br),
- * adaptado à identidade serigrafia (magenta/ciano/amarelo sobre papel).
+ * HOME — Site BDFlow (comercial).
  *
- * Blocos, na ordem:
- *   1. Hero de declaração (tipografia gigante) + CTAs
- *   2. Letreiro em movimento (marquee)
- *   3. Mapa do Brasil — momento assinatura + faixa de presença
- *   4. Números grandes com contadores animados
- *   5. Divisão de públicos: Para empresas / Para anunciantes
- *   6. Pilares (4 frentes)
- *   7. Parede de credibilidade (logos placeholder)
- *   8. Quem está por trás (time placeholder)
- *   9. FAQ em acordeão
- *  10. CTA final dramático + rodapé completo
+ * Apresenta o negócio comercial: oportunidades por região e nicho,
+ * exclusividade, os seis nichos e a formação de referência (84 unidades),
+ * a área de parceiros e uma referência resumida à operação administrada
+ * pelo aplicativo BDFlow.
  *
- * Todo conteúdo de negócio está marcado com ⚠️ A DEFINIR para ser
- * substituído depois pelo estilo/dados reais.
+ * Pública: NÃO exige território previamente selecionado. O território
+ * (UF + cidade) é solicitado pelo CommercialTerritoryGuard ao acessar
+ * /oportunidades. A loja legada de camisas NÃO é promovida aqui.
+ *
+ * Textos neutros e provisórios — sem conteúdo jurídico/comercial definitivo.
  */
 
-/* ---------- Revelar ao rolar (fade + sobe) ---------- */
+/* ---------- Revelar ao rolar (fade + sobe; respeita reduced-motion) ---------- */
 function Revelar({
   children,
   atraso = 0,
@@ -35,7 +29,6 @@ function Revelar({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visivel, setVisivel] = useState(false);
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -43,23 +36,18 @@ function Revelar({
       setVisivel(true);
       return;
     }
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        // reanima sempre: aparece ao entrar na tela, esconde ao sair
-        setVisivel(e.isIntersecting);
-      },
-      { threshold: 0.15 }
-    );
+    const obs = new IntersectionObserver(([e]) => setVisivel(e.isIntersecting), {
+      threshold: 0.15,
+    });
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
-
   return (
     <div
       ref={ref}
       style={{ transitionDelay: `${atraso}ms` }}
-      className={`transition-all duration-700 ease-out ${
-        visivel ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
+      className={`transition-all duration-700 ${
+        visivel ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
       } ${className}`}
     >
       {children}
@@ -67,410 +55,176 @@ function Revelar({
   );
 }
 
-/* ---------- Contador animado ---------- */
-function Contador({
-  ate,
-  prefixo = "",
-  sufixo = "",
-}: {
-  ate: number;
-  prefixo?: string;
-  sufixo?: string;
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [valor, setValor] = useState(0);
+const NICHOS = [
+  { icone: "🛒", nome: "Supermercado", qtd: 24 },
+  { icone: "💊", nome: "Farmácia", qtd: 12 },
+  { icone: "👗", nome: "Roupas femininas", qtd: 12 },
+  { icone: "👔", nome: "Roupas masculinas", qtd: 12 },
+  { icone: "👠", nome: "Calçados femininos", qtd: 12 },
+  { icone: "👞", nome: "Calçados masculinos", qtd: 12 },
+];
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setValor(ate);
-      return;
-    }
-    let raf = 0;
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        cancelAnimationFrame(raf);
-        if (!e.isIntersecting) {
-          // saiu da tela: zera para recontar na próxima visita
-          setValor(0);
-          return;
-        }
-        const inicio = performance.now();
-        const dur = 1600;
-        const tick = (agora: number) => {
-          const t = Math.min(1, (agora - inicio) / dur);
-          const suave = 1 - Math.pow(1 - t, 3); // ease-out cúbico
-          setValor(Math.round(ate * suave));
-          if (t < 1) raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      },
-      { threshold: 0.5 }
-    );
-    obs.observe(el);
-    return () => {
-      cancelAnimationFrame(raf);
-      obs.disconnect();
-    };
-  }, [ate]);
-
-  return (
-    <span ref={ref}>
-      {prefixo}
-      {valor.toLocaleString("pt-BR")}
-      {sufixo}
-    </span>
-  );
-}
-
-/* ---------- Letreiro (marquee) ---------- */
-function Letreiro({
-  itens,
-  invertido = false,
-  className = "",
-}: {
-  itens: string[];
-  invertido?: boolean;
-  className?: string;
-}) {
-  const sequencia = [...itens, ...itens, ...itens, ...itens];
-  return (
-    <div className={`overflow-hidden ${className}`}>
-      <div
-        className="letreiro-faixa"
-        style={invertido ? { animationDirection: "reverse" } : undefined}
-      >
-        {sequencia.map((t, i) => (
-          <span
-            key={i}
-            className="flex shrink-0 items-center gap-8 font-display text-lg font-bold uppercase tracking-wider"
-          >
-            {t} <span className="text-amarelo">✦</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Página ---------- */
 export default function Home() {
-  const solucoesRef = useRef<HTMLDivElement>(null);
-  const timeRef = useRef<HTMLDivElement>(null);
-  const faqRef = useRef<HTMLDivElement>(null);
-  const contatoRef = useRef<HTMLDivElement>(null);
-
   return (
-    <main className="relative overflow-x-clip">
-      {/* MANCHAS DE COR (fundo da marca) */}
-      <div
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-        aria-hidden
-      >
-        <div className="mancha" style={{ top: "-4%", left: "-12%", width: 520, height: 520, background: "#E5007E" }} />
-        <div className="mancha" style={{ top: "12%", right: "-14%", width: 560, height: 560, background: "#00A8E0", animationDelay: "-7s" }} />
-        <div className="mancha" style={{ top: "38%", left: "-10%", width: 460, height: 460, background: "#FFC400", animationDelay: "-12s" }} />
-        <div className="mancha" style={{ top: "62%", right: "-10%", width: 500, height: 500, background: "#E5007E", animationDelay: "-4s", opacity: 0.3 }} />
-        <div className="mancha" style={{ bottom: "-8%", left: "20%", width: 520, height: 520, background: "#00A8E0", animationDelay: "-9s", opacity: 0.3 }} />
-      </div>
-
-      <DemoBanner />
-
-      {/* ===== CABEÇALHO (navegação moderna compartilhada) ===== */}
+    <>
       <SiteHeader />
 
-      {/* ===== 1 · HERO DE DECLARAÇÃO ===== */}
-      <section className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:pt-28">
-        <p className="entrar inline-flex items-center gap-2 rounded-full border border-borda bg-white/70 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.3em] text-magenta backdrop-blur">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-magenta" />
-          Espírito Santo → Brasil
+      {/* HERO */}
+      <section className="mx-auto max-w-6xl px-4 pt-14 pb-10 sm:pt-20">
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+          Oportunidades comerciais BDFlow
         </p>
-        <h1 className="entrar entrar-2 mt-6 text-5xl leading-[0.98] sm:text-7xl md:text-8xl">
-          IDENTIDADE
-          <br />
-          <span className="text-magenta">→</span> EM{" "}
-          <span className="relative inline-block">
-            MOVIMENTO
-            <span className="absolute -bottom-1 left-0 -z-10 h-4 w-full -rotate-1 rounded bg-amarelo/70 sm:h-6" />
-          </span>
+        <h1 className="mt-4 max-w-3xl text-4xl leading-[1.05] sm:text-6xl">
+          Oportunidades comerciais por região e por nicho.
         </h1>
-        {/* ⚠️ SUBTÍTULO PROVISÓRIO — A DEFINIR */}
-        <p className="entrar entrar-3 mt-7 max-w-xl text-lg text-tinta/70">
-          Vestimos marcas e movemos mensagens: da estampa que a sua empresa
-          usa ao anúncio que o Brasil inteiro vê.
+        <p className="mt-5 max-w-2xl text-lg text-tinta/70">
+          Empresas podem acompanhar oportunidades por região e nicho. Cada
+          oportunidade representa a contratação integral de um nicho dentro de
+          uma exclusividade comercial.
         </p>
-        <div className="entrar entrar-4 mt-9 flex flex-wrap gap-3">
-          <Link to="/produtos" className="btn-primary group">
-            Comprar camisas{" "}
-            <span className="transition-transform group-hover:translate-x-1">→</span>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link to="/oportunidades" className="btn-primary">
+            Ver oportunidades
           </Link>
-          <button
-            onClick={() => irAte(solucoesRef)}
-            className="btn-secondary group"
-          >
-            Para empresas{" "}
-            <span className="transition-transform group-hover:translate-x-1">→</span>
-          </button>
-          <button
-            onClick={() => irAte(solucoesRef)}
-            className="btn-secondary group"
-          >
-            Para anunciantes{" "}
-            <span className="transition-transform group-hover:translate-x-1">→</span>
-          </button>
+          <Link to="/parceiros" className="btn-secondary">
+            Área de parceiros
+          </Link>
         </div>
-      </section>
-
-      {/* ===== 2 · LETREIRO EM MOVIMENTO ===== */}
-      <div className="relative -rotate-1 border-y-2 border-tinta bg-magenta py-3 text-white">
-        <Letreiro itens={["Somos feitos de identidade", "Somos feitos de cor", "Somos feitos de movimento"]} />
-      </div>
-      <div className="relative rotate-1 border-b-2 border-tinta bg-papel py-3 text-tinta">
-        <Letreiro invertido itens={["Estampa", "Mídia", "Design", "Espírito Santo", "Brasil"]} />
-      </div>
-
-      {/* ===== 3 · MAPA — MOMENTO ASSINATURA ===== */}
-      {/* ===== 4 · NÚMEROS GRANDES ===== */}
-      <section className="relative border-y-2 border-tinta bg-tinta py-20 text-papel">
-        <div className="mx-auto grid max-w-6xl gap-12 px-4 text-center sm:grid-cols-2 lg:grid-cols-4">
-          {/* ⚠️ NÚMEROS PROVISÓRIOS — A DEFINIR com dados reais */}
-          {[
-            { ate: 1200, sufixo: "+", rotulo: "camisas estampadas", cor: "text-magenta" },
-            { ate: 80, sufixo: "+", rotulo: "empresas atendidas", cor: "text-ciano" },
-            { ate: 27, sufixo: "", rotulo: "estados no radar", cor: "text-amarelo" },
-            { ate: 100, sufixo: "%", rotulo: "feito no Espírito Santo", cor: "text-papel" },
-          ].map((n, i) => (
-            <Revelar key={n.rotulo} atraso={i * 120}>
-              <p className={`font-display text-5xl font-bold sm:text-6xl ${n.cor}`}>
-                <Contador ate={n.ate} sufixo={n.sufixo} />
-              </p>
-              <p className="mt-2 text-sm uppercase tracking-widest text-papel/60">
-                {n.rotulo}
-              </p>
-            </Revelar>
-          ))}
-        </div>
-        <p className="mt-10 text-center text-xs text-papel/30">
-          ⚠️ números ilustrativos — a definir com dados reais
+        <p className="mt-4 text-sm text-tinta/50">
+          O território (estado e cidade) é solicitado ao abrir as oportunidades.
         </p>
       </section>
 
-      {/* ===== 5 · DIVISÃO DE PÚBLICOS ===== */}
-      <section id="solucoes" ref={solucoesRef} className="relative mx-auto max-w-6xl scroll-mt-24 px-4 py-24">
-        <Revelar>
-          <h2 className="text-center text-3xl sm:text-5xl">Dois caminhos, um só movimento</h2>
-        </Revelar>
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
-          <Revelar>
-            <article className="group flex h-full flex-col rounded-3xl bg-magenta p-9 text-white shadow-lg transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(229,0,126,0.45)]">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-80">Para empresas</p>
-              <h3 className="mt-3 text-3xl sm:text-4xl">Sua marca, vestida.</h3>
-              {/* ⚠️ TEXTO PROVISÓRIO — A DEFINIR */}
-              <p className="mt-4 text-white/85">
-                Camisas e materiais com a identidade da sua empresa, produzidos
-                no ES com arte revisada uma a uma.
-              </p>
-              <ul className="mt-6 space-y-2 text-sm text-white/90">
-                <li>✦ Estampa personalizada com sua arte</li>
-                <li>✦ Produção própria e controle de qualidade</li>
-                <li>✦ Do pedido à entrega, sem intermediários</li>
-              </ul>
-              <Link
-                to="/produtos"
-                className="mt-auto w-fit rounded-xl bg-white px-6 py-3 pt-3 font-semibold text-magenta transition group-hover:scale-105"
-                style={{ marginTop: "2rem" }}
-              >
-                Quero vestir minha marca →
-              </Link>
-            </article>
-          </Revelar>
-          <Revelar atraso={150}>
-            <article className="group flex h-full flex-col rounded-3xl border-2 border-tinta bg-tinta p-9 text-papel shadow-lg transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(0,168,224,0.4)]">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-ciano">Para anunciantes</p>
-              <h3 className="mt-3 text-3xl sm:text-4xl">Sua mensagem, em movimento.</h3>
-              {/* ⚠️ TEXTO PROVISÓRIO — A DEFINIR (modelo de anúncios) */}
-              <p className="mt-4 text-papel/80">
-                Anuncie nos nossos espaços e leve sua mensagem junto com quem
-                veste e circula por todo o estado — e logo, pelo Brasil.
-              </p>
-              <ul className="mt-6 space-y-2 text-sm text-papel/85">
-                <li>✦ Espaços de mídia da marca (⚠️ a definir)</li>
-                <li>✦ Público segmentado por estado</li>
-                <li>✦ Formatos sob medida para sua campanha</li>
-              </ul>
-              <button
-                onClick={() => irAte(contatoRef)}
-                className="mt-auto w-fit rounded-xl bg-ciano px-6 py-3 font-semibold text-tinta transition group-hover:scale-105"
-                style={{ marginTop: "2rem" }}
-              >
-                Quero anunciar →
-              </button>
-            </article>
-          </Revelar>
-        </div>
-      </section>
-
-      {/* ===== 6 · PILARES ===== */}
-      <section className="relative mx-auto max-w-6xl px-4 pb-24">
-        <Revelar>
-          <h2 className="text-center text-3xl sm:text-5xl">Nossas frentes</h2>
-          <p className="mx-auto mt-3 max-w-md text-center text-tinta/60">
-            {/* ⚠️ A DEFINIR — frentes reais do negócio */}
-            Quatro pilares, uma identidade.
+      {/* REGIÕES ATENDIDAS */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <Revelar className="card p-8">
+          <h2 className="text-2xl sm:text-3xl">Regiões atendidas</h2>
+          <p className="mt-3 max-w-2xl text-tinta/70">
+            A primeira região comercial ativa é a{" "}
+            <span className="font-semibold">Grande Vitória (ES)</span>, reunindo
+            Vitória, Vila Velha, Serra, Cariacica e Viana. Novas regiões serão
+            abertas nas próximas etapas.
           </p>
+          <div className="mt-5">
+            <Link to="/selecionar-localidade" className="btn-secondary">
+              Selecionar localidade
+            </Link>
+          </div>
         </Revelar>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { icone: "👕", titulo: "Estamparia", texto: "Produção própria de camisas personalizadas. (⚠️ A DEFINIR)", cor: "group-hover:bg-magenta" },
-            { icone: "📣", titulo: "Mídia & anúncios", texto: "Espaços publicitários da marca para anunciantes. (⚠️ A DEFINIR)", cor: "group-hover:bg-ciano" },
-            { icone: "🎨", titulo: "Design", texto: "Criação e revisão de artes que representam sua marca. (⚠️ A DEFINIR)", cor: "group-hover:bg-amarelo" },
-            { icone: "🚚", titulo: "ES → Brasil", texto: "Logística que começa capixaba e mira o país inteiro. (⚠️ A DEFINIR)", cor: "group-hover:bg-magenta" },
-          ].map((p, i) => (
-            <Revelar key={p.titulo} atraso={i * 100}>
-              <article className="group h-full rounded-3xl border border-borda bg-white/85 p-7 shadow-sm backdrop-blur transition hover:-translate-y-1 hover:shadow-xl">
-                <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-papel2 text-2xl transition-colors ${p.cor}`}>
-                  {p.icone}
-                </span>
-                <h3 className="mt-5 text-xl">{p.titulo}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-tinta/60">{p.texto}</p>
-              </article>
-            </Revelar>
-          ))}
-        </div>
       </section>
 
-      {/* ===== 7 · PAREDE DE CREDIBILIDADE ===== */}
-      <section className="relative border-y border-borda bg-white/60 py-16 backdrop-blur">
-        <Revelar>
-          <h2 className="text-center text-2xl text-tinta/70 sm:text-3xl">
-            Quando o mercado fala em identidade,
-            <br className="hidden sm:block" /> queremos que fale na gente.
-          </h2>
-        </Revelar>
-        {/* ⚠️ LOGOS PROVISÓRIOS — trocar por logos reais de clientes/parceiros/imprensa */}
-        <div className="mx-auto mt-10 grid max-w-5xl grid-cols-2 gap-4 px-4 sm:grid-cols-4">
-          {["Parceiro 1", "Parceiro 2", "Parceiro 3", "Parceiro 4", "Cliente 1", "Cliente 2", "Cliente 3", "Cliente 4"].map((l, i) => (
-            <Revelar key={l} atraso={i * 60}>
-              <div className="flex h-16 items-center justify-center rounded-2xl border border-dashed border-borda bg-papel text-sm font-semibold text-tinta/30">
-                {l}
+      {/* SEIS NICHOS */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <h2 className="text-2xl sm:text-3xl">Seis nichos por exclusividade</h2>
+        <p className="mt-3 max-w-2xl text-tinta/70">
+          Cada nicho é contratado integralmente dentro de uma exclusividade
+          comercial da região.
+        </p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {NICHOS.map((n, i) => (
+            <Revelar key={n.nome} atraso={i * 60}>
+              <div className="card flex items-center gap-3 p-5">
+                <span aria-hidden className="text-2xl">
+                  {n.icone}
+                </span>
+                <div>
+                  <p className="font-bold">{n.nome}</p>
+                  <p className="text-sm text-tinta/60">
+                    {n.qtd} unidades contratadas
+                  </p>
+                </div>
               </div>
             </Revelar>
           ))}
         </div>
-        <p className="mt-6 text-center text-xs text-tinta/30">⚠️ espaços para logos reais — a definir</p>
       </section>
 
-      {/* ===== 8 · QUEM ESTÁ POR TRÁS ===== */}
-      <section id="time" ref={timeRef} className="relative mx-auto max-w-6xl scroll-mt-24 px-4 py-24">
-        <Revelar>
-          <h2 className="text-center text-3xl sm:text-5xl">Quem está por trás</h2>
-          <p className="mx-auto mt-3 max-w-md text-center text-tinta/60">
-            Gente real, do Espírito Santo, tocando cada etapa.
+      {/* FORMAÇÃO DE REFERÊNCIA */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <Revelar className="card bg-tinta p-8 text-white">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-amarelo">
+            Formação comercial
           </p>
-        </Revelar>
-        {/* ⚠️ TIME PROVISÓRIO — trocar por fotos, nomes e cargos reais */}
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {[
-            { iniciais: "JH", nome: "Nome Sobrenome", cargo: "Fundador(a) · (⚠️ A DEFINIR)", cor: "bg-magenta" },
-            { iniciais: "??", nome: "Nome Sobrenome", cargo: "Cargo · (⚠️ A DEFINIR)", cor: "bg-ciano" },
-            { iniciais: "??", nome: "Nome Sobrenome", cargo: "Cargo · (⚠️ A DEFINIR)", cor: "bg-amarelo" },
-          ].map((m, i) => (
-            <Revelar key={i} atraso={i * 120}>
-              <article className="rounded-3xl border border-borda bg-white/85 p-8 text-center shadow-sm backdrop-blur transition hover:-translate-y-1 hover:shadow-xl">
-                <span className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${m.cor} font-display text-3xl font-bold text-white`}>
-                  {m.iniciais}
-                </span>
-                <h3 className="mt-5 text-xl">{m.nome}</h3>
-                <p className="mt-1 text-sm text-tinta/50">{m.cargo}</p>
-              </article>
-            </Revelar>
-          ))}
-        </div>
-      </section>
-
-      {/* ===== 9 · FAQ ===== */}
-      <section id="faq" ref={faqRef} className="relative mx-auto max-w-3xl scroll-mt-24 px-4 pb-24">
-        <Revelar>
-          <h2 className="text-center text-3xl sm:text-5xl">Perguntas frequentes</h2>
-        </Revelar>
-        <div className="mt-10 space-y-3">
-          {/* ⚠️ PERGUNTAS/RESPOSTAS PROVISÓRIAS — A DEFINIR */}
-          {[
-            { p: "O que exatamente vocês fazem?", r: "Estampamos camisas personalizadas para empresas e oferecemos espaços de mídia para anunciantes. (⚠️ resposta a definir)" },
-            { p: "Vocês atendem fora do Espírito Santo?", r: "Estamos começando pelo ES, com expansão planejada para todo o Brasil — escolha seu estado na tela inicial e deixe seu contato. (⚠️ a definir)" },
-            { p: "Como funciona para anunciar com vocês?", r: "Fale com a gente pelo contato no rodapé e apresentamos os formatos e espaços disponíveis. (⚠️ modelo de anúncios a definir)" },
-            { p: "Qual o prazo de produção e entrega?", r: "Depende do volume e do destino — respondemos com o prazo exato no orçamento. (⚠️ prazos a definir)" },
-            { p: "Posso enviar minha própria arte?", r: "Sim! Toda arte enviada passa por revisão da nossa equipe antes da produção. (⚠️ política de revisões a definir)" },
-          ].map((f, i) => (
-            <Revelar key={i} atraso={i * 60}>
-              <details className="group rounded-2xl border border-borda bg-white/85 backdrop-blur open:shadow-md">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-4 font-semibold [&::-webkit-details-marker]:hidden">
-                  {f.p}
-                  <span className="text-xl text-magenta transition-transform group-open:rotate-45">+</span>
-                </summary>
-                <p className="px-6 pb-5 text-sm leading-relaxed text-tinta/70">{f.r}</p>
-              </details>
-            </Revelar>
-          ))}
-        </div>
-      </section>
-
-      {/* ===== 10 · CTA FINAL ===== */}
-      <section id="contato" ref={contatoRef} className="relative scroll-mt-24 overflow-hidden border-t-2 border-tinta bg-tinta py-24 text-center text-papel">
-        {/* palavra gigante de contorno ao fundo */}
-        <span
-          aria-hidden
-          className="texto-contorno pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 whitespace-nowrap font-display text-[22vw] font-bold leading-none"
-        >
-          MOVIMENTO
-        </span>
-        <Revelar>
-          <h2 className="mx-auto max-w-3xl px-4 text-4xl leading-[1.02] sm:text-6xl">
-            VAMOS COLOCAR A SUA MARCA{" "}
-            <span className="text-magenta">EM</span>{" "}
-            <span className="text-ciano">MOVI</span>
-            <span className="text-amarelo">MENTO</span>?
+          <h2 className="mt-3 text-2xl sm:text-3xl">
+            Seis nichos · 84 unidades
           </h2>
-          {/* ⚠️ CONTATO PROVISÓRIO — A DEFINIR (email/WhatsApp reais) */}
-          <a
-            href="mailto:contato@exemplo.com.br"
-            className="mt-10 inline-block rounded-2xl bg-magenta px-10 py-5 font-display text-lg font-bold text-white transition hover:scale-105 hover:bg-white hover:text-magenta"
-          >
-            Fale com a gente →
-          </a>
-          <p className="mt-4 text-sm text-papel/50">contato@exemplo.com.br (⚠️ a definir)</p>
-        </Revelar>
-
-        {/* rodapé */}
-        <footer className="mt-20 border-t border-papel/15 pt-10">
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 text-left sm:grid-cols-3">
-            <div>
-              <p className="display text-lg">camisas<span className="text-magenta">.</span>es</p>
-              <p className="mt-2 text-sm text-papel/50">
-                Identidade em movimento, do Espírito Santo para o Brasil.
-              </p>
-            </div>
-            <div className="text-sm text-papel/60">
-              <p className="font-semibold text-papel">Contato</p>
-              <p className="mt-2">contato@exemplo.com.br (⚠️)</p>
-              <p>WhatsApp: (27) 90000-0000 (⚠️)</p>
-              <p>Espírito Santo, Brasil</p>
-            </div>
-            <div className="text-sm text-papel/60">
-              <p className="font-semibold text-papel">Institucional</p>
-              <p className="mt-2">
-                <Link to="/parceiros" className="hover:text-papel">Área de parceiros</Link>
-              </p>
-              <p>Termos de uso (em breve)</p>
-              <p>Privacidade (em breve)</p>
-            </div>
-          </div>
-          <p className="mt-10 pb-2 text-center text-xs text-papel/30">
-            © 2026 camisas.es · CNPJ 00.000.000/0000-00 (⚠️ a definir)
+          <p className="mt-3 max-w-2xl text-white/80">
+            A formação comercial de referência reúne seis nichos e 84 unidades
+            contratadas. O acompanhamento de cada oportunidade fica na página de
+            oportunidades da sua região.
           </p>
-        </footer>
+          <div className="mt-6">
+            <Link
+              to="/oportunidades"
+              className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-tinta transition hover:bg-amarelo"
+            >
+              Ver oportunidades
+            </Link>
+          </div>
+        </Revelar>
       </section>
-    </main>
+
+      {/* REFERÊNCIA OPERACIONAL */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <Revelar className="rounded-3xl border border-borda bg-papel2 p-8">
+          <h2 className="text-2xl sm:text-3xl">Site e aplicativo</h2>
+          <p className="mt-3 max-w-2xl text-tinta/70">
+            O Site administra a exclusividade comercial. A jornada dos usuários
+            e o ciclo operacional são administrados pelo aplicativo BDFlow.
+          </p>
+        </Revelar>
+      </section>
+
+      {/* ÁREA DE PARCEIROS */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <Revelar className="grid gap-4 sm:grid-cols-2">
+          <div className="card p-8">
+            <h3 className="text-xl font-bold">Área de parceiros</h3>
+            <p className="mt-2 text-sm text-tinta/70">
+              Empresas acompanham suas oportunidades e informações comerciais.
+            </p>
+            <Link to="/parceiros" className="btn-secondary mt-4 inline-block">
+              Área de parceiros
+            </Link>
+          </div>
+          <div className="card p-8">
+            <h3 className="text-xl font-bold">Portal BDFlow</h3>
+            <p className="mt-2 text-sm text-tinta/70">
+              Parceiros comerciais validam QR codes — a ponte entre o site e o
+              aplicativo.
+            </p>
+            <Link to="/portal/login" className="btn-secondary mt-4 inline-block">
+              Ir para o Portal
+            </Link>
+          </div>
+        </Revelar>
+      </section>
+
+      {/* RODAPÉ */}
+      <footer className="mt-10 border-t border-borda">
+        <div className="mx-auto max-w-6xl px-4 py-10">
+          <p className="display text-lg">
+            BD<span className="text-magenta">Flow</span>
+          </p>
+          <p className="mt-2 max-w-md text-sm text-tinta/60">
+            Oportunidades comerciais por região e por nicho. Conteúdo provisório
+            — informações comerciais definitivas serão publicadas nas próximas
+            etapas.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-4 text-sm font-medium">
+            <Link to="/oportunidades" className="text-ciano hover:underline">
+              Oportunidades
+            </Link>
+            <Link to="/parceiros" className="text-ciano hover:underline">
+              Parceiros
+            </Link>
+            <Link to="/portal/login" className="text-ciano hover:underline">
+              Portal
+            </Link>
+          </div>
+          <p className="mt-6 text-xs text-tinta/40">© 2026 BDFlow</p>
+        </div>
+      </footer>
+    </>
   );
 }

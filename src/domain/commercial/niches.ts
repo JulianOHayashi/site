@@ -65,19 +65,72 @@ export function nicheByCode(code: CommercialNicheCode): CommercialNiche {
   return POR_CODIGO[code];
 }
 
-export function isNicheCode(value: string): value is CommercialNicheCode {
-  return value in POR_CODIGO;
+/**
+ * Type guard canônico do código interno de nicho.
+ *
+ * Aceita `unknown` (respostas server-side chegam sem tipo) e confirma, por
+ * pertencimento explícito, se o valor é um dos seis códigos canônicos. É a
+ * única fonte de verdade para "isto é um CommercialNicheCode?"; nada de
+ * casting (`x as CommercialNicheCode`) fora daqui.
+ */
+export function isCommercialNicheCode(
+  value: unknown
+): value is CommercialNicheCode {
+  return typeof value === "string" && value in POR_CODIGO;
+}
+
+/** Alias histórico mantido para compatibilidade de importações. */
+export const isNicheCode = isCommercialNicheCode;
+
+/**
+ * Mapeamento EXPLÍCITO e tipado entre o código interno canônico (underscore)
+ * e o slug público (hífen). É a fonte canônica das URLs — nunca derivamos o
+ * slug com um replaceAll("_", "-") solto.
+ */
+export const NICHE_SLUG_BY_CODE: Record<CommercialNicheCode, string> = {
+  supermarket: "supermarket",
+  pharmacy: "pharmacy",
+  womens_clothing: "womens-clothing",
+  mens_clothing: "mens-clothing",
+  womens_footwear: "womens-footwear",
+  mens_footwear: "mens-footwear",
+} as const;
+
+/** Mapeamento inverso: slug público (hífen) → código interno canônico. */
+export const NICHE_CODE_BY_SLUG: Record<string, CommercialNicheCode> =
+  Object.entries(NICHE_SLUG_BY_CODE).reduce((acc, [code, slug]) => {
+    acc[slug] = code as CommercialNicheCode;
+    return acc;
+  }, {} as Record<string, CommercialNicheCode>);
+
+/** Código interno → slug público canônico (com hífen). */
+export function slugByCode(code: CommercialNicheCode): string {
+  return NICHE_SLUG_BY_CODE[code];
 }
 
 /**
- * Normaliza um slug de rota para o código canônico do nicho.
- *
- * O código canônico usa underscore (womens_clothing), mas as URLs podem
- * chegar com hífen (womens-clothing). Esta função aceita as duas formas e
- * devolve o código canônico, ou null se não corresponder a um nicho.
- * Não altera o domínio: o código de autoridade continua com underscore.
+ * Slug público canônico → código interno. Aceita SOMENTE o slug canônico
+ * (com hífen). Retorna null para qualquer valor desconhecido — sem casting,
+ * sem inferência por substituição de caracteres.
  */
-export function nicheCodeFromRoute(slug: string): CommercialNicheCode | null {
-  const canonico = slug.trim().toLowerCase().replace(/-/g, "_");
-  return isNicheCode(canonico) ? canonico : null;
+export function nicheCodeFromSlug(slug: string): CommercialNicheCode | null {
+  const s = slug.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(NICHE_CODE_BY_SLUG, s)
+    ? NICHE_CODE_BY_SLUG[s]
+    : null;
+}
+
+/**
+ * URL legada com underscore → slug público canônico (hífen), para permitir
+ * um redirecionamento interno único. Retorna o slug canônico apenas quando o
+ * valor bruto, ao trocar "_" por "-", corresponde a um slug canônico E não é
+ * já o próprio slug canônico (evita loop de redirecionamento). Caso contrário
+ * retorna null e o chamador trata como código inválido.
+ */
+export function canonicalSlugFromLegacy(raw: string): string | null {
+  const bruto = raw.trim().toLowerCase();
+  if (nicheCodeFromSlug(bruto)) return null; // já é canônico → não redireciona
+  const comHifen = bruto.replace(/_/g, "-");
+  const code = nicheCodeFromSlug(comHifen);
+  return code ? slugByCode(code) : null;
 }

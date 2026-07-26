@@ -28,7 +28,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<EstadoGuard><Home /></EstadoGuard>} />
+        {/* Home pública BDFlow — NÃO exige o território legado de camisas. */}
+        <Route path="/" element={<Home />} />
         <Route path="/selecionar-estado" element={<SelecionarEstado />} />
 
         {/* Fase 1 — domínio comercial BDFlow */}
@@ -42,7 +43,7 @@ export default function App() {
           }
         />
         <Route
-          path="/oportunidades/:nicheCode"
+          path="/oportunidades/:nicheSlug"
           element={
             <CommercialTerritoryGuard>
               <OportunidadeDetalhe />

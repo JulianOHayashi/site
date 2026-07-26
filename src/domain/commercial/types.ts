@@ -60,6 +60,8 @@ export interface CommercialNiche {
 
 /** Oportunidade retornada pelo backend (dados públicos). */
 export interface CommercialOpportunity {
+  id: string;
+  exclusivityId: string;
   nicheCode: CommercialNicheCode;
   displayName: string;
   contractedQuantity: number;
@@ -68,6 +70,8 @@ export interface CommercialOpportunity {
 }
 
 export interface CommercialExclusivity {
+  id: string;
+  regionId: string;
   sequenceNumber: number;
   status: CommercialExclusivityStatus;
   isCurrent: boolean;
