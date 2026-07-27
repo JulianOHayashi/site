@@ -69,7 +69,7 @@ export default function App() {
         />
         <Route path="/parceiros" element={<Parceiros />} />
         <Route path="/parceiros/painel" element={<ParceirosPainel />} />
-        {/* Portal do parceiro BDFlow (APP Supabase — RPC only) */}
+        {/* Portal do parceiro BDFlow (Supabase do SITE — auth por sessão; cadastro via RPC) */}
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
         <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
