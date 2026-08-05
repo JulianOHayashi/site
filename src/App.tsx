@@ -1,11 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
-import HomeClassica from "./pages/HomeClassica";
 import EmBreve from "./pages/EmBreve";
-import Produtos from "./pages/Produtos";
-import ProdutoDetalhe from "./pages/ProdutoDetalhe";
-import Personalizar from "./pages/Personalizar";
-import Checkout from "./pages/Checkout";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import AdminGuard from "./components/AdminGuard";
@@ -15,8 +10,6 @@ import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCadastro from "./pages/portal/PortalCadastro";
-import SelecionarEstado from "./pages/SelecionarEstado";
-import EstadoGuard from "./components/EstadoGuard";
 import PortalValidar from "./pages/portal/PortalValidar";
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 import SelecionarLocalidade from "./pages/SelecionarLocalidade";
@@ -28,11 +21,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Home pública BDFlow — NÃO exige o território legado de camisas. */}
+        {/* Domínio público e comercial vigente. */}
         <Route path="/" element={<Home />} />
-        <Route path="/selecionar-estado" element={<SelecionarEstado />} />
-
-        {/* Fase 1 — domínio comercial BDFlow */}
         <Route path="/selecionar-localidade" element={<SelecionarLocalidade />} />
         <Route
           path="/oportunidades"
@@ -50,14 +40,16 @@ export default function App() {
             </CommercialTerritoryGuard>
           }
         />
-        {/* Cópia de segurança de versão anterior do site */}
-        <Route path="/classica" element={<HomeClassica />} />
         <Route path="/em-breve" element={<EmBreve />} />
-        {/* Comércio do site (Supabase do SITE) */}
-        <Route path="/produtos" element={<EstadoGuard><Produtos /></EstadoGuard>} />
-        <Route path="/produto/:slug" element={<EstadoGuard><ProdutoDetalhe /></EstadoGuard>} />
-        <Route path="/personalizar/:slug" element={<EstadoGuard><Personalizar /></EstadoGuard>} />
-        <Route path="/checkout" element={<EstadoGuard><Checkout /></EstadoGuard>} />
+
+        {/* Compatibilidade temporária para links da antiga loja. */}
+        <Route path="/selecionar-estado" element={<Navigate to="/selecionar-localidade" replace />} />
+        <Route path="/classica" element={<Navigate to="/" replace />} />
+        <Route path="/produtos" element={<Navigate to="/oportunidades" replace />} />
+        <Route path="/produto/:slug" element={<Navigate to="/oportunidades" replace />} />
+        <Route path="/personalizar/:slug" element={<Navigate to="/oportunidades" replace />} />
+        <Route path="/checkout" element={<Navigate to="/oportunidades" replace />} />
+
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"
@@ -69,14 +61,14 @@ export default function App() {
         />
         <Route path="/parceiros" element={<Parceiros />} />
         <Route path="/parceiros/painel" element={<ParceirosPainel />} />
-        {/* Portal do parceiro BDFlow (Supabase do SITE — auth por sessão; cadastro via RPC) */}
+        {/* Portal do parceiro BDFlow (Supabase do Site). */}
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
         <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
         <Route path="/portal/cadastro" element={<PortalGuard><PortalCadastro /></PortalGuard>} />
         <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
         <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
-        {/* rota antiga do portal */}
+        {/* Compatibilidade temporária do antigo endereço do painel. */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
         <Route path="*" element={<EmBreve />} />
       </Routes>

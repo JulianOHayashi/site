@@ -1,5 +1,5 @@
 {
-  "name": "camisas-es",
+  "name": "bdflow-site",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:legacy": "node scripts/check-no-legacy.mjs",
+    "validate": "npm run check:legacy && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

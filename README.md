@@ -1,68 +1,67 @@
-# Camisas que contam a sua marca — Lado Empresarial
+# BDFlow Site
 
-E-commerce de camisas customizadas para empresas do Espírito Santo.
-Stack: **React + Vite + TypeScript + Tailwind** · Banco: **Supabase** (opcional) · Deploy: **Vercel**.
+Site público, comercial e administrativo da BDFlow. O projeto organiza
+oportunidades por região e nicho, autenticação de parceiros e a fundação do
+Portal BDFlow.
 
-Identidade visual "Tintas de Serigrafia": magenta `#E5007E` · ciano `#00A8E0` · amarelo `#FFC400` sobre papel `#FBFAF6`.
+## Stack
 
-## Rodando localmente
+- React 18, Vite e TypeScript
+- Tailwind CSS
+- Supabase do Site
+- Vercel
+
+## Execução local
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Abre em http://localhost:5173. **Funciona imediatamente em modo demonstração** (produtos e pedidos mock) — não precisa de banco pra ver o site.
+Variáveis públicas esperadas:
 
-## Conectando o Supabase (estoque real)
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
 
-1. Crie um projeto em https://supabase.com
-2. No SQL Editor, rode o conteúdo de `supabase/schema.sql`
-3. Copie `.env.example` para `.env` e preencha:
-   - `VITE_SUPABASE_URL` → Project Settings → API → Project URL
-   - `VITE_SUPABASE_ANON_KEY` → Project Settings → API → anon public key
-4. Reinicie `npm run dev`
+Nunca coloque `service_role`, senhas ou chaves privadas no frontend.
 
-Com isso o estoque passa a vir do banco **em tempo real**: quando um pedido é criado, um trigger atômico desconta o estoque e todos os navegadores abertos veem o número cair sozinho.
+## Rotas vigentes
 
-## Subindo para o GitHub
+- `/`: apresentação pública BDFlow
+- `/selecionar-localidade`: seleção de UF e cidade
+- `/oportunidades`: formação comercial por região e nicho
+- `/parceiros`: autenticação e área comercial de parceiros
+- `/portal`: autenticação e operação do Portal BDFlow
+- `/admin`: área administrativa protegida
+
+Endereços antigos da loja redirecionam temporariamente para o domínio atual;
+o código de camisas, produtos, estoque e checkout antigo não integra mais o
+projeto.
+
+## Regras comerciais já consolidadas
+
+- formação de referência: 84 unidades;
+- supermercado: 24 unidades;
+- farmácia, roupas femininas, roupas masculinas, calçados femininos e calçados
+  masculinos: 12 unidades cada;
+- o nicho é contratado integralmente;
+- não existe desconto progressivo por quantidade;
+- o ciclo comercial do Site é separado do ciclo operacional do App.
+
+## Validação
 
 ```bash
-git init
-git add .
-git commit -m "Site inicial — lado empresarial"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/NOME_DO_REPO.git
-git push -u origin main
+npm run validate
 ```
 
-## Deploy na Vercel
+Esse comando procura resíduos proibidos, executa o typecheck e gera o build de
+produção.
 
-1. https://vercel.com → login com GitHub
-2. Add New → Project → selecione o repositório
-3. Framework: Vite (detectado automaticamente) → Deploy
-4. Em Settings → Environment Variables, adicione `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (se estiver usando Supabase) e faça redeploy
+## Documentação
 
-Cada `git push` na branch `main` atualiza o site automaticamente.
-
-> **Nota (SPA):** se ao atualizar uma rota interna (ex.: /produtos) der 404 na Vercel, crie `vercel.json` na raiz com rewrite de todas as rotas para `/` — já incluído neste projeto.
-
-## Estrutura
-
-```
-src/
-  pages/        Home (mapa), EmBreve, Produtos, ProdutoDetalhe,
-                Personalizar, Checkout, Admin
-  components/   BrazilMap, ShirtPreview (49×30), EstoqueBadge, Header
-  hooks/        useProducts (Supabase realtime ou mock)
-  lib/          cnpj.ts (validação real), supabase.ts, format.ts
-  data/         dados de demonstração
-supabase/
-  schema.sql    tabelas, triggers de estoque, RLS, realtime
-```
-
-## Ainda a definir (placeholders no código)
-
-Pagamento (Stripe/Mercado Pago) · parcelamento · % do desconto fidelidade ·
-nota fiscal (NFe.io/Bling) · email transacional (Resend/SendGrid) ·
-políticas de troca/termos/LGPD · lado Individual · nomes/preços finais dos modelos.
+Comece por [`docs/00-ESTADO-ATUAL-BDFLOW.md`](docs/00-ESTADO-ATUAL-BDFLOW.md).
+Os demais documentos registram especificações, migrations e verificações
+técnicas; nenhum arquivo SQL deve ser executado apenas por existir no
+repositório.

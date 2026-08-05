@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
-import { UFS } from "../lib/estado";
+import { UFS } from "../lib/brazilStates";
 import { useCommercialTerritory } from "../hooks/useCommercialTerritory";
 
 /**

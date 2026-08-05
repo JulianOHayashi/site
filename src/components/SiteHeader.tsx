@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { UFS, obterUF } from "../lib/estado";
 import { obterTerritorio } from "../lib/commercialTerritory";
 
 /**
  * SiteHeader — navegação moderna compartilhada por todo o site.
  *
  * Padrão: logo à esquerda · links centrais enxutos · à direita o
- * dropdown "Entrar" (separando as DUAS áreas de acesso) + CTA da
- * loja em destaque. No mobile, menu hambúrguer com painel completo.
+ * dropdown "Entrar" (separando as duas áreas de acesso) + CTA de
+ * oportunidades. No mobile, menu hambúrguer com painel completo.
  *
  * Áreas de acesso no dropdown:
  *  - Área de pedidos (/parceiros)  → empresas que compram no site
@@ -45,31 +44,19 @@ export default function SiteHeader() {
   const entrarRef = useRef<HTMLDivElement>(null);
 
   // ---------------------------------------------------------------------------
-  // Contexto territorial do cabeçalho.
-  //   • Rotas comerciais BDFlow (/, /oportunidades*, /selecionar-localidade)
-  //     exibem a LOCALIDADE comercial e o link "Alterar localidade" →
-  //     /selecionar-localidade. NÃO exibem a UF legada de camisas nem apontam
-  //     para /selecionar-estado.
-  //   • Rotas legadas de camisas (/produtos, /produto, /personalizar, /checkout,
-  //     /selecionar-estado) mantêm o chip da UF antiga → /selecionar-estado.
-  //   • Demais rotas (portal, admin, parceiros) não exibem chip de localidade.
+  // Contexto territorial do domínio comercial BDFlow.
+  // Rotas públicas/comerciais exibem a região resolvida e permitem alterá-la.
+  // Portal, administração e área autenticada não exibem esse controle.
   //
   // O território comercial vem do localStorage APENAS para rótulo de navegação;
   // NÃO é autoridade — /oportunidades re-resolve a região pelo backend.
   const caminho = location.pathname;
   const destinoNext = encodeURIComponent(caminho + location.search);
-  const ehLegado =
-    caminho.startsWith("/produtos") ||
-    caminho.startsWith("/produto/") ||
-    caminho.startsWith("/personalizar") ||
-    caminho.startsWith("/checkout") ||
-    caminho.startsWith("/selecionar-estado");
   const ehComercial =
     caminho === "/" ||
     caminho.startsWith("/oportunidades") ||
     caminho.startsWith("/selecionar-localidade");
 
-  const ufAtual = obterUF();
   const territorio = obterTerritorio();
   const temLocalidadeComercial =
     !!territorio &&
@@ -150,18 +137,6 @@ export default function SiteHeader() {
               {temLocalidadeComercial && (
                 <span className="hidden xl:inline">· Alterar</span>
               )}
-            </Link>
-          )}
-          {/* UF LEGADA (somente rotas de camisas) → /selecionar-estado */}
-          {!ehComercial && ehLegado && ufAtual && (
-            <Link
-              to={`/selecionar-estado?next=${destinoNext}`}
-              aria-label={`Você está vendo produtos para ${UFS[ufAtual]}. Alterar estado.`}
-              title={`Entregar para: ${UFS[ufAtual]} — alterar estado`}
-              className="flex items-center gap-1.5 rounded-full border border-borda px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-magenta hover:text-magenta"
-            >
-              📍 {ufAtual}
-              <span className="hidden xl:inline">· Alterar</span>
             </Link>
           )}
           {/* Dropdown Entrar */}
@@ -274,14 +249,6 @@ export default function SiteHeader() {
               📍 {temLocalidadeComercial
                 ? `${rotuloLocalidade} — alterar localidade`
                 : "Selecionar localidade"}
-            </Link>
-          )}
-          {!ehComercial && ehLegado && ufAtual && (
-            <Link
-              to={`/selecionar-estado?next=${destinoNext}`}
-              className="mt-4 block rounded-xl border border-borda px-4 py-3 text-center text-sm font-semibold text-tinta/70"
-            >
-              📍 Entregar para: {UFS[ufAtual]} — alterar estado
             </Link>
           )}
           <Link

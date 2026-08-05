@@ -1,11 +1,11 @@
-import { UFS } from "./estado";
+import { UFS } from "./brazilStates";
 import type { CommercialTerritory } from "../domain/commercial/types";
 
 /**
  * Persistência territorial do domínio comercial BDFlow.
  *
- * Chave NOVA (não reutiliza o nome antigo de camisas). Serve apenas para
- * experiência de navegação — o backend continua sendo a autoridade:
+ * A persistência serve apenas à experiência de navegação; o backend continua
+ * sendo a autoridade:
  * - regionId armazenado NÃO é confiável; sempre permitimos nova resolução;
  * - trata JSON inválido, valor incompleto ou expirado;
  * - nunca armazena endereço completo, CNPJ ou dados sensíveis.
