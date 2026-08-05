@@ -10,9 +10,9 @@ import SiteHeader from "../components/SiteHeader";
  * a área de parceiros e uma referência resumida à operação administrada
  * pelo aplicativo BDFlow.
  *
- * Pública: NÃO exige território previamente selecionado. O território
+ * Pública: não exige território previamente selecionado. O território
  * (UF + cidade) é solicitado pelo CommercialTerritoryGuard ao acessar
- * /oportunidades. A loja legada de camisas NÃO é promovida aqui.
+ * /oportunidades.
  *
  * Textos neutros e provisórios — sem conteúdo jurídico/comercial definitivo.
  */
