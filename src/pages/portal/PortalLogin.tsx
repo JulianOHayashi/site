@@ -4,6 +4,7 @@ import Header from "../../components/Header";
 import { supabase, supabaseConfigurado } from "../../lib/supabase";
 import { usePortalSiteAuth } from "../../hooks/usePortalSiteAuth";
 import { CarregandoPortal, PortalNaoConfigurado } from "./portalUi";
+import { safeInternalDestination } from "../../lib/safeInternalDestination";
 
 /**
  * /portal/login — nesta etapa, autentica no Supabase do SITE
@@ -24,10 +25,11 @@ export default function PortalLogin() {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  const destinoAposLogin = () => {
-    const next = params.get("next");
-    return next && next.startsWith("/portal") ? next : "/portal/dashboard";
-  };
+  // next seguro: apenas caminhos internos dentro da subarvore /portal
+  const destinoAposLogin = () =>
+    safeInternalDestination(params.get("next"), "/portal/dashboard", {
+      requiredPrefix: "/portal",
+    });
 
   // Já logado? Segue direto.
   useEffect(() => {

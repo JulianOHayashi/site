@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { supabase, supabaseConfigurado } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { safeInternalDestination } from "../lib/safeInternalDestination";
 
 /**
  * /admin/login — autenticação administrativa.
@@ -22,12 +23,10 @@ export default function AdminLogin() {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // next seguro: apenas caminhos internos iniciados por /admin
-  const destino = (() => {
-    const next = params.get("next");
-    if (next && next.startsWith("/admin") && !next.startsWith("//")) return next;
-    return "/admin";
-  })();
+  // next seguro: apenas caminhos internos dentro da subarvore /admin
+  const destino = safeInternalDestination(params.get("next"), "/admin", {
+    requiredPrefix: "/admin",
+  });
 
   // já autenticado → segue ao destino (autorização é do AdminGuard).
   // Navegação em efeito, nunca durante a renderização.

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { UFS } from "../lib/brazilStates";
 import { useCommercialTerritory } from "../hooks/useCommercialTerritory";
+import { safeInternalDestination } from "../lib/safeInternalDestination";
 
 /**
  * /selecionar-localidade — seleção de UF + cidade.
@@ -22,12 +23,8 @@ export default function SelecionarLocalidade() {
     { ativa: boolean; regionName: string | null } | null
   >(null);
 
-  const destino = (() => {
-    const next = params.get("next");
-    return next && next.startsWith("/") && !next.startsWith("//")
-      ? next
-      : "/oportunidades";
-  })();
+  // Destino interno validado por parser de URL (ver safeInternalDestination).
+  const destino = safeInternalDestination(params.get("next"), "/oportunidades");
 
   const confirmar = async () => {
     setResultado(null);
