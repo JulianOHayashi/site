@@ -26,7 +26,10 @@ export default function Admin() {
         <section className="card mt-8 p-6">
           <h2 className="text-xl">Recursos disponíveis</h2>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/oportunidades" className="btn-primary">
+            <Link to="/admin/solicitacoes" className="btn-primary">
+            Solicitações de parceria
+          </Link>
+          <Link to="/oportunidades" className="btn-primary">
               Ver oportunidades
             </Link>
             <Link to="/portal/dashboard" className="btn-secondary">
