@@ -9,13 +9,17 @@ import Parceiros from "./pages/Parceiros";
 import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
-import PortalCadastro from "./pages/portal/PortalCadastro";
 import PortalValidar from "./pages/portal/PortalValidar";
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 import SelecionarLocalidade from "./pages/SelecionarLocalidade";
 import Oportunidades from "./pages/Oportunidades";
 import OportunidadeDetalhe from "./pages/OportunidadeDetalhe";
 import CommercialTerritoryGuard from "./components/CommercialTerritoryGuard";
+import ParceirosCadastro from "./pages/parceiros/ParceirosCadastro";
+import ConfirmarEmail from "./pages/parceiros/ConfirmarEmail";
+import SolicitacaoStatus from "./pages/parceiros/SolicitacaoStatus";
+import ProvisionalGuard from "./components/ProvisionalGuard";
+import AdminSolicitacoes from "./pages/admin/AdminSolicitacoes";
 
 export default function App() {
   return (
@@ -59,13 +63,33 @@ export default function App() {
             </AdminGuard>
           }
         />
+        <Route
+          path="/admin/solicitacoes"
+          element={
+            <AdminGuard>
+              <AdminSolicitacoes />
+            </AdminGuard>
+          }
+        />
         <Route path="/parceiros" element={<Parceiros />} />
         <Route path="/parceiros/painel" element={<ParceirosPainel />} />
+        {/* Onboarding Fase 2A: solicitação empresarial pré-Auth. */}
+        <Route path="/parceiros/cadastro" element={<ParceirosCadastro />} />
+        <Route path="/parceiros/confirmar" element={<ConfirmarEmail />} />
+        <Route
+          path="/parceiros/solicitacao"
+          element={
+            <ProvisionalGuard>
+              <SolicitacaoStatus />
+            </ProvisionalGuard>
+          }
+        />
         {/* Portal do parceiro BDFlow (Supabase do Site). */}
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
         <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
-        <Route path="/portal/cadastro" element={<PortalGuard><PortalCadastro /></PortalGuard>} />
+        {/* Cadastro legado neutralizado: redirect seguro, sem RPC legada. */}
+        <Route path="/portal/cadastro" element={<Navigate to="/parceiros/cadastro" replace />} />
         <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
         <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
         {/* Compatibilidade temporária do antigo endereço do painel. */}
