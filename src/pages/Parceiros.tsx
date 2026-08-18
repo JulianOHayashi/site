@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { supabase, supabaseConfigurado } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { safeInternalDestination } from "../lib/safeInternalDestination";
 
 /**
  * ÁREA DE PARCEIROS — somente LOGIN (homologação Fase 1).
@@ -10,22 +11,33 @@ import { useAuth } from "../hooks/useAuth";
  * O cadastro público de empresas está TEMPORARIAMENTE indisponível: não há
  * aba "Cadastrar", campos de empresa/CNPJ, chamada a signUp nem criação de
  * registro no Supabase por esta página. Apenas o login de parceiros
- * existentes (e-mail + senha) permanece ativo, levando a /parceiros/painel.
- * O cadastro será disponibilizado em uma próxima etapa.
+ * existentes (e-mail + senha) permanece ativo.
+ * O cadastro público empresarial vive em /parceiros/cadastro (Fase 2A).
+ *
+ * Destino após o login: se veio um ?next= interno e válido, ele é
+ * respeitado — é assim que a conta provisória volta para
+ * /parceiros/solicitacao em vez de cair no painel genérico. O valor é
+ * controlável pelo usuário, então passa por safeInternalDestination com
+ * prefixo restrito a /parceiros.
  */
 export default function Parceiros() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { session, carregando } = useAuth();
+
+  const destino = safeInternalDestination(params.get("next"), "/parceiros/painel", {
+    requiredPrefix: "/parceiros",
+  });
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // Já logado? Vai direto ao painel.
+  // Já logado? Vai direto ao destino solicitado (ou ao painel).
   useEffect(() => {
-    if (!carregando && session) navigate("/parceiros/painel");
-  }, [carregando, session, navigate]);
+    if (!carregando && session) navigate(destino, { replace: true });
+  }, [carregando, session, navigate, destino]);
 
   const entrar = async () => {
     if (!supabase) return;
@@ -44,7 +56,7 @@ export default function Parceiros() {
       );
       return;
     }
-    navigate("/parceiros/painel");
+    navigate(destino, { replace: true });
   };
 
   const enviar = (e: React.FormEvent) => {
