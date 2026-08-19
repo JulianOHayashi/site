@@ -19,6 +19,19 @@ const MENSAGENS: Record<string, string> = {
   invalid_cpf: "Informe um CPF válido.",
   legal_document_unavailable:
     "O cadastro está temporariamente indisponível. Tente novamente mais tarde.",
+  acceptance_required: "É necessário aceitar os termos para continuar.",
+  acceptance_invalid: "Não foi possível registrar o aceite. Recarregue a página.",
+  acceptance_duplicate: "Aceite inválido. Recarregue a página.",
+  acceptance_unexpected: "Aceite inválido. Recarregue a página.",
+  acceptance_stale:
+    "Os termos foram atualizados. Leia a nova versão e aceite novamente para continuar.",
+  provisional_terms_required:
+    "Você precisa aceitar os termos da conta antes de continuar.",
+  storage_object_not_found: "O arquivo não foi encontrado. Envie novamente.",
+  storage_object_not_owned: "Este arquivo não pertence à sua solicitação.",
+  metadata_mismatch: "O arquivo enviado não confere. Tente novamente.",
+  document_superseded: "Este documento foi substituído por uma versão mais recente.",
+  already_terminal: "Esta solicitação já está encerrada.",
   application_in_progress:
     "Já existe uma solicitação em andamento para este CNPJ. Se ela é sua, verifique seu e-mail.",
   invalid_token: "Este link não é válido.",
@@ -88,6 +101,8 @@ export type DadosSolicitacao = {
   representative_email?: string;
   representative_phone?: string;
   representative_role_title?: string;
+  /** IDs exatos dos documentos que o usuário aceitou explicitamente. */
+  acceptances: { legal_document_id: string }[];
 };
 
 export function criarSolicitacao(dados: DadosSolicitacao) {
@@ -128,6 +143,72 @@ export async function solicitarRecuperacao(cnpj: string, email: string): Promise
   });
   // Mesmo em erro de transporte não revelamos nada além de "não deu".
   return { ok: !error };
+}
+
+// ---------------------------------------------------------------------------
+// Documentos jurídicos
+// ---------------------------------------------------------------------------
+/**
+ * O aceite é sempre atado ao ID EXATO do documento vigente. Nunca use um
+ * booleano solto: se os termos forem republicados enquanto a tela está
+ * aberta, um booleano herdado viraria aceite implícito da versão nova.
+ */
+export type DocumentoLegal = {
+  legal_document_id: string;
+  doc_type: string;
+  version: string;
+  title: string;
+  content: string | null;
+  content_url: string | null;
+  already_accepted?: boolean;
+};
+
+export type TermosEstado =
+  | { tipo: "carregando" }
+  | { tipo: "erro"; motivo: string }
+  | { tipo: "carregado"; documentos: DocumentoLegal[] };
+
+async function carregarTermos(rpc: string): Promise<TermosEstado> {
+  if (!supabase) return { tipo: "erro", motivo: "not_configured" };
+  const { data, error } = await supabase.rpc(rpc, {});
+  if (error) return { tipo: "erro", motivo: motivoSeguro(error.message) };
+  const r = data as { ok?: boolean; reason?: string; documents?: DocumentoLegal[] } | null;
+  if (!r || typeof r !== "object") return { tipo: "erro", motivo: "rpc_error" };
+  if (r.ok === false) return { tipo: "erro", motivo: r.reason ?? "rpc_error" };
+  return { tipo: "carregado", documentos: r.documents ?? [] };
+}
+
+/** Termos exigidos na solicitação empresarial (pré-Auth). */
+export function obterTermosSolicitacao() {
+  return carregarTermos("get_partner_application_terms");
+}
+
+/** Termos exigidos para ativar a conta provisória (já autenticado). */
+export function obterTermosContaProvisoria() {
+  return carregarTermos("get_provisional_account_terms");
+}
+
+/**
+ * Registra o aceite ATANDO-O ao documento exato que o usuário viu.
+ *
+ * Não chamamos `record_legal_acceptance` diretamente: ela resolve o vigente
+ * no servidor, e entre o clique do usuário e a chamada os termos podem ter
+ * sido republicados — o aceite acabaria recaindo sobre um texto que ninguém
+ * leu. O wrapper usa a função protegida como implementação canônica e
+ * reverte se o documento persistido não for o esperado.
+ */
+export function registrarAceiteConta(
+  docType: string,
+  legalDocumentId: string
+): Promise<ResultadoRpc<{ acceptance_id: string; legal_document_id: string }>> {
+  return chamarRpc<{ acceptance_id: string; legal_document_id: string }>(
+    "record_bound_legal_acceptance",
+    {
+      p_doc_type: docType,
+      p_legal_document_id: legalDocumentId,
+      p_client_evidence: { screen: "parceiros/confirmar" },
+    }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -435,6 +516,14 @@ export function decidirSolicitacao(applicationId: string, decisao: string, motiv
     p_application_id: applicationId,
     p_decision: decisao,
     p_reason: motivo ?? null,
+  });
+}
+
+/** Encerramento administrativo de solicitação não verificada (B2). */
+export function encerrarSolicitacaoAdmin(applicationId: string, motivo: string) {
+  return chamarRpc<{ status: string }>("admin_withdraw_partner_application", {
+    p_application_id: applicationId,
+    p_reason: motivo,
   });
 }
 
