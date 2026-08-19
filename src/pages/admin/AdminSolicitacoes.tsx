@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Header from "../../components/Header";
+import { cpfValido, emailValido, somenteDigitos } from "../../lib/onboardingValidacao";
 import {
   listarSolicitacoesAdmin,
   obterDetalheAdmin,
   analisarEmpresa,
   analisarAutoridade,
   substituirRepresentante,
+  encerrarSolicitacaoAdmin,
   solicitarCorrecao,
   revisarDocumento,
   decidirSolicitacao,
@@ -273,22 +275,9 @@ function Detalhe({ applicationId, aoMudar }: { applicationId: string; aoMudar: (
             className="rounded-xl border border-borda px-3 py-2 text-sm font-semibold">
             Rejeitar autoridade
           </button>
-          <button type="button" disabled={ocupado}
-            onClick={() =>
-              void agir(() =>
-                substituirRepresentante(applicationId, {
-                  full_name: "", cpf: "", email: "",
-                })
-              )
-            }
-            className="rounded-xl border border-borda px-3 py-2 text-sm font-semibold">
-            Substituir representante
-          </button>
         </div>
-        <p className="mt-2 text-xs text-tinta/50">
-          A substituição exige os dados do novo responsável; o servidor recusa
-          dados incompletos e estados não revisáveis.
-        </p>
+
+        <FormularioRepresentante applicationId={applicationId} ocupado={ocupado} agir={agir} />
       </section>
 
       <section>
@@ -391,6 +380,112 @@ function Detalhe({ applicationId, aoMudar }: { applicationId: string; aoMudar: (
           </button>
         </div>
       </section>
+
+      {app.status === "pending_email_verification" || app.status === "pending_account_setup" ? (
+        <section>
+          <h3 className="font-bold">Encerrar solicitação não verificada</h3>
+          <p className="mt-1 text-sm text-tinta/60">
+            Use quando o e-mail de contato estiver inalcançável. O encerramento
+            libera o CNPJ para uma nova solicitação e preserva o histórico.
+          </p>
+          <label htmlFor="motivo-encerrar" className="mb-1.5 mt-3 block text-sm font-semibold">
+            Motivo (obrigatório)
+          </label>
+          <textarea id="motivo-encerrar" rows={2} value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            className="w-full rounded-xl border border-borda px-3 py-2 text-sm" />
+          <button type="button" disabled={ocupado}
+            onClick={() => void agir(() => encerrarSolicitacaoAdmin(applicationId, motivo))}
+            className="mt-2 rounded-xl border border-borda px-3 py-2 text-sm font-semibold">
+            Encerrar e liberar CNPJ
+          </button>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Substituição de representante — formulário real.
+ *
+ * A validação daqui é só UX: recusa envio incompleto para não gastar uma
+ * chamada fadada ao erro. A autoridade continua sendo o backend, que valida
+ * DV de CPF, estado revisável e permissão.
+ */
+function FormularioRepresentante({
+  applicationId,
+  ocupado,
+  agir,
+}: {
+  applicationId: string;
+  ocupado: boolean;
+  agir: (acao: () => Promise<{ ok: boolean; motivo?: string }>) => Promise<void>;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [form, setForm] = useState({
+    full_name: "", cpf: "", email: "", phone: "", role_title: "",
+  });
+  const [erros, setErros] = useState<Record<string, string>>({});
+
+  const mudar = (campo: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((atual) => ({ ...atual, [campo]: e.target.value }));
+
+  const enviar = async () => {
+    const problemas: Record<string, string> = {};
+    if (form.full_name.trim().length < 3) problemas.full_name = "Informe o nome completo.";
+    if (!cpfValido(form.cpf)) problemas.cpf = "Informe um CPF válido.";
+    if (!emailValido(form.email)) problemas.email = "Informe um e-mail válido.";
+    setErros(problemas);
+    if (Object.keys(problemas).length > 0) return;
+
+    await agir(() =>
+      substituirRepresentante(applicationId, {
+        full_name: form.full_name.trim(),
+        cpf: somenteDigitos(form.cpf),
+        email: form.email.trim().toLowerCase(),
+        phone: somenteDigitos(form.phone) || undefined,
+        role_title: form.role_title.trim() || undefined,
+      })
+    );
+  };
+
+  if (!aberto) {
+    return (
+      <button type="button" onClick={() => setAberto(true)}
+        className="mt-3 rounded-xl border border-borda px-3 py-2 text-sm font-semibold">
+        Substituir representante
+      </button>
+    );
+  }
+
+  const campo = (nome: keyof typeof form, rotulo: string, tipo = "text") => (
+    <div>
+      <label htmlFor={`rep-${nome}`} className="mb-1 block text-sm font-semibold">{rotulo}</label>
+      <input id={`rep-${nome}`} type={tipo} value={form[nome]} onChange={mudar(nome)}
+        aria-invalid={erros[nome] ? true : undefined}
+        className="w-full rounded-xl border border-borda px-3 py-2 text-sm" />
+      {erros[nome] ? <p className="mt-1 text-sm text-red-700">{erros[nome]}</p> : null}
+    </div>
+  );
+
+  return (
+    <div className="mt-4 space-y-3 rounded-2xl border border-borda p-4">
+      <h4 className="font-semibold">Novo responsável</h4>
+      {campo("full_name", "Nome completo")}
+      {campo("cpf", "CPF")}
+      {campo("email", "E-mail", "email")}
+      {campo("phone", "Telefone (opcional)")}
+      {campo("role_title", "Cargo (opcional)")}
+      <div className="flex gap-2">
+        <button type="button" disabled={ocupado} onClick={() => void enviar()}
+          className="btn-primary px-3 py-2 text-sm">
+          Substituir
+        </button>
+        <button type="button" onClick={() => setAberto(false)}
+          className="rounded-xl border border-borda px-3 py-2 text-sm font-semibold">
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }
