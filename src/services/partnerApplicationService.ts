@@ -151,15 +151,32 @@ export type Solicitacao = {
 /**
  * Contexto da conta autenticada em relação ao onboarding.
  *
- * `erro` existe justamente para nunca ser confundido com `sem_solicitacao`.
- * Guards devem negar em `erro` e em `carregando`.
+ * Cada estado é distinto por desenho, para que nenhum guard confunda
+ * "não sei" com "pode".
+ *
+ *   carregando            ainda consultando
+ *   erro                  falha de RPC, exceção ou resposta malformada
+ *   nao_autenticado       sem sessão
+ *   sem_contexto_parceiro sessão válida, sem qualquer vínculo de parceria
+ *   provisoria            conta provisória de onboarding
+ *   parceiro_autorizado   parceiro aprovado e operacional
+ *
+ * IMPORTANTE — `parceiro_autorizado` NÃO É PRODUZIDO NO M1.
+ * A promoção a parceiro aprovado (partner_owner e vínculo operacional)
+ * pertence ao M2. O estado existe aqui para que a autorização do Portal
+ * seja escrita contra PROVA POSITIVA desde já; enquanto o M2 não existir,
+ * simplesmente ninguém o alcança — e o Portal permanece fechado.
+ *
+ * Ausência de solicitação NÃO é permissão: qualquer conta autenticada sem
+ * vínculo cai em `sem_contexto_parceiro`, que os guards devem NEGAR.
  */
 export type ContextoConta =
   | { tipo: "carregando" }
   | { tipo: "erro" }
   | { tipo: "nao_autenticado" }
-  | { tipo: "sem_solicitacao" }
-  | { tipo: "provisoria"; solicitacao: Solicitacao };
+  | { tipo: "sem_contexto_parceiro" }
+  | { tipo: "provisoria"; solicitacao: Solicitacao }
+  | { tipo: "parceiro_autorizado"; solicitacao?: Solicitacao };
 
 export async function obterContextoConta(): Promise<ContextoConta> {
   if (!supabase) return { tipo: "erro" };
@@ -169,9 +186,12 @@ export async function obterContextoConta(): Promise<ContextoConta> {
   if (!data || typeof data !== "object") return { tipo: "erro" };
 
   const s = data as Partial<Solicitacao>;
-  if (!s.application_id) return { tipo: "sem_solicitacao" };
-  if (s.account_kind !== "provisional") return { tipo: "sem_solicitacao" };
-  return { tipo: "provisoria", solicitacao: s as Solicitacao };
+  if (!s.application_id) return { tipo: "sem_contexto_parceiro" };
+  if (s.account_kind === "provisional") {
+    return { tipo: "provisoria", solicitacao: s as Solicitacao };
+  }
+  // Nenhum outro account_kind confere acesso operacional no M1.
+  return { tipo: "sem_contexto_parceiro" };
 }
 
 // ---------------------------------------------------------------------------

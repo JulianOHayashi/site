@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import SiteHeader from "./SiteHeader";
 import { usePortalSiteAuth } from "../hooks/usePortalSiteAuth";
 import { supabaseConfigurado } from "../lib/supabase";
@@ -8,26 +8,43 @@ import { obterContextoConta, type ContextoConta } from "../services/partnerAppli
 /**
  * PortalGuard — acesso ao Portal do parceiro APROVADO.
  *
- * Regra absoluta: sem PROVA POSITIVA de que a conta pode entrar, não
- * renderiza os filhos. Falha de consulta nunca é tratada como "não tem
- * solicitação"; erro é estado próprio e DENY.
+ * Regra absoluta: os filhos só são renderizados diante de PROVA POSITIVA de
+ * que a conta é um parceiro autorizado. Tudo o mais nega.
  *
- * Estados:
- *   carregando        -> nada renderiza
- *   sem sessão        -> login, preservando o destino
- *   erro              -> DENY explícito (fail-closed)
- *   provisória        -> redireciona à área de acompanhamento
- *   sem_solicitacao   -> conta comum do portal: libera
+ *   carregando            -> nada renderiza
+ *   sem sessão            -> login, preservando o destino
+ *   erro                  -> DENY (falha de consulta nunca vira permissão)
+ *   provisória            -> redireciona à área de acompanhamento
+ *   sem_contexto_parceiro -> DENY
+ *   parceiro_autorizado   -> ALLOW
+ *
+ * POR QUE NINGUÉM ENTRA HOJE
+ * `parceiro_autorizado` não é produzido no M1: a promoção a parceiro
+ * aprovado pertence ao M2. Ausência de solicitação NÃO é autorização — uma
+ * conta Auth qualquer, sem vínculo nenhum, satisfaria essa condição. Como o
+ * M1 ainda não sabe dizer "esta conta é parceira", o guard permanece
+ * fechado em vez de inventar um contexto positivo. Nada de
+ * site_partner_members, que sequer existe no banco.
+ *
+ * Quando o M2 introduzir o vínculo operacional, basta obterContextoConta
+ * passar a devolver `parceiro_autorizado`: este arquivo não muda.
  */
-type Decisao = "carregando" | "erro" | "provisoria" | "liberado";
+type Decisao = "carregando" | "erro" | "provisoria" | "sem_contexto" | "liberado";
+
+/** Exposto para teste da unidade de decisão; não usado em produção. */
+export function decidirParaTeste(ctx: ContextoConta | null): Decisao {
+  return decidir(ctx);
+}
 
 function decidir(ctx: ContextoConta | null): Decisao {
   if (ctx === null) return "carregando";
   switch (ctx.tipo) {
+    case "parceiro_autorizado":
+      return "liberado";
     case "provisoria":
       return "provisoria";
-    case "sem_solicitacao":
-      return "liberado";
+    case "sem_contexto_parceiro":
+      return "sem_contexto";
     // "erro", "carregando" e "nao_autenticado" nunca liberam.
     default:
       return "erro";
@@ -87,21 +104,51 @@ export default function PortalGuard({ children }: { children: React.ReactNode })
 
   if (decisao === "erro") {
     return (
-      <>
-        <SiteHeader />
-        <main className="mx-auto mt-16 max-w-md px-4">
-          <div role="alert" className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
-            <p className="font-semibold">Não foi possível verificar seu acesso.</p>
-            <p className="mt-2 text-tinta/70">
-              Por segurança, o portal não foi aberto. Tente novamente em instantes.
-            </p>
-          </div>
-        </main>
-      </>
+      <Negado
+        titulo="Não foi possível verificar seu acesso."
+        detalhe="Por segurança, o portal não foi aberto. Tente novamente em instantes."
+      />
+    );
+  }
+
+  if (decisao === "sem_contexto") {
+    return (
+      <Negado
+        titulo="Portal indisponível para esta conta."
+        detalhe="Esta área é do parceiro aprovado. Se você está em processo de cadastro, acompanhe sua solicitação."
+        acao={{ para: "/parceiros/solicitacao", rotulo: "Acompanhar solicitação" }}
+      />
     );
   }
 
   return <>{children}</>;
+}
+
+function Negado({
+  titulo,
+  detalhe,
+  acao,
+}: {
+  titulo: string;
+  detalhe: string;
+  acao?: { para: string; rotulo: string };
+}) {
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto mt-16 max-w-md px-4">
+        <div role="alert" className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+          <p className="font-semibold">{titulo}</p>
+          <p className="mt-2 text-tinta/70">{detalhe}</p>
+          {acao ? (
+            <Link to={acao.para} className="btn-primary mt-5 inline-block">
+              {acao.rotulo}
+            </Link>
+          ) : null}
+        </div>
+      </main>
+    </>
+  );
 }
 
 function Carregando({ texto }: { texto: string }) {
