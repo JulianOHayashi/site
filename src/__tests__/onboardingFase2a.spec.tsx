@@ -81,54 +81,7 @@ describe("/portal/cadastro — legado neutralizado", () => {
   });
 });
 
-describe("/parceiros/cadastro", () => {
-  it("bloqueia envio com dados inválidos e não chama o backend", async () => {
-    render(
-      <MemoryRouter initialEntries={["/parceiros/cadastro"]}>
-        <ParceirosCadastro />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
-    await waitFor(() => expect(screen.getByText(/informe um cnpj válido/i)).toBeDefined());
-    expect(rpcMock).not.toHaveBeenCalled();
-  });
-
-  it("exige o aceite antes de enviar", async () => {
-    render(
-      <MemoryRouter initialEntries={["/parceiros/cadastro"]}>
-        <ParceirosCadastro />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/necessário aceitar os termos/i)).toBeDefined()
-    );
-  });
-
-  it("envia pela RPC nova e nunca pela RPC legada", async () => {
-    render(
-      <MemoryRouter initialEntries={["/parceiros/cadastro"]}>
-        <ParceirosCadastro />
-      </MemoryRouter>
-    );
-    fireEvent.change(screen.getByLabelText(/cnpj/i), { target: { value: "12.345.678/0001-95" } });
-    fireEvent.change(screen.getByLabelText(/razão social/i), { target: { value: "Supermercado Teste LTDA" } });
-    fireEvent.change(screen.getByLabelText(/e-mail de contato/i), { target: { value: "Contato@Teste.com.BR" } });
-    fireEvent.change(screen.getByLabelText(/^cidade/i), { target: { value: "Vila Velha" } });
-    fireEvent.change(screen.getByLabelText(/nome completo/i), { target: { value: "Maria Souza" } });
-    fireEvent.change(screen.getByLabelText(/^cpf/i), { target: { value: "529.982.247-25" } });
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
-
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
-    const [nome, args] = rpcMock.mock.calls[0] as unknown as [string, { p_payload: Record<string, string> }];
-    expect(nome).toBe("create_partner_application");
-    expect(nome).not.toBe("create_my_partner_owner_registration");
-    // Normalização já sai limpa do cliente; o backend normaliza de novo.
-    expect(args.p_payload.cnpj).toBe("12345678000195");
-    expect(args.p_payload.contact_email).toBe("contato@teste.com.br");
-    expect(args.p_payload.representative_cpf).toBe("52998224725");
-
-    await waitFor(() => expect(screen.getByText(/confirme seu e-mail/i)).toBeDefined());
-  });
-});
+// Os casos de envio do cadastro passaram a viver em aceiteJuridico.spec.tsx,
+// porque o contrato agora exige os termos vigentes carregados e o aceite
+// atado ao legal_document_id. Manter aqui uma versao com o contrato antigo
+// produziria PASS sobre um fluxo que nao existe mais.

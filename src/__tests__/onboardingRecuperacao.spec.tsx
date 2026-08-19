@@ -8,7 +8,7 @@ import { StrictMode } from "react";
  * divergência de identidade e recuperação anti-enumeração.
  */
 const rpcMock = vi.fn();
-const signUpMock = vi.fn(async () => ({ data: {}, error: null }));
+const signUpMock = vi.fn(async () => ({ data: { session: { access_token: "t" } }, error: null }));
 const signInMock = vi.fn(async () => ({ data: {}, error: null }));
 
 vi.mock("../lib/supabase", () => ({
@@ -91,12 +91,31 @@ describe("B2 — claim por e-mail e identidade", () => {
   });
 
   it("email divergente mostra erro seguro e nao conclui", async () => {
-    rpcMock.mockResolvedValue({ data: { ok: false, reason: "email_mismatch" }, error: null });
+    // O claim agora vem DEPOIS da etapa juridica: sessao -> termos -> aceite
+    // vinculado -> claim. Aqui o backend recusa por identidade de e-mail.
+    signUpMock.mockResolvedValue({ data: { session: { access_token: "t" } }, error: null });
+    rpcMock.mockImplementation(async (nome: string) => {
+      if (nome === "get_provisional_account_terms") {
+        return { data: { ok: true, documents: [
+          { legal_document_id: "p1", doc_type: "privacy_notice", version: "v1",
+            title: "Aviso de privacidade", content: "t", content_url: null },
+        ] }, error: null };
+      }
+      if (nome === "record_bound_legal_acceptance") {
+        return { data: { ok: true, acceptance_id: "a1", legal_document_id: "p1" }, error: null };
+      }
+      return { data: { ok: false, reason: "email_mismatch" }, error: null };
+    });
     montarConfirmacao(`?claim=${"m".repeat(64)}`);
-    await waitFor(() => expect(screen.getByLabelText(/e-mail/i)).toBeDefined());
-    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "outro@gmail.com" } });
+    await waitFor(() => expect(screen.getByLabelText(/^e-mail$/i)).toBeDefined());
+    fireEvent.change(screen.getByLabelText(/^e-mail$/i), { target: { value: "outro@gmail.com" } });
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "senha-forte-1" } });
-    fireEvent.click(screen.getByRole("button", { name: /criar acesso/i }));
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+
+    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
+    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    fireEvent.click(screen.getByRole("button", { name: /aceitar e ativar acesso/i }));
+
     await waitFor(() => expect(screen.getByText(/não é o mesmo que confirmamos/i)).toBeDefined());
     expect(screen.queryByText(/tudo certo/i)).toBeNull();
   });
