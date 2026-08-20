@@ -351,11 +351,16 @@ export function novoCaminhoDocumento(applicationId: string, docType: string, nom
 /**
  * Upload privado seguido do registro de metadados.
  *
- * Se o registro falhar após o upload, removemos o objeto recém-enviado: ele
- * ainda não tem metadado, então a policy de DELETE permite. Isso evita
- * órfãos no bucket. Se a remoção também falhar, o objeto fica órfão e
- * inacessível pela UI — nunca é registrado nem revisado, e o próximo envio
- * usa um caminho novo.
+ * NÃO há limpeza pelo cliente (M1-C3). O DELETE direto do solicitante foi
+ * removido do bucket porque criava uma corrida contra a própria RPC de
+ * registro: entre a validação do objeto e a gravação do metadado, o cliente
+ * podia apagar — ou apagar e reenviar outros bytes no mesmo caminho —,
+ * deixando metadado sem objeto ou metadado descrevendo conteúdo diferente.
+ *
+ * Consequência aceita: uma falha de registro pode deixar um objeto órfão. O
+ * órfão não tem metadado, não aparece na UI, não é revisável e não é
+ * reaproveitável, porque cada tentativa gera caminho novo. A remoção
+ * controlada fica para um fluxo server-side posterior.
  */
 export async function enviarDocumento(
   applicationId: string,
@@ -384,7 +389,7 @@ export async function enviarDocumento(
   );
 
   if (!registro.ok) {
-    await supabase.storage.from(BUCKET_DOCUMENTOS).remove([caminho]);
+    // Sem limpeza pelo cliente: ver a nota acima.
     return { ok: false, motivo: registro.motivo };
   }
   return { ok: true, dados: { document_id: registro.dados.document_id } };
