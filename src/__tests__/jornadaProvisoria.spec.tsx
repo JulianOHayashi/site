@@ -144,7 +144,10 @@ describe("B9 — documentos e versionamento", () => {
     });
   });
 
-  it("falha no registro remove o objeto orfao do bucket", async () => {
+  // M1-C3: a limpeza pelo cliente foi REMOVIDA. O DELETE direto do
+  // solicitante era superfície de corrida contra a RPC de registro; o objeto
+  // órfão fica no bucket, sem metadado, e não é reaproveitável.
+  it("falha no registro NAO chama storage.remove", async () => {
     rpcMock.mockImplementation(async (nome: string) => {
       if (nome === "get_my_partner_application") return { data: SOL, error: null };
       if (nome === "register_partner_application_document")
@@ -157,8 +160,8 @@ describe("B9 — documentos e versionamento", () => {
       target: { files: [new File(["x"], "ruim.pdf", { type: "application/pdf" })] },
     });
     fireEvent.click(screen.getByRole("button", { name: /enviar documento/i }));
-    await waitFor(() => expect(removeMock).toHaveBeenCalledTimes(1));
-    expect(screen.getByText(/documento inválido/i)).toBeDefined();
+    await waitFor(() => expect(screen.getByText(/documento inválido/i)).toBeDefined());
+    expect(removeMock).not.toHaveBeenCalled();
   });
 
   it("erro exibido nao vaza SQL, constraint nem bucket", async () => {

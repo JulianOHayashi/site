@@ -3,11 +3,13 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router-dom";
 
 /**
- * B5 frontend — contrato de upload.
+ * B5 frontend — contrato de upload (M1-C3).
  *
- * A ordem importa: caminho novo → upload → registro. E a limpeza só pode
- * mirar o caminho DAQUELA tentativa: inferi-la do documento corrente ou da
- * lista atualizada apagaria arquivo já registrado.
+ * A ordem importa: caminho novo → upload → registro.
+ *
+ * A limpeza pelo cliente foi REMOVIDA: o DELETE direto do solicitante era
+ * uma superfície de mutação concorrente contra a RPC de registro. Órfão
+ * eventual é aceito no M1.
  */
 const rpcMock = vi.fn();
 const fromMock = vi.fn();
@@ -108,23 +110,33 @@ describe("B — falha no upload", () => {
   });
 });
 
-describe("C — falha no registro", () => {
-  it("limpa EXATAMENTE o caminho daquela tentativa", async () => {
+describe("C — falha no registro (M1-C3: sem limpeza pelo cliente)", () => {
+  // O comportamento anterior — limpar o caminho da tentativa — foi REMOVIDO.
+  // O DELETE direto do solicitante criava uma corrida contra a própria RPC de
+  // registro. O objeto órfão fica no bucket; não tem metadado, não aparece na
+  // UI e não é reaproveitável.
+  it("NAO chama storage.remove e mostra erro seguro", async () => {
     rpcMock.mockImplementation(async (nome: string) => {
       if (nome === "get_my_partner_application") return { data: SOL, error: null };
       return { data: { ok: false, reason: "storage_object_not_found" }, error: null };
     });
     await enviarArquivo();
-    await waitFor(() => expect(removeMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText(/arquivo não foi encontrado/i)).toBeDefined());
+    expect(removeMock).not.toHaveBeenCalled();
+    expect(ordem).toEqual(["upload"]);
+  });
 
-    const tentativa = uploadMock.mock.calls[0][0] as string;
-    const removidos = (removeMock.mock.calls[0] as unknown as [string[]])[0];
-    expect(removidos).toEqual([tentativa]);
-    // Nada do documento corrente, do histórico ou de outra aplicação.
-    expect(removidos).not.toContain(DOC_ATUAL.storage_path);
-    expect(removidos).not.toContain(DOC_HIST.storage_path);
-    expect(removidos.every((p) => p.startsWith("app-1/"))).toBe(true);
-    expect(ordem).toEqual(["upload", "remove"]);
+  it("NAO apaga o documento corrente nem o historico", async () => {
+    rpcMock.mockImplementation(async (nome: string) => {
+      if (nome === "get_my_partner_application") return { data: SOL, error: null };
+      return { data: { ok: false, reason: "invalid_document" }, error: null };
+    });
+    await enviarArquivo();
+    await waitFor(() => expect(screen.getByText(/documento inválido/i)).toBeDefined());
+    expect(removeMock).not.toHaveBeenCalled();
+    // Corrente e histórico seguem exibidos.
+    expect(screen.getByText(/contrato-v2\.pdf/)).toBeDefined();
+    expect(screen.getByText(/contrato-v1\.pdf/)).toBeDefined();
   });
 });
 
