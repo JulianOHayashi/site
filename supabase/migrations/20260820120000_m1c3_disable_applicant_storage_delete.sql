@@ -41,6 +41,20 @@ DROP POLICY m1_partner_docs_titular_delete ON storage.objects;
 --
 -- service_role e o owner do schema seguem com as capacidades que já tinham
 -- por privilégio de base; nenhum GRANT novo é concedido aqui.
-
-COMMENT ON TABLE storage.objects IS
-  'M1-C3: solicitantes nao possuem DELETE direto em partner-application-docs. A remocao de orfaos, se necessaria, sera um fluxo server-side controlado.';
+--
+-- NOTA — POR QUE NÃO HÁ COMMENT ON TABLE AQUI
+-- Uma versão anterior desta migration executava
+--   COMMENT ON TABLE storage.objects IS '...'
+-- para registrar a decisão. Isso é inválido no stack Supabase real:
+-- COMMENT ON TABLE exige ser dono da tabela, e storage.objects pertence a
+-- supabase_storage_admin, não a postgres. A instrução falharia com
+-- "must be owner of table objects" e abortaria o db reset.
+--
+-- O harness auxiliar não reproduziu o defeito porque ali storage.objects é
+-- criada por postgres, que passa a ser dona. É mais um ponto em que o
+-- ambiente auxiliar diverge do remoto.
+--
+-- Além disso, storage.objects é objeto gerenciado pelo Supabase: alterar seu
+-- comentário é mutação de metadado que não nos pertence. A decisão fica
+-- registrada aqui, no arquivo da própria migration, que é onde ela tem valor
+-- de auditoria.
