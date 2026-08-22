@@ -40,12 +40,22 @@ for (const [path, token] of forbiddenText) {
 }
 
 // ---------------------------------------------------------------------------
-// M2/R3 — nenhum CÓDIGO VIVO pode consultar tabelas ausentes do schema
-// canônico. Comentários explicativos são permitidos; chamadas não.
-// A varredura remove comentários antes de procurar, e o controle positivo
-// abaixo prova que o scanner realmente detecta o padrão proibido.
+// M2/R3 — nenhum CÓDIGO VIVO pode consultar estas tabelas. Comentários
+// explicativos são permitidos; chamadas não. A varredura remove comentários
+// antes de procurar, e o controle positivo abaixo prova que o scanner
+// realmente detecta o padrão proibido.
+//
+//   site_partner_members   NÃO EXISTE no schema canônico. Qualquer consulta
+//                          é erro em tempo de execução (o código anterior do
+//                          PortalDashboard fazia exatamente isso).
+//   site_monthly_partners  EXISTE, mas é o diretório público legado do
+//                          modelo de "parceiro mensal". Não é fonte de
+//                          autorização: o vínculo durável do M2 vive em
+//                          site_partner_companies/site_company_members.
+//                          Consultá-la no Portal reintroduziria uma segunda
+//                          fonte de verdade sobre quem é parceiro.
 // ---------------------------------------------------------------------------
-const TABELAS_INEXISTENTES = ["site_partner_members", "site_monthly_partners"];
+const TABELAS_PROIBIDAS_NO_CODIGO = ["site_partner_members", "site_monthly_partners"];
 
 function semComentarios(codigo) {
   return codigo
@@ -56,7 +66,7 @@ function semComentarios(codigo) {
 function consultasProibidas(codigo) {
   const limpo = semComentarios(codigo);
   const achados = [];
-  for (const tabela of TABELAS_INEXISTENTES) {
+  for (const tabela of TABELAS_PROIBIDAS_NO_CODIGO) {
     const padrao = new RegExp(`\\.from\\(\\s*["'\`]${tabela}["'\`]`, "g");
     if (padrao.test(limpo)) achados.push(tabela);
   }
@@ -77,7 +87,7 @@ function varrer(dir, aoAchar) {
 const alvoPlantado = `const q = supabase.from("site_partner_members").select("*");`;
 if (consultasProibidas(alvoPlantado).length !== 1) {
   failures.push(
-    "controle positivo falhou: o scanner de tabelas inexistentes nao detecta o padrao proibido"
+    "controle positivo falhou: o scanner de tabelas proibidas nao detecta o padrao"
   );
 }
 // E precisa IGNORAR menção em comentário (senão vira ruído inútil).
@@ -89,7 +99,7 @@ if (consultasProibidas('// nada de site_partner_members aqui').length !== 0) {
 
 varrer("src", (caminho, conteudo) => {
   for (const tabela of consultasProibidas(conteudo)) {
-    failures.push(`consulta a tabela inexistente em ${caminho}: ${tabela}`);
+    failures.push(`consulta a tabela proibida no codigo em ${caminho}: ${tabela}`);
   }
 });
 
