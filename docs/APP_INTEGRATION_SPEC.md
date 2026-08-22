@@ -99,8 +99,10 @@ REGRA, não impõem nomes de tabela.
 
 ## Bloco 10 — ponte de provisionamento (lado App)
 
-O lado Site está implementado (ver `docs/SITE_APP_BRIDGE.md` e a migration
-`20260821184000_site_app_bridge.sql`). O App precisa:
+O lado Site está implementado na **camada 1 de 5** (banco/outbox do Site),
+pela migration `20260822128000_m2_provisioning_outbox.sql` da série R0–R14.
+As camadas 2 a 5 — worker assinado, transporte HTTP real, vínculo/resposta do
+App e E2E Site→App — permanecem `BLOCKED_APP_REPOSITORY`. O App precisa:
 
 1. Verificar assinatura pela trust store existente (kid/algoritmo/status),
    issuer/audience, separação de ambiente e expiração curta.

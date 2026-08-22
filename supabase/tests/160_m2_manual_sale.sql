@@ -157,10 +157,18 @@ select ((:'ord_s')::jsonb ->> 'order_id') as order_super \gset
 select tests.check('oportunidade vendida fica payment_pending',
     (select status from public.commercial_opportunities where id = :'opp_super')
       = 'payment_pending');
+-- R15: esta asserção olhava só CNPJ+nicho e por isso não via a cidade errada.
+-- Agora exige a cidade AUTORITATIVA da empresa (as fixtures são de Vitória).
 select tests.check('pedido nasce assinado e registra fidelidade futura',
     (select status='signed' from public.commercial_exclusivity_orders where id = :'order_super')
     and (select count(*) from public.commercial_fidelity_records
           where cnpj='70000000000177' and niche_code='supermarket') = 1);
+select tests.check('fidelidade usa a cidade real da empresa, nao a primeira da regiao',
+    (select f.city_key from public.commercial_fidelity_records f
+      where f.cnpj='70000000000177' and f.niche_code='supermarket')
+    = public.commercial_city_key(
+        (select c.city from public.site_partner_companies c
+          where c.cnpj='70000000000177')));
 
 -- Mesmo CNPJ não ocupa segundo nicho na mesma exclusividade.
 select id as opp_pharm2 from public.commercial_opportunities

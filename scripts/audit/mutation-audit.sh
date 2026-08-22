@@ -54,6 +54,8 @@ aplica_sed() {
 }
 
 # verifica <nome> <comando-que-deve-FALHAR>
+inconclusivos=0
+
 verifica() {
   local nome="$1"; shift
   total=$((total+1))
@@ -63,6 +65,10 @@ verifica() {
     sobreviventes=$((sobreviventes+1))
     echo "  MUTANTE SOBREVIVEU  $nome  <-- a suite NAO observa o invariante"
     printf '%s\n' "$out" | tail -5 | sed 's/^/      /'
+  elif [ "$rc" -eq 2 ]; then
+    inconclusivos=$((inconclusivos+1))
+    echo "  INCONCLUSIVO        $nome  <-- a suite alvo nem chegou a rodar"
+    printf '%s\n' "$out" | tail -3 | sed 's/^/      /'
   else
     echo "  MORTO               $nome"
   fi
@@ -71,13 +77,41 @@ verifica() {
 
 vitest() { npx vitest run "$@" >/dev/null 2>&1; }
 
-sql_suite() { # sql_suite <arquivo-da-suite>
-  local f="$1" out nfail rc
+# sql_suite <arquivo-da-suite-alvo>
+#
+# As suites SQL sao encadeadas: varias dependem de fixtures criadas pelas
+# anteriores (o admin de teste, por exemplo, nasce na suite 000). Rodar uma
+# suite isolada faria qualquer mutante parecer "morto" apenas porque a suite
+# nao consegue nem comecar — um falso positivo que invalidaria a auditoria.
+# Por isso o encadeamento REAL e reproduzido ate a suite alvo, e o veredito
+# olha SOMENTE a saida da suite alvo.
+sql_suite() {
+  local alvo="$1" f out rc nfail
   bash scripts/db-test/reset-local.sh >/dev/null 2>&1 || return 1
-  out="$(su postgres -c "psql -v ON_ERROR_STOP=1 -q -d ${BDFLOW_LOCAL_DB:-bdflow_recon_local} -f -" < "$f" 2>&1)"
-  rc=$?
-  nfail="$(printf '%s\n' "$out" | grep -cE '^\s*FAIL  ')"
-  [ "$rc" -eq 0 ] && [ "$nfail" -eq 0 ]
+  for f in supabase/tests/*.sql; do
+    out="$(su postgres -c "psql -v ON_ERROR_STOP=1 -q -d ${BDFLOW_LOCAL_DB:-bdflow_recon_local} -f -" < "$f" 2>&1)"
+    rc=$?
+    nfail="$(printf '%s\n' "$out" | grep -cE '^\s*FAIL  ')"
+    if [ "$f" = "$alvo" ]; then
+      [ "$rc" -eq 0 ] && [ "$nfail" -eq 0 ]
+      return $?
+    fi
+    if [ "$rc" -ne 0 ]; then
+      # Uma suite anterior tambem pode observar o mutante. Isso e desejavel e
+      # NAO deve impedir o alvo de rodar: tests.finish() so levanta no FIM do
+      # arquivo, entao todo o DDL/DML da suite ja foi aplicado e o estado do
+      # banco esta integro. Segue-se o encadeamento.
+      if printf '%s\n' "$out" | grep -q 'FALHOU:'; then
+        echo "      (a suite $f tambem observou o mutante; encadeamento segue)" >&2
+      else
+        # Erro duro no meio do arquivo: o estado ficou incompleto e o alvo
+        # nao teria um teste justo. Codigo 2 = INCONCLUSIVO, nunca morte.
+        echo "      (erro duro em $f, antes da suite alvo)" >&2
+        return 2
+      fi
+    fi
+  done
+  return 1
 }
 
 echo "== auditoria de mutacao =="
@@ -145,7 +179,25 @@ if [ "$INCLUIR_SQL" -eq 1 ]; then
     sql_suite supabase/tests/900_r14_auditoria_estrutural.sql
 
   # -------------------------------------------------------------------------
-  # 8. Confirmacao manual: so o valor devido a BDFlow pode ser aceito.
+  # 8. R15 — vinculo geografico da fidelidade.
+  #    Reintroduz EXATAMENTE o defeito original: em vez da cidade real da
+  #    empresa, a primeira cidade ativa da regiao por ordem alfabetica.
+  # -------------------------------------------------------------------------
+  aplica_sed supabase/migrations/20260822140000_r15_fidelity_city_binding.sql \
+    's/  v_key := public\.commercial_city_key\(v_company\.city\);/  v_key := (SELECT c.city_key FROM public.commercial_region_cities c WHERE c.region_id = p_region_id AND c.is_active ORDER BY c.city_name LIMIT 1);/'
+  verifica "R15: cidade da fidelidade volta a ser a primeira da regiao" \
+    sql_suite supabase/tests/910_r15_fidelity_city_binding.sql
+
+  # -------------------------------------------------------------------------
+  # 9. R15 — invalidacao da fidelidade pelo pedido fundador cancelado.
+  # -------------------------------------------------------------------------
+  aplica_sed supabase/migrations/20260822140000_r15_fidelity_city_binding.sql \
+    "s/       AND NOT EXISTS \(\n             SELECT 1 FROM public\.commercial_exclusivity_orders o\n              WHERE o\.id = f\.established_by_order_id\n                AND o\.status = 'cancelled'\)\);/       );/"
+  verifica "R15: guarda do fundador cancelado removida" \
+    sql_suite supabase/tests/910_r15_fidelity_city_binding.sql
+
+  # -------------------------------------------------------------------------
+  # 10. Confirmacao manual: so o valor devido a BDFlow pode ser aceito.
   # -------------------------------------------------------------------------
   aplica_sed supabase/migrations/20260822126000_m2_manual_sale.sql \
     's/p_amount_cents <> v_ord\.bdflow_due_cents/p_amount_cents < 0/'
@@ -154,8 +206,8 @@ if [ "$INCLUIR_SQL" -eq 1 ]; then
 fi
 
 echo
-if [ "$sobreviventes" -gt 0 ]; then
-  echo "MUTATION_AUDIT=FAIL ($sobreviventes/$total mutantes sobreviveram)"
+if [ "$sobreviventes" -gt 0 ] || [ "$inconclusivos" -gt 0 ]; then
+  echo "MUTATION_AUDIT=FAIL ($sobreviventes sobreviveram, $inconclusivos inconclusivos, de $total)"
   exit 1
 fi
 echo "MUTATION_AUDIT=PASS ($total/$total mutantes mortos)"
