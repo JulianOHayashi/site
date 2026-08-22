@@ -75,11 +75,11 @@ for entrada in "${PADROES[@]}"; do
 done
 
 # --- 2. todo o diff da serie de commits ---
-DIFF="$(git diff "$BASE"..HEAD 2>/dev/null)"
+# O proprio scanner carrega amostras sinteticas; ele se exclui do diff.
+DIFF="$(git diff "$BASE"..HEAD -- . ':(exclude)scripts/audit/secret-scan.sh' 2>/dev/null)"
 for entrada in "${PADROES[@]}"; do
   rotulo="${entrada%%|*}"; regex="${entrada#*|}"
-  # As amostras do proprio scanner aparecem no diff; sao descontadas.
-  fora="$(printf '%s\n' "$DIFF" | grep -PI "$regex" 2>/dev/null | grep -vc 'AMOSTRAS\|amostra' || true)"
+  fora="$(printf '%s\n' "$DIFF" | grep -cPI "$regex" 2>/dev/null || true)"
   fora="${fora:-0}"
   if [ "$fora" -gt 0 ]; then
     if true; then
