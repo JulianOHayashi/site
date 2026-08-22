@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import ReferenciaOperacional from "../components/commercial/ReferenciaOperacional";
+import PainelPreco from "../components/commercial/PainelPreco";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { fetchCurrentFormation } from "../services/commercialService";
 import {
@@ -174,10 +175,13 @@ export default function OportunidadeDetalhe() {
                   unidades avulsas.
                 </p>
                 <p className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
-                  A contratação será liberada em uma fase posterior. Esta tela
-                  apresenta a oportunidade comercial, sem reserva ou pagamento.
+                  A contratação é conduzida pela equipe BDFlow. Esta tela
+                  apresenta a oportunidade comercial, sem reserva ou pagamento
+                  on-line.
                 </p>
               </div>
+
+              <PainelPreco nicheCode={meta.code} />
 
               <div className="mt-6">
                 <ReferenciaOperacional />

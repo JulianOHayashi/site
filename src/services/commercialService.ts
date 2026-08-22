@@ -4,6 +4,10 @@ import {
   parseFormationResponse,
   CommercialError,
 } from "./commercialResponse";
+import {
+  interpretarPrecoPublico,
+  type PublicNichePricing,
+} from "../domain/pricing/contractPricing";
 
 /**
  * Serviço comercial — única porta de entrada para as RPCs de leitura.
@@ -57,4 +61,31 @@ export async function fetchCurrentFormation(
 
   // Validação de contrato (pura, testável): pode lançar unexpected_response.
   return parseFormationResponse(data);
+}
+
+/**
+ * Preço vigente da vitrine — SEMPRE calculado no servidor.
+ * Contrato violado ou resposta inesperada vira unexpected_response e a UI
+ * omite os valores (fail-closed), em vez de exibir número inventado.
+ */
+export async function fetchPublicPricing(): Promise<PublicNichePricing[]> {
+  if (!supabase) {
+    throw new CommercialError("not_configured");
+  }
+  let data: unknown;
+  try {
+    const res = await supabase.rpc("get_public_niche_pricing", {});
+    if (res.error) {
+      throw new CommercialError("network_error", res.error.message);
+    }
+    data = res.data;
+  } catch (e) {
+    if (e instanceof CommercialError) throw e;
+    throw new CommercialError("network_error");
+  }
+  const lista = interpretarPrecoPublico(data);
+  if (lista === null) {
+    throw new CommercialError("unexpected_response");
+  }
+  return lista;
 }
