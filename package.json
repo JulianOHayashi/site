@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "check:legacy": "node scripts/check-no-legacy.mjs",
     "test": "vitest run",
-    "validate": "npm run check:legacy && npm run typecheck && npm run test && npm run build"
+    "validate": "npm run check:legacy && npm run typecheck && npm run test && npm run build",
+    "db:reset:aux": "bash scripts/db-test/reset-local.sh",
+    "db:test:aux": "bash scripts/db-test/run-sql-tests.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
