@@ -627,3 +627,91 @@ export function abrirReconsideracao(applicationId: string) {
     { p_application_id: applicationId }
   );
 }
+
+/** Unidade em que o validador corrente pode atuar. */
+export type UnidadeValidacao = {
+  unit_id: string;
+  name: string;
+  branch_bridge_id: string;
+};
+
+export type ContextoValidador =
+  | { tipo: "erro" }
+  | { tipo: "inelegivel" }
+  | {
+      tipo: "elegivel";
+      papel: "partner_owner" | "partner_manager";
+      unidades: UnidadeValidacao[];
+    };
+
+/** Contexto de validação: papel e unidades em que a conta pode validar. */
+export async function obterContextoValidador(
+  companyId: string
+): Promise<ContextoValidador> {
+  if (!supabase) return { tipo: "erro" };
+  const { data, error } = await supabase.rpc("get_my_validator_context", {
+    p_company_id: companyId,
+  });
+  if (error) return { tipo: "erro" };
+  if (!data || typeof data !== "object") return { tipo: "erro" };
+  const o = data as Record<string, unknown>;
+  if (o.ok !== true) return { tipo: "erro" };
+  if (o.eligible !== true) return { tipo: "inelegivel" };
+  if (!Array.isArray(o.units) || o.units.length === 0) return { tipo: "erro" };
+  const papel = o.role;
+  if (papel !== "partner_owner" && papel !== "partner_manager") {
+    return { tipo: "erro" };
+  }
+  const unidades: UnidadeValidacao[] = [];
+  for (const u of o.units) {
+    if (!u || typeof u !== "object") return { tipo: "erro" };
+    const uu = u as Record<string, unknown>;
+    if (
+      typeof uu.unit_id !== "string" ||
+      typeof uu.name !== "string" ||
+      typeof uu.branch_bridge_id !== "string"
+    ) {
+      return { tipo: "erro" };
+    }
+    unidades.push({
+      unit_id: uu.unit_id,
+      name: uu.name,
+      branch_bridge_id: uu.branch_bridge_id,
+    });
+  }
+  return { tipo: "elegivel", papel, unidades };
+}
+
+export type ResultadoPreparacao =
+  | { tipo: "erro" }
+  | { tipo: "negado" }
+  | { tipo: "encaminhado"; attemptId: string; appGateway: string };
+
+/**
+ * Prepara a validação no LADO SITE. O desfecho do benefício é autoridade do
+ * App: enquanto o repositório do App não existir, `appGateway` devolve
+ * BLOCKED_APP_REPOSITORY e a UI NÃO afirma que o benefício foi validado.
+ */
+export async function prepararValidacaoBeneficio(
+  companyId: string,
+  unitId: string,
+  token: string
+): Promise<ResultadoPreparacao> {
+  if (!supabase) return { tipo: "erro" };
+  const { data, error } = await supabase.rpc("prepare_benefit_validation", {
+    p_company_id: companyId,
+    p_unit_id: unitId,
+    p_token: token,
+  });
+  if (error) return { tipo: "erro" };
+  if (!data || typeof data !== "object") return { tipo: "erro" };
+  const o = data as Record<string, unknown>;
+  if (o.ok !== true) return { tipo: "erro" };
+  if (o.allowed !== true) return { tipo: "negado" };
+  if (typeof o.attempt_id !== "string") return { tipo: "erro" };
+  return {
+    tipo: "encaminhado",
+    attemptId: o.attempt_id,
+    appGateway: typeof o.app_gateway === "string" ? o.app_gateway : "desconhecido",
+  };
+}
