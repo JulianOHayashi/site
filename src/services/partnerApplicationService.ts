@@ -257,21 +257,110 @@ export type ContextoConta =
   | { tipo: "nao_autenticado" }
   | { tipo: "sem_contexto_parceiro" }
   | { tipo: "provisoria"; solicitacao: Solicitacao }
-  | { tipo: "parceiro_autorizado"; solicitacao?: Solicitacao };
+  | {
+      tipo: "parceiro_autorizado";
+      solicitacao?: Solicitacao;
+      vinculos?: VinculoParceiro[];
+    };
+
+/** Vínculo durável do parceiro promovido (M2). */
+export type VinculoParceiro = {
+  company_id: string;
+  trade_name: string;
+  company_status: string;
+  member_id: string;
+  role: "partner_owner" | "partner_manager";
+  member_status: string;
+  city?: string;
+  uf?: string;
+};
+
+const PAPEIS_VALIDOS = new Set(["partner_owner", "partner_manager"]);
+
+/**
+ * Parser ESTRITO do contexto durável. Formato inesperado devolve null, e
+ * null nunca autoriza — quem decide é obterContextoConta, fail-closed.
+ */
+export function interpretarContextoParceiro(data: unknown): VinculoParceiro[] | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const o = data as Record<string, unknown>;
+  if (o.ok !== true) return null;
+  if (typeof o.authorized !== "boolean") return null;
+  if (!Array.isArray(o.memberships)) return null;
+
+  const vinculos: VinculoParceiro[] = [];
+  for (const item of o.memberships) {
+    if (!item || typeof item !== "object") return null;
+    const m = item as Record<string, unknown>;
+    if (
+      typeof m.company_id !== "string" ||
+      typeof m.member_id !== "string" ||
+      typeof m.role !== "string" ||
+      !PAPEIS_VALIDOS.has(m.role) ||
+      m.member_status !== "active" ||
+      m.company_status !== "active"
+    ) {
+      return null;
+    }
+    vinculos.push({
+      company_id: m.company_id,
+      trade_name: typeof m.trade_name === "string" ? m.trade_name : "",
+      company_status: m.company_status,
+      member_id: m.member_id,
+      role: m.role as VinculoParceiro["role"],
+      member_status: m.member_status,
+      city: typeof m.city === "string" ? m.city : undefined,
+      uf: typeof m.uf === "string" ? m.uf : undefined,
+    });
+  }
+  // Coerência do backend: authorized só é verdade com vínculo listado.
+  if (o.authorized === true && vinculos.length === 0) return null;
+  if (o.authorized === false && vinculos.length > 0) return null;
+  return vinculos;
+}
+
+/** Contexto durável do parceiro promovido (M2). Erro NUNCA vira permissão. */
+export async function obterVinculosParceiro(): Promise<
+  { tipo: "ok"; vinculos: VinculoParceiro[] } | { tipo: "erro" }
+> {
+  if (!supabase) return { tipo: "erro" };
+  const { data, error } = await supabase.rpc("get_my_partner_context", {});
+  if (error) return { tipo: "erro" };
+  const vinculos = interpretarContextoParceiro(data);
+  if (vinculos === null) return { tipo: "erro" };
+  return { tipo: "ok", vinculos };
+}
 
 export async function obterContextoConta(): Promise<ContextoConta> {
   if (!supabase) return { tipo: "erro" };
 
+  // ORDEM CANÔNICA DO M1 preservada: a solicitação é consultada primeiro e
+  // continua decidindo os vereditos do M1 (erro / provisória / sem contexto).
   const { data, error } = await supabase.rpc("get_my_partner_application", {});
   if (error) return { tipo: "erro" };
   if (!data || typeof data !== "object") return { tipo: "erro" };
 
   const s = data as Partial<Solicitacao>;
+
+  // M2: o vínculo durável só pode ELEVAR o veredito para autorizado. Ele
+  // nunca concede acesso por falha, formato inesperado ou ausência: nesses
+  // casos o veredito do M1 permanece, e todo veredito do M1 nega o Portal.
+  // Por isso a promoção não é mascarada — o parceiro promovido conserva a
+  // candidatura com account_kind='provisional'.
+  const duravel = await obterVinculosParceiro();
+  if (duravel.tipo === "ok" && duravel.vinculos.length > 0) {
+    return {
+      tipo: "parceiro_autorizado",
+      vinculos: duravel.vinculos,
+      solicitacao: s.application_id ? (s as Solicitacao) : undefined,
+    };
+  }
+
   if (!s.application_id) return { tipo: "sem_contexto_parceiro" };
   if (s.account_kind === "provisional") {
     return { tipo: "provisoria", solicitacao: s as Solicitacao };
   }
-  // Nenhum outro account_kind confere acesso operacional no M1.
+  // Nenhum outro account_kind confere acesso operacional.
   return { tipo: "sem_contexto_parceiro" };
 }
 

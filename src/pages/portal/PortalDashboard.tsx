@@ -4,6 +4,7 @@ import Header from "../../components/Header";
 import { supabase } from "../../lib/supabase";
 import { usePortalSiteAuth } from "../../hooks/usePortalSiteAuth";
 import { PortalTopo } from "./portalUi";
+import { obterVinculosParceiro } from "../../services/partnerApplicationService";
 
 /**
  * /portal/dashboard — nesta etapa, autenticado no Supabase do SITE.
@@ -28,24 +29,29 @@ export default function PortalDashboard() {
   const [empresa, setEmpresa] = useState<Empresa>(null);
   const [temVinculo, setTemVinculo] = useState<boolean | null>(null);
 
-  // Consulta via RLS: o usuário já é owner de uma empresa?
+  // Contexto DURÁVEL emitido pelo backend (M2). Nenhuma consulta direta a
+  // tabela é feita aqui: a antiga leitura de site_partner_members apontava
+  // para uma tabela que não existe no schema canônico.
   useEffect(() => {
     if (!supabase || !session) return;
     let ativo = true;
-    supabase
-      .from("site_partner_members")
-      .select("status, site_monthly_partners(trade_name, status)")
-      .eq("user_id", session.user.id)
-      .eq("role", "partner_owner")
-      .neq("status", "archived")
-      .then(({ data }) => {
-        if (!ativo) return;
-        const v = data?.[0] as
-          | { site_monthly_partners: { trade_name: string; status: string } | null }
-          | undefined;
-        setTemVinculo(Boolean(v));
-        setEmpresa(v?.site_monthly_partners ?? null);
-      });
+    (async () => {
+      const ctx = await obterVinculosParceiro();
+      if (!ativo) return;
+      if (ctx.tipo === "erro") {
+        // Falha de consulta nunca vira vínculo: permanece fechado.
+        setTemVinculo(false);
+        setEmpresa(null);
+        return;
+      }
+      const vinculo = ctx.vinculos[0] ?? null;
+      setTemVinculo(ctx.vinculos.length > 0);
+      setEmpresa(
+        vinculo
+          ? { trade_name: vinculo.trade_name, status: vinculo.company_status }
+          : null
+      );
+    })();
     return () => {
       ativo = false;
     };
