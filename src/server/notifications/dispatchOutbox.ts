@@ -19,6 +19,7 @@ import {
   type EmailTransport,
   type EmailMessage,
 } from "./emailProvider";
+import { mintCategoryFor } from "./supportedTemplates";
 
 /** Resultado da cunhagem canônica (contrato jsonb {ok,...} do M1). */
 export type MintOutcome =
@@ -73,7 +74,16 @@ export type DispatchSummary = {
   sent: number;
   failed: number;
   skipped: number;
+  /** Eventos recusados por não terem caminho de posse atômica (R16). */
+  unsupported: number;
 };
+
+/** Diagnóstico já sanitizado; nunca recebe segredo nem dado do template. */
+export type DispatchDiagnostic = (event: {
+  notificationId: string;
+  templateKey: string;
+  reason: string;
+}) => void;
 
 /** Espera exponencial: 1, 2, 4... até 60 minutos. */
 export function retryDelayMinutes(attempt: number): number {
@@ -81,23 +91,24 @@ export function retryDelayMinutes(attempt: number): number {
 }
 
 /**
- * Templates que exigem segredo cunhado no despacho, e por qual operação
- * canônica. Template desconhecido NÃO recebe segredo.
+ * R16 — a tabela de templates vive em supportedTemplates.ts, fonte única do
+ * escopo suportado. Não há segundo mapa que possa divergir.
  */
-const MINT_POR_TEMPLATE: Record<string, "application" | "manager_invite"> = {
-  partner_application_email_verification: "application",
-  partner_application_account_claim: "application",
-  manager_invite: "manager_invite",
-};
 
 export async function dispatchPending(
   gateway: CanonicalOutboxGateway,
   transport: EmailTransport,
-  options: { channel?: string; max?: number } = {}
+  options: { channel?: string; max?: number; onDiagnostic?: DispatchDiagnostic } = {}
 ): Promise<DispatchSummary> {
   const channel = options.channel ?? "email";
   const max = options.max ?? 25;
-  const resumo: DispatchSummary = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const resumo: DispatchSummary = {
+    processed: 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    unsupported: 0,
+  };
 
   const pendentes = await gateway.listPending(channel, max);
 
@@ -106,22 +117,47 @@ export async function dispatchPending(
     let segredo: string | undefined;
     let tentativa = 1;
 
-    const tipoMint = MINT_POR_TEMPLATE[evento.template_key];
-    if (tipoMint) {
-      const mint =
-        tipoMint === "application"
-          ? await gateway.mintApplicationToken(evento.id)
-          : await gateway.mintManagerInviteToken(evento.id);
+    const tipoMint = mintCategoryFor(evento.template_key);
 
-      if (!mint.ok) {
-        // lease_held, not_due_yet, stale_for_state, max_attempts,
-        // not_dispatchable: o M1 já decidiu; o worker não insiste.
-        resumo.skipped++;
-        continue;
-      }
-      segredo = mint.token;
-      tentativa = mint.attempt;
+    // R16 — FAIL-CLOSED. Sem operação de posse atômica não há transmissão.
+    //
+    // A consulta de descoberta já filtra pelos templates suportados; esta é a
+    // SEGUNDA barreira, para o caso de um evento chegar por outro caminho. O
+    // worker NÃO envia, NÃO reivindica, NÃO marca enviado, NÃO marca falha,
+    // NÃO reagenda e NÃO toca em attempt_count: o evento fica inteiramente
+    // fora do domínio deste worker.
+    if (tipoMint === null) {
+      resumo.unsupported++;
+      options.onDiagnostic?.({
+        notificationId: evento.id,
+        templateKey: evento.template_key,
+        reason: "unsupported_template_no_atomic_claim",
+      });
+      continue;
     }
+
+    // POSSE EXCLUSIVA antes de qualquer transmissão. A RPC canônica faz
+    // SELECT ... FOR UPDATE e transiciona para 'sending'; um segundo worker
+    // recebe lease_held e não envia. A RPC é a autoridade — inclusive sobre
+    // teto de tentativas e expiração de lease.
+    const mint =
+      tipoMint === "application"
+        ? await gateway.mintApplicationToken(evento.id)
+        : await gateway.mintManagerInviteToken(evento.id);
+
+    if (!mint.ok) {
+      // lease_held, not_due_yet, stale_for_state, max_attempts,
+      // not_dispatchable: o M1 já decidiu; o worker não insiste.
+      resumo.skipped++;
+      options.onDiagnostic?.({
+        notificationId: evento.id,
+        templateKey: evento.template_key,
+        reason: mint.reason,
+      });
+      continue;
+    }
+    segredo = mint.token;
+    tentativa = mint.attempt;
 
     const mensagem: EmailMessage = {
       to: evento.recipient_address ?? "",

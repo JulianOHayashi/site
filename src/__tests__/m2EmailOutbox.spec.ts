@@ -113,7 +113,9 @@ describe("R13 — worker usa as operações canônicas do M1", () => {
     const { gateway, chamadas } = criarGateway([evento()]);
     const t = new FakeLocalTransport();
     const r = await dispatchPending(gateway, t);
-    expect(r).toEqual({ processed: 1, sent: 1, failed: 0, skipped: 0 });
+    // R16: DispatchSummary ganhou o campo aditivo `unsupported`. O toEqual
+    // estrito e MANTIDO: ele protege contra campos inesperados no contrato.
+    expect(r).toEqual({ processed: 1, sent: 1, failed: 0, skipped: 0, unsupported: 0 });
     expect(chamadas[0]).toMatchObject({ op: "mintApplication" });
     expect(t.sent[0].data.token).toBe(SEGREDO);
   });
@@ -126,14 +128,22 @@ describe("R13 — worker usa as operações canônicas do M1", () => {
     expect(chamadas[0]).toMatchObject({ op: "mintManagerInvite" });
   });
 
-  it("template sem segredo NAO cunha nem injeta token", async () => {
+  it("template sem posse atomica e recusado sem envio nem mutacao", async () => {
+    // R16 / Opcao 1 — o contrato anterior era
+    //     descobrir -> sem cunhagem -> ENVIAR
+    // que transmitia sem posse exclusiva e permitia envio duplicado por dois
+    // workers. O template fora do conjunto suportado passa a ser recusado.
     const { gateway, chamadas } = criarGateway([
       evento({ template_key: "partner_application_decided" }),
     ]);
     const t = new FakeLocalTransport();
-    await dispatchPending(gateway, t);
-    expect(chamadas.some((c) => String(c.op).startsWith("mint"))).toBe(false);
-    expect(t.sent[0].data).not.toHaveProperty("token");
+    const r = await dispatchPending(gateway, t);
+
+    expect(r).toEqual({ processed: 1, sent: 0, failed: 0, skipped: 0, unsupported: 1 });
+    expect(t.sent).toHaveLength(0);
+    // Nenhuma interacao com o gateway: sem cunhagem, sem sent, sem failed,
+    // sem reschedule, sem mutacao de attempt_count.
+    expect(chamadas).toHaveLength(0);
   });
 
   it("recusa canônica da cunhagem é respeitada, sem insistir", async () => {
