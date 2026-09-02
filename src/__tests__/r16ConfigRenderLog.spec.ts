@@ -14,10 +14,7 @@ import {
   montarMensagemSmtp,
   RenderError,
 } from "../server/worker/emailRenderer";
-import {
-  criarWorkerLogger,
-  fingerprintDestinatario,
-} from "../server/worker/workerLogger";
+import { criarWorkerLogger } from "../server/worker/workerLogger";
 
 const SENHA = "senha-smtp-super-secreta";
 const SERVICE_KEY = "serviceroleabcdefghijklmnopqrstuvwxyz0123456789";
@@ -426,11 +423,22 @@ describe("R16_LOG_REDACTION_AUDIT", () => {
     });
   });
 
-  it("fingerprint do destinatário não é reversível e preserva o domínio", () => {
-    const f = fingerprintDestinatario("cliente.real@empresa.com.br");
-    expect(f).not.toContain("cliente.real");
-    expect(f).toContain("@empresa.com.br");
-    expect(fingerprintDestinatario("cliente.real@empresa.com.br")).toBe(f);
+  it("destinatário NÃO é emitido em log, nem como impressão digital", () => {
+    // A versão anterior emitia um hash de 32 bits com domínio em texto claro
+    // e o chamava de "não reversível". Era falso. O campo foi removido.
+    const linhas: string[] = [];
+    const log = criarWorkerLogger((l) => linhas.push(l));
+    log.info({
+      event: "sent",
+      notification_id: "evt-3",
+      ...({ recipient_fingerprint: "abc@empresa.com.br",
+            recipient_address: "cliente.real@empresa.com.br" } as object),
+    });
+    const saida = linhas.join("");
+    expect(saida).not.toContain("empresa.com.br");
+    expect(saida).not.toContain("cliente.real");
+    expect(saida).not.toContain("recipient");
+    expect(saida).toContain("evt-3");
   });
 
   it("nenhum log carrega corpo de e-mail", () => {

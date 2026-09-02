@@ -18,6 +18,7 @@ import CommercialTerritoryGuard from "./components/CommercialTerritoryGuard";
 import ParceirosCadastro from "./pages/parceiros/ParceirosCadastro";
 import ConfirmarEmail from "./pages/parceiros/ConfirmarEmail";
 import RecuperarAcesso from "./pages/parceiros/RecuperarAcesso";
+import AceitarConviteManager from "./pages/parceiros/AceitarConviteManager";
 import SolicitacaoStatus from "./pages/parceiros/SolicitacaoStatus";
 import ProvisionalGuard from "./components/ProvisionalGuard";
 import AdminSolicitacoes from "./pages/admin/AdminSolicitacoes";
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/parceiros/cadastro" element={<ParceirosCadastro />} />
         <Route path="/parceiros/confirmar" element={<ConfirmarEmail />} />
         <Route path="/parceiros/recuperar" element={<RecuperarAcesso />} />
+        <Route path="/parceiros/convite" element={<AceitarConviteManager />} />
         <Route
           path="/parceiros/solicitacao"
           element={

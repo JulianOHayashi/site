@@ -23,7 +23,6 @@ export type EventoLog = {
   provider?: string;
   /** Presença do id do provedor, não o valor, quando ele puder ser sensível. */
   has_provider_message_id?: boolean;
-  recipient_fingerprint?: string;
   error_code?: string;
   count?: number;
 };
@@ -37,26 +36,30 @@ const CAMPOS_PERMITIDOS: ReadonlySet<string> = new Set([
   "duration_ms",
   "provider",
   "has_provider_message_id",
-  "recipient_fingerprint",
   "error_code",
   "count",
 ]);
 
 /**
- * Impressão digital não reversível do destinatário, para correlacionar sem
- * registrar o endereço. Usa apenas o domínio e um resumo curto do local part.
+ * SEM IMPRESSÃO DIGITAL DE DESTINATÁRIO.
+ *
+ * Uma versão anterior deste arquivo emitia `recipient_fingerprint`, calculado
+ * por um hash polinomial de 32 bits sobre o local part, com o domínio em
+ * TEXTO CLARO — e o comentário chamava isso de "não reversível". A afirmação
+ * era falsa: 32 bits são triviais de colidir e forçar, endereços de e-mail
+ * têm entropia baixa, e o domínio já vazava sozinho.
+ *
+ * Como o despachante e o runtime não precisam correlacionar eventos por
+ * destinatário, o campo foi REMOVIDO em vez de fortalecido. Menos dado
+ * pessoal em log é melhor que dado pessoal ofuscado.
+ *
+ * Se um dia houver necessidade operacional comprovada, a construção correta é
+ * HMAC-SHA-256 com chave dedicada de correlação, server-only — nunca
+ * SHA-256(email) puro, MD5, SHA-1 ou hash não criptográfico, todos sujeitos a
+ * ataque de dicionário sobre endereços previsíveis.
+ *
+ *   R16_RECIPIENT_FINGERPRINT_POLICY=OMITTED_UNLESS_REQUIRED
  */
-export function fingerprintDestinatario(endereco: string): string {
-  const at = endereco.lastIndexOf("@");
-  if (at <= 0) return "invalid";
-  const dominio = endereco.slice(at + 1).toLowerCase();
-  const local = endereco.slice(0, at);
-  let h = 0;
-  for (let i = 0; i < local.length; i++) {
-    h = (h * 31 + local.charCodeAt(i)) >>> 0;
-  }
-  return `${h.toString(16).padStart(8, "0")}@${dominio}`;
-}
 
 export type Sink = (linha: string) => void;
 
