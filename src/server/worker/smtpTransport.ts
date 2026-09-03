@@ -48,7 +48,16 @@ export type FaseSmtp =
   | "quit";
 
 export type ResultadoTransporte =
-  | { estado: "enviado"; codigo: number }
+  | {
+      estado: "enviado";
+      codigo: number;
+      /**
+       * Texto da linha final do servidor. SMTP não define id de mensagem
+       * canônico; provedores costumam embutir a chave da fila aqui. É texto
+       * arbitrário de terceiro — quem o persistir precisa sanitizá-lo.
+       */
+      linhaFinal?: string;
+    }
   | { estado: "recusa_temporaria"; codigo: number; fase: FaseSmtp }
   | { estado: "recusa_permanente"; codigo: number; fase: FaseSmtp }
   | { estado: "falha_transporte"; codigo: string; fase: FaseSmtp };
@@ -387,7 +396,11 @@ export async function enviarMensagemSmtp(
       /* encerramento sujo não invalida a aceitação já confirmada */
     }
 
-    return { estado: "enviado", codigo: rFinal.code };
+    return {
+      estado: "enviado",
+      codigo: rFinal.code,
+      linhaFinal: rFinal.linhas[rFinal.linhas.length - 1],
+    };
   } catch (e) {
     if (e instanceof RecusaDoServidor) {
       return e.resposta.classe === 4

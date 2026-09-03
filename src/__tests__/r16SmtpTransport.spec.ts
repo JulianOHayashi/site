@@ -151,7 +151,10 @@ describe("R16_SMTP_PROTOCOL_AUDIT — sequência completa", () => {
 
     const r = await enviarMensagemSmtp(comAuth(), ENVELOPE, PAYLOAD, fabrica);
 
-    expect(r).toEqual({ estado: "enviado", codigo: 250 });
+    expect(r).toMatchObject({ estado: "enviado", codigo: 250 });
+    // Texto da resposta final preservado: SMTP não devolve id canônico, e a
+    // chave da fila do provedor costuma vir aqui.
+    if (r.estado === "enviado") expect(r.linhaFinal).toBe("2.0.0 Ok: fila 4F2A");
     expect(comandos[0]).toBe("EHLO bdflow.com.br\r\n");
     expect(comandos[1]?.startsWith("AUTH PLAIN ")).toBe(true);
     expect(comandos[2]).toBe("MAIL FROM:<nao-responda@bdflow.com.br>\r\n");
@@ -561,7 +564,7 @@ describe("R16_SMTP_DATA_SAFETY — backpressure e limpeza", () => {
       PAYLOAD,
       fabrica
     );
-    expect(r).toEqual({ estado: "enviado", codigo: 250 });
+    expect(r).toMatchObject({ estado: "enviado", codigo: 250 });
   });
 
   it("o payload só é escrito depois do 354", async () => {

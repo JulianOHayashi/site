@@ -324,7 +324,9 @@ describe("R16_TLS_AUDIT — handshake real", () => {
         PAYLOAD,
         criarFabricaSocketNode()
       );
-      expect(r).toEqual({ estado: "enviado", codigo: 250 });
+      expect(r).toMatchObject({ estado: "enviado", codigo: 250 });
+      // A linha final do servidor é preservada para rastreio com o provedor.
+      if (r.estado === "enviado") expect(r.linhaFinal).toContain("Ok");
     } finally {
       await fechar(s);
     }
@@ -410,7 +412,9 @@ describe("R16_SMTP_PROTOCOL_AUDIT — socket real de ponta a ponta", () => {
         PAYLOAD,
         criarFabricaSocketNode()
       );
-      expect(r).toEqual({ estado: "enviado", codigo: 250 });
+      expect(r).toMatchObject({ estado: "enviado", codigo: 250 });
+      // A linha final do servidor é preservada para rastreio com o provedor.
+      if (r.estado === "enviado") expect(r.linhaFinal).toContain("Ok");
     } finally {
       await fechar(s);
     }
