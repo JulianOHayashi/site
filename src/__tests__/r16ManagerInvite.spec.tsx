@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-library/react";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -25,13 +25,26 @@ const rpcMock = vi.fn();
 const signInMock = vi.fn();
 const getSessionMock = vi.fn();
 
+/**
+ * `useAuth` obtém a sessão por DOIS caminhos: `getSession()` na montagem e
+ * `onAuthStateChange(cb)` depois. Mockar apenas o primeiro deixaria o caminho
+ * de login bem-sucedido sem prova — que é exatamente o achado corrigido aqui.
+ * Os callbacks reais registrados pelo hook ficam guardados para que o teste
+ * possa emitir a transição de sessão como o Supabase emitiria.
+ */
+type OuvinteAuth = (evento: string, sessao: unknown) => void;
+const ouvintesAuth: OuvinteAuth[] = [];
+
 vi.mock("../lib/supabase", () => ({
   supabase: {
     rpc: (...a: unknown[]) => rpcMock(...(a as [])),
     auth: {
       signInWithPassword: (...a: unknown[]) => signInMock(...(a as [])),
       getSession: (...a: unknown[]) => getSessionMock(...(a as [])),
-      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+      onAuthStateChange: (cb: OuvinteAuth) => {
+        ouvintesAuth.push(cb);
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      },
     },
   },
   supabaseConfigurado: true,
@@ -49,9 +62,25 @@ const comSessao = async () => ({
 
 const chamadasRpc = () => rpcMock.mock.calls.filter((c) => c[0] === "accept_manager_invite");
 
+/**
+ * Observador da localização DO ROTEADOR.
+ *
+ * `MemoryRouter` mantém o histórico em memória e NÃO escreve em
+ * `window.location`. Afirmar sobre `window.location.search` passaria mesmo se
+ * o token continuasse na rota — a asserção seria vazia. Este componente lê a
+ * localização real do roteador.
+ */
+let historicoBusca: string[] = [];
+function ObservadorDeLocalizacao() {
+  const busca = useLocation().search;
+  if (historicoBusca[historicoBusca.length - 1] !== busca) historicoBusca.push(busca);
+  return null;
+}
+
 function montar(query = `?token=${TOKEN}`) {
   return render(
     <MemoryRouter initialEntries={[`/parceiros/convite${query}`]}>
+      <ObservadorDeLocalizacao />
       <Routes>
         <Route path="/parceiros/convite" element={<AceitarConviteManager />} />
         <Route path="/parceiros/painel" element={<div data-testid="painel">painel</div>} />
@@ -61,10 +90,19 @@ function montar(query = `?token=${TOKEN}`) {
   );
 }
 
+/** Emite a transição de sessão como o Supabase emitiria após o login. */
+async function emitirSessaoAutenticada(sessao: unknown) {
+  await act(async () => {
+    for (const cb of ouvintesAuth) cb("SIGNED_IN", sessao);
+  });
+}
+
 beforeEach(() => {
   rpcMock.mockReset();
   signInMock.mockReset();
   getSessionMock.mockReset();
+  ouvintesAuth.length = 0;
+  historicoBusca = [];
   localStorage.clear();
   sessionStorage.clear();
   getSessionMock.mockImplementation(comSessao);
@@ -111,7 +149,7 @@ describe("R16_MANAGER_INVITE_TOKEN_HANDLING", () => {
     expect(chamadasRpc()).toHaveLength(0);
   });
 
-  it("o token é removido da URL visível após a captura", async () => {
+  it("o token não permanece na URL do navegador", async () => {
     montar();
     await waitFor(() => expect(chamadasRpc().length).toBe(1));
     expect(window.location.search).not.toContain(TOKEN);
@@ -214,6 +252,127 @@ describe("R16_MANAGER_INVITE_ACCEPTANCE_UI — desfechos canônicos", () => {
     await waitFor(() => expect(screen.getByText(/acesso de gerente ativado/i)).toBeDefined());
     expect(screen.getByText(/acesso financeiro não é concedido automaticamente/i)).toBeDefined();
     expect(screen.getByRole("link", { name: /ir para o painel/i })).toBeDefined();
+  });
+});
+
+describe("R16_MANAGER_INVITE_URL_REDACTION_ROUTER_PROOF", () => {
+  it("a localização DO ROTEADOR perde o token depois da captura", async () => {
+    montar();
+    await waitFor(() => expect(chamadasRpc().length).toBe(1));
+
+    // Controle: o roteador REALMENTE começou com o segredo na query. Sem esta
+    // asserção, "não contém token" poderia ser verdade por nunca ter contido.
+    expect(historicoBusca.length).toBeGreaterThanOrEqual(2);
+    expect(historicoBusca[0]).toContain(TOKEN);
+
+    // E a localização corrente do roteador não o contém mais.
+    const atual = historicoBusca[historicoBusca.length - 1];
+    expect(atual).not.toContain(TOKEN);
+    expect(atual).not.toContain("token=");
+  });
+
+  it("parâmetros vizinhos inofensivos são preservados intactos", async () => {
+    montar(`?origem=email&token=${TOKEN}&campanha=convite-2026`);
+    await waitFor(() => expect(chamadasRpc().length).toBe(1));
+
+    const atual = historicoBusca[historicoBusca.length - 1];
+    expect(atual).not.toContain(TOKEN);
+    const p = new URLSearchParams(atual);
+    expect(p.get("origem")).toBe("email");
+    expect(p.get("campanha")).toBe("convite-2026");
+    expect(p.get("token")).toBeNull();
+  });
+
+  it("a remoção usa replace, sem empilhar entrada no histórico", () => {
+    const convite = lerFonte("src/pages/parceiros/AceitarConviteManager.tsx");
+    // Uma entrada nova no histórico deixaria o segredo alcançável pelo botão
+    // "voltar" do navegador.
+    expect(convite).toMatch(/setParams\(\s*limpos\s*,\s*\{\s*replace:\s*true\s*\}\s*\)/);
+  });
+});
+
+describe("R16_MANAGER_INVITE_POST_LOGIN_TOKEN_CONTINUITY", () => {
+  it("caminho completo não autenticado → login → MESMO token, exatamente uma vez", async () => {
+    getSessionMock.mockImplementation(semSessao);
+    signInMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+
+    montar();
+
+    // 1-3. sem sessão, token capturado, nenhuma chamada à RPC.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /entrar e aceitar/i })).toBeDefined()
+    );
+    expect(chamadasRpc()).toHaveLength(0);
+    expect(historicoBusca[0]).toContain(TOKEN);
+
+    // 4-5. credenciais válidas; signInWithPassword é bem-sucedido.
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "g@empresa.com.br" } });
+    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "senha-forte-1" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /entrar e aceitar/i }));
+    });
+    expect(signInMock).toHaveBeenCalledTimes(1);
+    // Ainda sem RPC: a sessão só existe quando o Auth emitir a transição.
+    expect(chamadasRpc()).toHaveLength(0);
+
+    // 6. o Auth emite a sessão autenticada pelo mesmo canal do useAuth real.
+    await emitirSessaoAutenticada({ access_token: "novo", user: { id: "u1" } });
+
+    // 7-8. exatamente uma chamada, com o token original byte a byte.
+    await waitFor(() => expect(chamadasRpc()).toHaveLength(1));
+    expect((chamadasRpc()[0][1] as { p_token: string }).p_token).toBe(TOKEN);
+    await waitFor(() => expect(screen.getByText(/acesso de gerente ativado/i)).toBeDefined());
+  });
+
+  it("o token sobrevive ao login mesmo já tendo saído da URL", async () => {
+    getSessionMock.mockImplementation(semSessao);
+    signInMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+
+    montar();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /entrar e aceitar/i })).toBeDefined()
+    );
+
+    // A URL já foi limpa ANTES do login; o token vive apenas em memória.
+    expect(historicoBusca[historicoBusca.length - 1]).not.toContain(TOKEN);
+
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "g@empresa.com.br" } });
+    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "senha-forte-1" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /entrar e aceitar/i }));
+    });
+    await emitirSessaoAutenticada({ access_token: "novo", user: { id: "u1" } });
+
+    await waitFor(() => expect(chamadasRpc()).toHaveLength(1));
+    expect((chamadasRpc()[0][1] as { p_token: string }).p_token).toBe(TOKEN);
+  });
+
+  it("uma segunda emissão de sessão NÃO reenvia a RPC após SUCESSO", async () => {
+    montar();
+    await waitFor(() => expect(chamadasRpc()).toHaveLength(1));
+    // Renovação de token emite novo evento; o convite não pode ser reaceito.
+    await emitirSessaoAutenticada({ access_token: "b", user: { id: "u1" } });
+    expect(chamadasRpc()).toHaveLength(1);
+  });
+
+  it("uma segunda emissão de sessão NÃO reenvia a RPC após FALHA", async () => {
+    // Caminho onde a guarda de tentativa única é a ÚNICA proteção: no sucesso
+    // o token é anulado e isso bastaria; na falha ele permanece em memória, e
+    // sem a guarda a renovação de sessão dispararia uma nova tentativa.
+    rpcMock.mockResolvedValue({ data: { ok: false, reason: "expired" }, error: null });
+    montar();
+    await waitFor(() => expect(chamadasRpc()).toHaveLength(1));
+    await waitFor(() => expect(screen.getByText(/expirou/i)).toBeDefined());
+
+    await emitirSessaoAutenticada({ access_token: "b", user: { id: "u1" } });
+    await emitirSessaoAutenticada({ access_token: "c", user: { id: "u1" } });
+    expect(chamadasRpc()).toHaveLength(1);
+  });
+
+  it("o mock de onAuthStateChange é realmente consumido pelo useAuth", async () => {
+    getSessionMock.mockImplementation(semSessao);
+    montar();
+    await waitFor(() => expect(ouvintesAuth.length).toBeGreaterThanOrEqual(1));
   });
 });
 
