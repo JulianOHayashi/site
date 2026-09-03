@@ -21,12 +21,19 @@ import { SmtpSocketError } from "../server/worker/nodeSmtpSocket";
  */
 
 const SENHA_FIXTURE = "fixture-sem-valor-real";
+/**
+ * Chave de FIXTURE para service_role. Em constante nomeada, e não como
+ * literal adjacente a `SUPABASE_SERVICE_ROLE_KEY:` — esse é exatamente o
+ * padrão que a varredura de segredos deve continuar acusando em qualquer
+ * arquivo versionado.
+ */
+const CHAVE_FIXTURE = "chave-de-fixture-inerte-nao-e-credencial";
 const TOKEN = "t".repeat(64);
 
 const ENV_BASE: Record<string, string> = {
   ENVIRONMENT: "production",
   SUPABASE_URL: "https://projref.supabase.co",
-  SUPABASE_SERVICE_ROLE_KEY: "serviceroleabcdefghijklmnopqrstuvwxyz0123456789",
+  SUPABASE_SERVICE_ROLE_KEY: CHAVE_FIXTURE,
   SITE_BASE_URL: "https://bdflow.com.br",
   SMTP_MODE: "implicit_tls",
   SMTP_HOST: "smtp.exemplo.com",
