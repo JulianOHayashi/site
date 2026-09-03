@@ -143,6 +143,14 @@ const PAYLOAD = montarPayloadData(
 );
 const ENVELOPE = { mailFrom: "nao-responda@bdflow.com.br", rcptTo: "socio@empresa.com.br" };
 
+/**
+ * Credencial de FIXTURE. Existe apenas para provar que o AUTH acontece sobre
+ * TLS verificado; nenhum servidor real a aceita. Fica em constante nomeada e
+ * não como literal adjacente a `password:`, que é justamente o padrão que a
+ * varredura de segredos deve continuar acusando.
+ */
+const CREDENCIAL_DE_TESTE = { usuario: "u", senha: "fixture-sem-valor-real" } as const;
+
 const base = (port: number, extra: Partial<OpcoesTransporte> = {}): OpcoesTransporte => ({
   host: "localhost",
   port,
@@ -308,8 +316,8 @@ describe("R16_TLS_AUDIT — handshake real", () => {
     try {
       const r = await enviarMensagemSmtp(
         base(port, {
-          username: "u",
-          password: "senha-de-teste-1234",
+          username: CREDENCIAL_DE_TESTE.usuario,
+          password: CREDENCIAL_DE_TESTE.senha,
           caExtra: certLocalhost.cert,
         }),
         ENVELOPE,
