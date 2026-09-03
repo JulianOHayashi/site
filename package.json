@@ -10,9 +10,12 @@
     "preview": "vite preview",
     "check:legacy": "node scripts/check-no-legacy.mjs",
     "test": "vitest run",
-    "validate": "npm run check:legacy && npm run typecheck && npm run test && npm run build",
+    "validate": "npm run check:legacy && npm run typecheck && npm run test && npm run build && npm run build:worker",
     "db:reset:aux": "bash scripts/db-test/reset-local.sh",
-    "db:test:aux": "bash scripts/db-test/run-sql-tests.sh"
+    "db:test:aux": "bash scripts/db-test/run-sql-tests.sh",
+    "build:worker": "vite build --config vite.worker.config.ts",
+    "worker": "node dist-worker/main.mjs",
+    "worker:once": "node dist-worker/main.mjs --once"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
