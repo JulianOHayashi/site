@@ -6,6 +6,7 @@ import {
   aplicarPoliticaDestinatario,
   rejeitarSegredosPublicos,
   WorkerConfigError,
+  SMTP_MODES_NAO_SUPORTADOS,
 } from "../server/worker/workerConfig";
 import {
   renderizar,
@@ -194,6 +195,29 @@ describe("R16 — configuração: SMTP e lote", () => {
     expect(() => carregarWorkerConfig({ ...ENV_BASE, SMTP_MODE: "tls_qualquer" })).toThrow(
       WorkerConfigError
     );
+  });
+
+  it("starttls é recusado como NÃO IMPLEMENTADO, com código próprio", () => {
+    // Distinto de "modo inválido": o operador escreveu um modo real que este
+    // release não implementa. Aceitá-lo faria configurar a porta 587
+    // esperando cifra e obter um caminho de upgrade que não existe.
+    try {
+      carregarWorkerConfig({ ...ENV_BASE, SMTP_MODE: "starttls", SMTP_PORT: "587" });
+      throw new Error("deveria ter lançado");
+    } catch (e) {
+      expect((e as WorkerConfigError).code).toBe("unsupported_smtp_mode");
+      expect((e as Error).message).toContain("implicit_tls");
+    }
+  });
+
+  it("o conjunto de modos não suportados é declarado explicitamente", () => {
+    expect(SMTP_MODES_NAO_SUPORTADOS).toContain("starttls");
+    // Nenhum modo pode estar simultaneamente suportado e não suportado.
+    for (const m of SMTP_MODES_NAO_SUPORTADOS) {
+      expect(() => carregarWorkerConfig({ ...ENV_BASE, SMTP_MODE: m })).toThrow(
+        WorkerConfigError
+      );
+    }
   });
 
   it("texto claro é proibido fora de desenvolvimento", () => {

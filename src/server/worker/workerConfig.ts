@@ -20,8 +20,19 @@ export class WorkerConfigError extends Error {
   }
 }
 
-/** Modos de transporte realmente implementados e testados. */
-export type SmtpMode = "implicit_tls" | "starttls" | "plaintext_local_only";
+/**
+ * Modos de transporte realmente implementados e testados.
+ *
+ * STARTTLS foi deliberadamente DEIXADO DE FORA do R16. O upgrade de socket, o
+ * re-EHLO e a detecção de capacidade não existem no motor de transporte;
+ * aceitar `SMTP_MODE=starttls` faria o operador configurar a porta 587
+ * esperando cifra e obter um caminho não exercitado. Um modo seguro correto
+ * vale mais que dois incompletos. Ver `unsupported_smtp_mode`.
+ */
+export type SmtpMode = "implicit_tls" | "plaintext_local_only";
+
+/** Modos conhecidos porém não implementados nesta janela. */
+export const SMTP_MODES_NAO_SUPORTADOS: readonly string[] = Object.freeze(["starttls"]);
 
 export type StagingRecipientPolicy =
   | { kind: "override"; address: string }
@@ -217,14 +228,18 @@ export function carregarWorkerConfig(env: FonteEnv): WorkerConfig {
   const siteBaseUrl = validarSiteBaseUrl(exigir(env, "SITE_BASE_URL"), environment);
 
   const modoBruto = exigir(env, "SMTP_MODE");
-  if (
-    modoBruto !== "implicit_tls" &&
-    modoBruto !== "starttls" &&
-    modoBruto !== "plaintext_local_only"
-  ) {
+  if (SMTP_MODES_NAO_SUPORTADOS.includes(modoBruto)) {
+    // Erro distinto de "modo inválido": o operador escreveu algo real, que
+    // este release não implementa. A mensagem precisa dizer isso.
+    throw new WorkerConfigError(
+      "unsupported_smtp_mode",
+      `SMTP_MODE ${modoBruto} não é implementado nesta versão; use implicit_tls`
+    );
+  }
+  if (modoBruto !== "implicit_tls" && modoBruto !== "plaintext_local_only") {
     throw new WorkerConfigError("invalid_smtp_mode", "SMTP_MODE não suportado");
   }
-  const mode = modoBruto as SmtpMode;
+  const mode: SmtpMode = modoBruto;
 
   if (mode === "plaintext_local_only" && environment !== "development") {
     throw new WorkerConfigError(
