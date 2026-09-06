@@ -546,3 +546,315 @@ COMMENT ON FUNCTION public.create_commercial_checkout_intent(uuid,text,text) IS
   'e forma de disponibilizacao; preco, fidelidade, forma de pagamento e '
   'componentes monetarios sao derivados no servidor. Nenhum provedor de '
   'pagamento e selecionado ou acionado.';
+
+-- ============================================================================
+-- 9. VENDA MANUAL CIENTE DE VERSÃO
+--
+-- A assinatura anterior de 10 argumentos gravava `pool_bps` a partir do
+-- retorno da precificação. Sob a V2 esse campo é NULL, e a coluna deixou de
+-- ser NOT NULL — mas a função também precisa registrar a FORMA DE
+-- DISPONIBILIZAÇÃO escolhida pela empresa, que não existia na V1.
+--
+-- POR QUE A ANTIGA É REMOVIDA E NÃO APENAS SUBSTITUÍDA
+-- Acrescentar um parâmetro cria uma SOBRECARGA: as duas assinaturas ficariam
+-- executáveis, e a de 10 argumentos continuaria capaz de criar pedido V2 sem
+-- modo de liquidação. Um contrato ambíguo em função SECURITY DEFINER é
+-- exatamente o tipo de porta que ninguém lembra de fechar depois. Só uma
+-- assinatura permanece.
+--
+-- Nenhum código em src/ chama esta RPC: a conferência foi feita antes da
+-- remoção.
+-- ----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.admin_register_manual_commercial_order(
+  uuid, uuid, text, timestamptz, text, date, text, text, text, integer);
+
+CREATE FUNCTION public.admin_register_manual_commercial_order(
+  p_opportunity_id uuid,
+  p_company_id     uuid,
+  p_order_version  text,
+  p_signed_at      timestamptz,
+  p_signatory_name text,
+  p_expected_operation_start date,
+  p_benefit_settlement_mode text,
+  p_document_reference text DEFAULT NULL,
+  p_document_hash      text DEFAULT NULL,
+  p_external_signature_ref text DEFAULT NULL,
+  p_exclusivity_period_days integer DEFAULT 28
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_opp      public.commercial_opportunities%ROWTYPE;
+  v_excl     public.commercial_exclusivities%ROWTYPE;
+  v_company  public.site_partner_companies%ROWTYPE;
+  v_agree    public.commercial_master_agreements%ROWTYPE;
+  v_region   public.commercial_regions%ROWTYPE;
+  v_existing public.commercial_exclusivity_orders%ROWTYPE;
+  v_city     jsonb;
+  v_city_key text;
+  v_cnpj     text;
+  v_fidel    boolean;
+  v_pricing  jsonb;
+  v_versao   integer;
+  v_pool     bigint;
+  v_bdflow   bigint;
+  v_cash     bigint;
+  v_id       uuid;
+BEGIN
+  PERFORM public.m1_exigir_admin();
+
+  -- A ÚNICA escolha comercial aceita de fora. Preço, fidelidade, versão da
+  -- tabela e forma de pagamento continuam derivados aqui.
+  IF p_benefit_settlement_mode IS NULL
+     OR p_benefit_settlement_mode NOT IN ('direct_benefits','cash') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_settlement_mode');
+  END IF;
+
+  IF p_signed_at IS NULL OR p_signed_at > pg_catalog.now() THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_signature_date');
+  END IF;
+  IF p_document_reference IS NULL AND p_document_hash IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'document_evidence_required');
+  END IF;
+
+  SELECT * INTO v_opp FROM public.commercial_opportunities
+   WHERE id = p_opportunity_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'opportunity_not_found');
+  END IF;
+
+  SELECT * INTO v_existing FROM public.commercial_exclusivity_orders
+   WHERE opportunity_id = p_opportunity_id AND status <> 'cancelled';
+  IF FOUND THEN
+    IF v_existing.company_id = p_company_id THEN
+      RETURN pg_catalog.jsonb_build_object('ok', true, 'already', true,
+                                           'order_id', v_existing.id);
+    END IF;
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'opportunity_taken');
+  END IF;
+
+  SELECT * INTO v_excl FROM public.commercial_exclusivities
+   WHERE id = v_opp.exclusivity_id;
+  IF v_excl.status NOT IN ('forming','formed','start_scheduled') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'exclusivity_closed');
+  END IF;
+
+  SELECT * INTO v_company FROM public.site_partner_companies
+   WHERE id = p_company_id AND status = 'active';
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'company_invalid');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.commercial_exclusivity_orders o
+              WHERE o.exclusivity_id = v_opp.exclusivity_id
+                AND o.company_id = p_company_id AND o.status <> 'cancelled') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'company_already_in_exclusivity');
+  END IF;
+
+  SELECT * INTO v_agree FROM public.commercial_master_agreements
+   WHERE company_id = p_company_id AND status = 'signed';
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'master_agreement_missing');
+  END IF;
+
+  SELECT * INTO v_region FROM public.commercial_regions WHERE id = v_excl.region_id;
+
+  v_city := public.m2_resolve_company_fidelity_city(p_company_id, v_region.id);
+  IF (v_city->>'ok')::boolean IS DISTINCT FROM true THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', v_city->>'reason');
+  END IF;
+  v_city_key := v_city->>'city_key';
+  v_cnpj     := public.somente_digitos(v_company.cnpj);
+
+  v_fidel := public.is_fidelized_context(
+      v_cnpj, v_region.uf, v_company.city, v_opp.niche_code);
+
+  v_pricing := public.calculate_niche_contract_pricing(v_opp.niche_code, v_fidel);
+  IF (v_pricing->>'ok')::boolean IS DISTINCT FROM true THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', v_pricing->>'reason');
+  END IF;
+
+  v_versao := (v_pricing->>'pricing_rule_version')::int;
+  v_pool   := (v_pricing->>'contractual_pool_cents')::bigint;
+  v_bdflow := (v_pricing->>'bdflow_due_cents')::bigint;
+  v_cash   := CASE WHEN p_benefit_settlement_mode = 'cash' THEN v_pool ELSE 0 END;
+
+  INSERT INTO public.commercial_exclusivity_orders
+    (exclusivity_id, opportunity_id, company_id, master_agreement_id, niche_code,
+     region_id, nominal_quantity, pricing_rule_version, fidelized, currency,
+     economic_value_cents, pool_bps, contractual_pool_cents, bdflow_due_cents,
+     benefit_settlement_mode, cash_user_pool_funding_cents,
+     total_monetary_funding_required_cents, benefit_distribution_policy_version,
+     order_version, document_reference, document_hash, signed_at, signatory_name,
+     external_signature_ref, status,
+     expected_operation_start, exclusivity_period_days, registered_by)
+  VALUES
+    (v_opp.exclusivity_id, v_opp.id, p_company_id, v_agree.id, v_opp.niche_code,
+     v_region.id, v_opp.contracted_quantity,
+     v_versao, v_fidel, 'BRL',
+     (v_pricing->>'economic_value_cents')::bigint,
+     -- NULL sob a V2: não existe ponto-base honesto, e inventar um seria
+     -- gravar autoridade falsa só para satisfazer um formato antigo.
+     CASE WHEN v_versao >= 2 THEN NULL ELSE (v_pricing->>'pool_bps')::int END,
+     v_pool, v_bdflow,
+     p_benefit_settlement_mode, v_cash, v_bdflow + v_cash,
+     CASE WHEN v_versao >= 2 THEN 2 ELSE NULL END,
+     pg_catalog.btrim(p_order_version),
+     nullif(pg_catalog.btrim(coalesce(p_document_reference,'')), ''),
+     nullif(pg_catalog.btrim(coalesce(p_document_hash,'')), ''),
+     p_signed_at, pg_catalog.btrim(p_signatory_name),
+     nullif(pg_catalog.btrim(coalesce(p_external_signature_ref,'')), ''),
+     'signed',
+     p_expected_operation_start, p_exclusivity_period_days, auth.uid())
+  RETURNING id INTO v_id;
+
+  UPDATE public.commercial_opportunities
+     SET status = 'payment_pending', reserved_until = NULL
+   WHERE id = v_opp.id;
+
+  INSERT INTO public.commercial_fidelity_records
+    (cnpj, uf, city_key, niche_code, established_by_order_id)
+  VALUES (v_cnpj, v_region.uf, v_city_key, v_opp.niche_code, v_id)
+  ON CONFLICT (cnpj, uf, city_key, niche_code) DO NOTHING;
+
+  PERFORM public.m1_auditar('commercial_order.manually_registered', v_id, 'admin',
+    pg_catalog.jsonb_build_object(
+      'pricing_rule_version', v_versao,
+      'benefit_settlement_mode', p_benefit_settlement_mode,
+      'payment_method', v_pricing->>'payment_method',
+      'economic_value_cents', (v_pricing->>'economic_value_cents')::bigint,
+      'total_monetary_funding_required_cents', v_bdflow + v_cash),
+    NULL,
+    pg_catalog.jsonb_build_object('opportunity_id', p_opportunity_id));
+
+  RETURN pg_catalog.jsonb_build_object(
+    'ok', true, 'already', false, 'order_id', v_id,
+    'pricing_rule_version', v_versao,
+    'fidelized', v_fidel,
+    'payment_method', v_pricing->>'payment_method',
+    'benefit_settlement_mode', p_benefit_settlement_mode,
+    'economic_value_cents', (v_pricing->>'economic_value_cents')::bigint,
+    'user_pool_cents', v_pool,
+    'bdflow_ops_investment_cents', v_bdflow,
+    'cash_user_pool_funding_cents', v_cash,
+    'total_monetary_funding_required_cents', v_bdflow + v_cash);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_register_manual_commercial_order(
+  uuid,uuid,text,timestamptz,text,date,text,text,text,text,integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.admin_register_manual_commercial_order(
+  uuid,uuid,text,timestamptz,text,date,text,text,text,text,integer) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.admin_register_manual_commercial_order(
+  uuid,uuid,text,timestamptz,text,date,text,text,text,text,integer) TO authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 10. CONFIRMAÇÃO DE FINANCIAMENTO V2 — NEUTRA DE PROVEDOR
+--
+-- A RPC antiga, admin_confirm_manual_bdflow_payment, é PRESERVADA: ela
+-- codifica a semântica V1, em que o valor cobrado é sempre o devido à BDFlow
+-- porque o pool nunca era aportado em dinheiro. Fazê-la significar "às vezes
+-- o econômico inteiro" sem auditar chamadores seria mudar o sentido de uma
+-- função existente pelas costas de quem a usa.
+--
+-- Esta é a V2: o valor esperado sai do INSTANTÂNEO IMUTÁVEL do pedido e do
+-- modo de liquidação, nunca do que o chamador diz.
+--
+-- NEUTRA DE PROVEDOR: não há chave Pix, QR, adquirente, webhook nem token de
+-- provedor. Só a correlação externa opaca já usada pela V1.
+-- ----------------------------------------------------------------------------
+CREATE FUNCTION public.admin_confirm_commercial_funding(
+  p_order_id     uuid,
+  p_amount_cents bigint,
+  p_payment_external_ref text DEFAULT NULL,
+  p_justification text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_ord      public.commercial_exclusivity_orders%ROWTYPE;
+  v_esperado bigint;
+BEGIN
+  PERFORM public.m1_exigir_admin();
+
+  SELECT * INTO v_ord FROM public.commercial_exclusivity_orders
+   WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+  IF v_ord.status = 'cancelled' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'order_cancelled');
+  END IF;
+  IF v_ord.status <> 'signed' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'order_not_signed');
+  END IF;
+  IF v_ord.pricing_rule_version < 2 THEN
+    -- Pedido V1 continua sendo confirmado pela RPC V1. Reinterpretar um
+    -- instantâneo histórico sob regra nova é reescrever o passado.
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'v1_order_use_legacy_rpc');
+  END IF;
+
+  -- IDEMPOTÊNCIA: repetir a confirmação devolve o estado sem sobrescrever
+  -- valor, autor ou instante. Um provedor futuro reenviará o mesmo evento.
+  IF v_ord.payment_status = 'confirmed' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', true, 'already', true,
+                                         'payment_status', 'confirmed',
+                                         'amount_cents', v_ord.payment_amount_cents);
+  END IF;
+
+  -- O esperado vem do INSTANTÂNEO, não do chamador.
+  v_esperado := v_ord.total_monetary_funding_required_cents;
+  IF v_esperado IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'funding_snapshot_missing');
+  END IF;
+
+  IF p_amount_cents IS NULL OR p_amount_cents <> v_esperado THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'ok', false, 'reason', 'amount_differs_from_expected',
+      'expected_cents', v_esperado);
+  END IF;
+
+  UPDATE public.commercial_exclusivity_orders
+     SET payment_status = 'confirmed',
+         payment_confirmed_at = pg_catalog.now(),
+         payment_confirmed_by = auth.uid(),
+         payment_amount_cents = p_amount_cents,
+         payment_external_ref = nullif(pg_catalog.btrim(coalesce(p_payment_external_ref,'')), '')
+   WHERE id = p_order_id;
+
+  UPDATE public.commercial_opportunities
+     SET status = 'contracted' WHERE id = v_ord.opportunity_id;
+
+  PERFORM public.m1_auditar('commercial_order.funding_confirmed', p_order_id, 'admin',
+    pg_catalog.jsonb_build_object('payment_status','confirmed',
+                                  'amount_cents', p_amount_cents,
+                                  'benefit_settlement_mode', v_ord.benefit_settlement_mode,
+                                  'cash_user_pool_funding_cents',
+                                    v_ord.cash_user_pool_funding_cents),
+    pg_catalog.jsonb_build_object('payment_status','pending'),
+    pg_catalog.jsonb_build_object('justification', p_justification));
+
+  RETURN pg_catalog.jsonb_build_object(
+    'ok', true, 'already', false,
+    'payment_status', 'confirmed',
+    'amount_cents', p_amount_cents,
+    'benefit_settlement_mode', v_ord.benefit_settlement_mode,
+    -- Confirmar o FINANCIAMENTO não significa que dinheiro chegou a usuário
+    -- algum. A liberação é do domínio operacional do App.
+    'user_payout_executed', false);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_confirm_commercial_funding(uuid,bigint,text,text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.admin_confirm_commercial_funding(uuid,bigint,text,text) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.admin_confirm_commercial_funding(uuid,bigint,text,text) TO authenticated;
+
+COMMENT ON FUNCTION public.admin_confirm_commercial_funding(uuid,bigint,text,text) IS
+  'Confirmacao de financiamento comercial V2, neutra de provedor. O valor '
+  'esperado vem do instantaneo imutavel do pedido; o chamador nao propoe '
+  'valor. Idempotente. Nao integra provedor de pagamento nem executa repasse '
+  'a usuarios.';

@@ -365,3 +365,107 @@ describe("COMERCIAL V2 — fronteira de confiança do cliente", () => {
     expect(v1).toContain("(1, 'active', 12, 1999900, 129900, 129900, 7500, 7000,");
   });
 });
+
+describe("COMERCIAL V2 — matriz 2x2 de liquidação × trilho", () => {
+  const casos: Array<[BenefitSettlementMode, boolean, string, "economico" | "bdflow"]> = [
+    ["direct_benefits", false, "pix", "bdflow"],
+    ["cash", false, "pix", "economico"],
+    ["direct_benefits", true, "credit_card", "bdflow"],
+    ["cash", true, "credit_card", "economico"],
+  ];
+
+  for (const [modo, fid, trilho, cobranca] of casos) {
+    it(`${modo} + ${fid ? "fidelizado" : "não fidelizado"} → ${trilho}, cobrança ${cobranca}`, () => {
+      const c = computeCommercialCompositionV2("supermarket", 24, fid);
+      const f = fundingForSettlementMode(c, modo);
+      expect(c.paymentMethod).toBe(trilho);
+      expect(f.commercialChargeCents).toBe(
+        cobranca === "economico" ? c.economicValueCents : c.bdflowOpsInvestmentCents
+      );
+      expect(f.cashUserPoolFundingCents).toBe(modo === "cash" ? c.userPoolCents : 0);
+      // A invariante econômica não depende do modo.
+      expect(c.economicValueCents).toBe(c.userPoolCents + c.bdflowOpsInvestmentCents);
+    });
+  }
+
+  it("centavos exatos das quatro combinações do supermercado", () => {
+    const nf = computeCommercialCompositionV2("supermarket", 24, false);
+    expect(fundingForSettlementMode(nf, "direct_benefits").commercialChargeCents).toBe(1_004_395);
+    expect(fundingForSettlementMode(nf, "cash").commercialChargeCents).toBe(3_558_700);
+    const fi = computeCommercialCompositionV2("supermarket", 24, true);
+    expect(fundingForSettlementMode(fi, "direct_benefits").commercialChargeCents).toBe(879_901);
+    expect(fundingForSettlementMode(fi, "cash").commercialChargeCents).toBe(3_117_600);
+  });
+});
+
+describe("COMERCIAL V2 — venda manual e confirmação de financiamento", () => {
+  const sql = lerFonte("supabase/migrations/20260905120000_post_r16_commercial_v2.sql");
+
+  it("existe UMA assinatura de venda manual, com modo de liquidação", () => {
+    // A de 10 argumentos é removida: duas assinaturas executáveis deixariam a
+    // antiga capaz de criar pedido V2 sem modo de liquidação.
+    expect(sql).toContain("DROP FUNCTION IF EXISTS public.admin_register_manual_commercial_order(");
+    expect(sql).toContain("p_benefit_settlement_mode text");
+  });
+
+  it("a venda manual não aceita nenhum valor monetário do chamador", () => {
+    const i = sql.indexOf("CREATE FUNCTION public.admin_register_manual_commercial_order");
+    const assinatura = sql.slice(i, sql.indexOf(")\nRETURNS jsonb", i));
+    expect(assinatura).not.toMatch(/cents|preco|price|p_pool|p_amount/i);
+    expect(assinatura).not.toMatch(/p_fidelized|p_pricing_rule_version|p_payment_method/i);
+  });
+
+  it("grava pool_bps NULL sob a V2 em vez de inventar pontos-base", () => {
+    expect(sql).toMatch(/CASE WHEN v_versao >= 2 THEN NULL ELSE \(v_pricing->>'pool_bps'\)::int END/);
+  });
+
+  it("a confirmação V2 tira o valor esperado do instantâneo, não do chamador", () => {
+    expect(sql).toContain("v_esperado := v_ord.total_monetary_funding_required_cents");
+    expect(sql).toContain("amount_differs_from_expected");
+  });
+
+  it("a confirmação V2 é idempotente e não sobrescreve o já confirmado", () => {
+    const i = sql.indexOf("CREATE FUNCTION public.admin_confirm_commercial_funding");
+    const corpo = sql.slice(i);
+    const j = corpo.indexOf("IF v_ord.payment_status = 'confirmed' THEN");
+    expect(j).toBeGreaterThan(-1);
+    // O retorno idempotente vem ANTES de qualquer UPDATE.
+    expect(j).toBeLessThan(corpo.indexOf("UPDATE public.commercial_exclusivity_orders"));
+    expect(corpo).toContain("'already', true");
+  });
+
+  it("pedido V1 é recusado pela RPC V2 e a RPC V1 é preservada", () => {
+    expect(sql).toContain("v1_order_use_legacy_rpc");
+    // A V1 não é alterada nem removida por esta migration.
+    expect(sql).not.toMatch(/DROP FUNCTION[^;]*admin_confirm_manual_bdflow_payment/);
+  });
+
+  it("confirmar financiamento não afirma repasse a usuários", () => {
+    expect(sql).toContain("'user_payout_executed', false");
+    for (const proibido of ["escrow", "custodia", "custódia", "segregad"]) {
+      expect(sql.toLowerCase(), proibido).not.toContain(proibido.toLowerCase());
+    }
+  });
+
+  it("as novas funções são SECURITY DEFINER com search_path fixo e sem anon", () => {
+    for (const f of [
+      "create_commercial_checkout_intent",
+      "admin_register_manual_commercial_order",
+      "admin_confirm_commercial_funding",
+    ]) {
+      const i = sql.indexOf(`CREATE FUNCTION public.${f}`);
+      expect(i, f).toBeGreaterThan(-1);
+      const cabecalho = sql.slice(i, i + 900);
+      expect(cabecalho, f).toContain("SECURITY DEFINER");
+      expect(cabecalho, f).toContain("SET search_path TO 'pg_catalog'");
+      expect(sql, f).toMatch(new RegExp(`REVOKE EXECUTE ON FUNCTION public\\.${f}[\\s\\S]{0,200}FROM anon`));
+    }
+  });
+
+  it("o termo canônico é benefit_settlement_mode, sem nome paralelo", () => {
+    expect(sql).not.toContain("benefit_fulfillment_mode");
+    expect(sql).not.toMatch(/'direct_benefit'/);
+    expect(sql).toContain("benefit_settlement_mode");
+    expect(sql).toContain("'direct_benefits'");
+  });
+});
