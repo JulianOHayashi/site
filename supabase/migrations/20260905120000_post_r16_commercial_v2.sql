@@ -159,11 +159,18 @@ ALTER TABLE public.commercial_exclusivity_orders
                 = bdflow_due_cents + contractual_pool_cents)
   );
 
--- Invariante econômica agora explícita no banco, não só por construção.
-ALTER TABLE public.commercial_exclusivity_orders
-  ADD CONSTRAINT ceo_invariante_economica CHECK (
-    economic_value_cents = contractual_pool_cents + bdflow_due_cents
-  );
+-- A INVARIANTE ECONÔMICA JÁ EXISTE E CONTINUA VALENDO.
+--
+-- Uma versão anterior desta migration acrescentava aqui um
+-- `ADD CONSTRAINT ceo_invariante_economica`. Era defeito: a constraint com
+-- esse mesmo nome já é criada em 20260822124000_m2_contracts.sql, sobre esta
+-- mesma tabela, com exatamente esta regra. PostgreSQL recusa o nome
+-- duplicado e a migration inteira falharia — algo que nenhum teste de
+-- TypeScript detectaria.
+--
+-- Nada é adicionado, renomeado ou removido: a constraint histórica continua
+-- impondo economic_value_cents = contractual_pool_cents + bdflow_due_cents,
+-- inclusive para as linhas V2.
 
 -- ----------------------------------------------------------------------------
 -- 4. Cálculo autoritativo — agora ciente das duas versões
@@ -458,7 +465,7 @@ BEGIN
 
   IF p_benefit_settlement_mode IS NULL
      OR p_benefit_settlement_mode NOT IN ('direct_benefits','cash') THEN
-    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_fulfillment_mode');
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_settlement_mode');
   END IF;
 
   SELECT * INTO v_company FROM public.site_partner_companies WHERE id = p_company_id;
