@@ -7,7 +7,12 @@
  *
  * Regra vigente: não fidelizado -> primeiras 12 unidades = R$ 19.999,00 e
  * cada unidade acima de 12 = R$ 1.299,00; fidelizado -> toda unidade
- * R$ 1.299,00. Pools: supermercado 75%, demais 70%. Centavos INTEIROS.
+ * R$ 1.299,00. Centavos INTEIROS.
+ *
+ * Os pools de 75%/70% pertencem à V1 e são HISTÓRICOS. A política vigente é
+ * a Comercial V2, em src/domain/pricing/commercialV2.ts, que usa razão exata
+ * de inteiros. Este módulo continua calculando a V1 para que os pedidos
+ * antigos permaneçam legíveis e reproduzíveis.
  */
 
 export type PricingRule = {
@@ -38,9 +43,21 @@ export type NichePricing = {
   fidelized: boolean;
   currency: "BRL";
   economicValueCents: number;
-  poolBps: number;
+  /**
+   * Pontos-base do pool. Existe SOMENTE na V1.
+   *
+   * Na V2 é null de propósito: a participação passou a ser razão exata de
+   * inteiros porque nenhum valor inteiro de pontos-base reproduz os centavos
+   * aprovados. Preencher aqui um número plausível seria inventar autoridade.
+   */
+  poolBps: number | null;
   contractualPoolCents: number;
   bdflowDueCents: number;
+  /** Descritores de exibição da V2. Nunca autoridade de cálculo. */
+  displayPoolPercent?: string;
+  displayBdflowPercent?: string;
+  /** Trilho de pagamento derivado da fidelidade, no servidor. */
+  paymentMethod?: "pix" | "credit_card";
 };
 
 export function poolBpsForNiche(rule: PricingRule, nicheCode: string): number {
@@ -106,9 +123,24 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
   const due = inteiro("bdflow_due_cents");
   const versao = inteiro("pricing_rule_version");
   const qtd = inteiro("nominal_quantity");
-  const bps = inteiro("pool_bps");
   if (economic === null || pool === null || due === null) return null;
-  if (versao === null || qtd === null || bps === null) return null;
+  if (versao === null || qtd === null) return null;
+
+  // pool_bps é exigido na V1 e PROIBIDO na V2. Um retorno que traga
+  // pontos-base sob a V2 está misturando modelos e falha fechado.
+  const bps = o.pool_bps === null || o.pool_bps === undefined ? null : inteiro("pool_bps");
+  if (versao <= 1 && bps === null) return null;
+  if (versao >= 2 && bps !== null) return null;
+
+  const metodo = o.payment_method;
+  if (metodo !== undefined && metodo !== null && metodo !== "pix" && metodo !== "credit_card") {
+    return null;
+  }
+  // Coerência do trilho: fidelizado é cartão, não fidelizado é Pix.
+  if (typeof metodo === "string") {
+    const esperado = esperaFidelizado ? "credit_card" : "pix";
+    if (metodo !== esperado) return null;
+  }
   // Invariante do contrato: econômico = pool + devido.
   if (economic !== pool + due) return null;
   if (typeof o.fidelized !== "boolean" || o.fidelized !== esperaFidelizado) return null;
@@ -123,6 +155,10 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
     poolBps: bps,
     contractualPoolCents: pool,
     bdflowDueCents: due,
+    displayPoolPercent: typeof o.display_pool_percent === "string" ? o.display_pool_percent : undefined,
+    displayBdflowPercent:
+      typeof o.display_bdflow_percent === "string" ? o.display_bdflow_percent : undefined,
+    paymentMethod: typeof metodo === "string" ? (metodo as "pix" | "credit_card") : undefined,
   };
 }
 

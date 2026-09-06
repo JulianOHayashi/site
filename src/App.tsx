@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import EmBreve from "./pages/EmBreve";
+import RevisaoContratacao from "./pages/RevisaoContratacao";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import AdminGuard from "./components/AdminGuard";
@@ -54,7 +55,16 @@ export default function App() {
         <Route path="/produtos" element={<Navigate to="/oportunidades" replace />} />
         <Route path="/produto/:slug" element={<Navigate to="/oportunidades" replace />} />
         <Route path="/personalizar/:slug" element={<Navigate to="/oportunidades" replace />} />
-        <Route path="/checkout" element={<Navigate to="/oportunidades" replace />} />
+        {/* Comercial V2: revisão pública da tabela vigente. Não cria pedido,
+            não escolhe fidelidade nem trilho, não aceita valor por URL. */}
+        <Route
+          path="/checkout"
+          element={
+            <CommercialTerritoryGuard>
+              <RevisaoContratacao />
+            </CommercialTerritoryGuard>
+          }
+        />
 
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route

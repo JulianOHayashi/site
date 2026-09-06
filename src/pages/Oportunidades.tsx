@@ -4,6 +4,7 @@ import Header from "../components/Header";
 import OpportunityCard from "../components/commercial/OpportunityCard";
 import FormationProgress from "../components/commercial/FormationProgress";
 import ReferenciaOperacional from "../components/commercial/ReferenciaOperacional";
+import ResumoFormacao from "../components/commercial/ResumoFormacao";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { fetchCurrentFormation } from "../services/commercialService";
 import type { CommercialFormationResponse } from "../domain/commercial/types";
@@ -167,6 +168,7 @@ export default function Oportunidades() {
 
             <div className="mt-10">
               <ReferenciaOperacional />
+              <ResumoFormacao />
             </div>
           </>
         )}

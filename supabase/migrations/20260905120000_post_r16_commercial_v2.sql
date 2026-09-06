@@ -136,24 +136,24 @@ ALTER TABLE public.commercial_exclusivity_orders
 -- disponibilização não existia quando elas foram criadas e inventar um valor
 -- padrão seria afirmar algo que ninguém escolheu.
 ALTER TABLE public.commercial_exclusivity_orders
-  ADD COLUMN benefit_fulfillment_mode text,
+  ADD COLUMN benefit_settlement_mode text,
   ADD COLUMN cash_user_pool_funding_cents bigint,
   ADD COLUMN total_monetary_funding_required_cents bigint,
   ADD COLUMN benefit_distribution_policy_version integer;
 
 ALTER TABLE public.commercial_exclusivity_orders
   ADD CONSTRAINT ceo_modo_v2_valido CHECK (
-    benefit_fulfillment_mode IS NULL
-    OR benefit_fulfillment_mode = ANY (ARRAY['direct_benefit','cash'])
+    benefit_settlement_mode IS NULL
+    OR benefit_settlement_mode = ANY (ARRAY['direct_benefits','cash'])
   );
 
 ALTER TABLE public.commercial_exclusivity_orders
   ADD CONSTRAINT ceo_financiamento_v2_coerente CHECK (
-    benefit_fulfillment_mode IS NULL
-    OR (benefit_fulfillment_mode = 'direct_benefit'
+    benefit_settlement_mode IS NULL
+    OR (benefit_settlement_mode = 'direct_benefits'
           AND cash_user_pool_funding_cents = 0
           AND total_monetary_funding_required_cents = bdflow_due_cents)
-    OR (benefit_fulfillment_mode = 'cash'
+    OR (benefit_settlement_mode = 'cash'
           AND cash_user_pool_funding_cents = contractual_pool_cents
           AND total_monetary_funding_required_cents
                 = bdflow_due_cents + contractual_pool_cents)
@@ -328,7 +328,7 @@ CREATE TABLE public.commercial_checkout_intents (
   benefit_distribution_policy_version integer NOT NULL,
   fidelized              boolean NOT NULL,
   payment_method         text    NOT NULL,
-  benefit_fulfillment_mode text  NOT NULL,
+  benefit_settlement_mode text  NOT NULL,
   currency               text    NOT NULL DEFAULT 'BRL',
   nominal_quantity       integer NOT NULL,
 
@@ -346,7 +346,7 @@ CREATE TABLE public.commercial_checkout_intents (
   CONSTRAINT cci_status_valido
     CHECK (status = ANY (ARRAY['draft','awaiting_contract','awaiting_payment_provider','cancelled'])),
   CONSTRAINT cci_modo_valido
-    CHECK (benefit_fulfillment_mode = ANY (ARRAY['direct_benefit','cash'])),
+    CHECK (benefit_settlement_mode = ANY (ARRAY['direct_benefits','cash'])),
   CONSTRAINT cci_metodo_valido
     CHECK (payment_method = ANY (ARRAY['pix','credit_card'])),
   -- Forma de pagamento DERIVA da fidelidade. Uma linha que contradiga isso
@@ -365,8 +365,8 @@ CREATE TABLE public.commercial_checkout_intents (
   -- Modo direto não financia o pool em dinheiro; modo dinheiro financia o
   -- pool inteiro. Nunca um valor intermediário inventado.
   CONSTRAINT cci_financiamento_coerente
-    CHECK ((benefit_fulfillment_mode = 'direct_benefit' AND cash_user_pool_funding_cents = 0)
-        OR (benefit_fulfillment_mode = 'cash' AND cash_user_pool_funding_cents = user_pool_cents)),
+    CHECK ((benefit_settlement_mode = 'direct_benefits' AND cash_user_pool_funding_cents = 0)
+        OR (benefit_settlement_mode = 'cash' AND cash_user_pool_funding_cents = user_pool_cents)),
   CONSTRAINT cci_total_monetario
     CHECK (total_monetary_funding_required_cents
              = bdflow_ops_investment_cents + cash_user_pool_funding_cents)
@@ -404,7 +404,7 @@ BEGIN
     IF NEW.pricing_rule_version IS DISTINCT FROM OLD.pricing_rule_version
        OR NEW.fidelized                  IS DISTINCT FROM OLD.fidelized
        OR NEW.payment_method             IS DISTINCT FROM OLD.payment_method
-       OR NEW.benefit_fulfillment_mode   IS DISTINCT FROM OLD.benefit_fulfillment_mode
+       OR NEW.benefit_settlement_mode   IS DISTINCT FROM OLD.benefit_settlement_mode
        OR NEW.economic_value_cents       IS DISTINCT FROM OLD.economic_value_cents
        OR NEW.user_pool_cents            IS DISTINCT FROM OLD.user_pool_cents
        OR NEW.bdflow_ops_investment_cents IS DISTINCT FROM OLD.bdflow_ops_investment_cents
@@ -436,7 +436,7 @@ CREATE TRIGGER cci_proteger_snapshot_trg
 CREATE FUNCTION public.create_commercial_checkout_intent(
   p_company_id uuid,
   p_niche_code text,
-  p_benefit_fulfillment_mode text
+  p_benefit_settlement_mode text
 )
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -456,8 +456,8 @@ BEGIN
     RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authenticated');
   END IF;
 
-  IF p_benefit_fulfillment_mode IS NULL
-     OR p_benefit_fulfillment_mode NOT IN ('direct_benefit','cash') THEN
+  IF p_benefit_settlement_mode IS NULL
+     OR p_benefit_settlement_mode NOT IN ('direct_benefits','cash') THEN
     RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_fulfillment_mode');
   END IF;
 
@@ -485,19 +485,19 @@ BEGIN
 
   v_pool   := (v_p->>'contractual_pool_cents')::bigint;
   v_bdflow := (v_p->>'bdflow_due_cents')::bigint;
-  v_cash   := CASE WHEN p_benefit_fulfillment_mode = 'cash' THEN v_pool ELSE 0 END;
+  v_cash   := CASE WHEN p_benefit_settlement_mode = 'cash' THEN v_pool ELSE 0 END;
 
   INSERT INTO public.commercial_checkout_intents
     (company_id, niche_code, status, pricing_rule_version,
      benefit_distribution_policy_version, fidelized, payment_method,
-     benefit_fulfillment_mode, currency, nominal_quantity,
+     benefit_settlement_mode, currency, nominal_quantity,
      economic_value_cents, user_pool_cents, bdflow_ops_investment_cents,
      cash_user_pool_funding_cents, total_monetary_funding_required_cents,
      created_by)
   VALUES
     (p_company_id, p_niche_code, 'draft', (v_p->>'pricing_rule_version')::int,
      2, v_fidel, v_p->>'payment_method',
-     p_benefit_fulfillment_mode, 'BRL', (v_p->>'nominal_quantity')::int,
+     p_benefit_settlement_mode, 'BRL', (v_p->>'nominal_quantity')::int,
      (v_p->>'economic_value_cents')::bigint, v_pool, v_bdflow,
      v_cash, v_bdflow + v_cash,
      v_uid)
@@ -513,7 +513,7 @@ BEGIN
     'nominal_quantity', (v_p->>'nominal_quantity')::int,
     'fidelized', v_fidel,
     'payment_method', v_p->>'payment_method',
-    'benefit_fulfillment_mode', p_benefit_fulfillment_mode,
+    'benefit_settlement_mode', p_benefit_settlement_mode,
     'currency', 'BRL',
     'economic_value_cents', (v_p->>'economic_value_cents')::bigint,
     'user_pool_cents', v_pool,
