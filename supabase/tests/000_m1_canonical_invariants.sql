@@ -131,6 +131,37 @@ select tests.check('create_my_partner_owner_registration sem grant de API',
 select tests.check('site_partner_members NÃO existe no schema canônico',
     to_regclass('public.site_partner_members') is null);
 
+-- A RPC legada foi APOSENTADA (migration 20260907190000), nao removida: a
+-- assinatura de sete argumentos continua sendo conferida pelos pre-flights
+-- historicos do projeto.
+select tests.check('assinatura legada de sete argumentos preservada',
+    to_regprocedure(
+      'public.create_my_partner_owner_registration(text,text,text,text,text,text,text)')
+    is not null);
+-- O defeito que o lint hospedado apontou: o corpo referenciava uma tabela
+-- inexistente. Nao pode voltar por descuido.
+select tests.check('corpo da RPC legada nao referencia mais site_partner_members',
+    (select p.prosrc !~* 'site_partner_members|site_monthly_partners|auth\.uid'
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'create_my_partner_owner_registration'));
+select tests.check('RPC legada continua SECURITY DEFINER com search_path fixo',
+    (select p.prosecdef
+        and coalesce(array_to_string(p.proconfig,','),'') = 'search_path=pg_catalog'
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'create_my_partner_owner_registration'));
+-- Falha FECHADA em tempo de execucao, pelo unico caminho administrativo que
+-- ainda pode executa-la. Nao devolve sucesso nem inventa identificador.
+begin;
+select tests.impersonate('service_role', null);
+select tests.check_raises('RPC legada falha fechada ao ser invocada',
+    $sql$select public.create_my_partner_owner_registration(
+      'Nome','52998224725','27999990000','Razao LTDA','Fantasia',
+      '11222333000181','2733330000')$sql$,
+    'RPC_LEGADA_DESATIVADA');
+rollback;
+
 -- ---------------------------------------------------------------------------
 -- 8. RLS ligada em todo o domínio canônico de candidatura
 -- ---------------------------------------------------------------------------

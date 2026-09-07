@@ -27,7 +27,10 @@ const DIR = resolve(RAIZ, "supabase/migrations");
 const NOVA = "20260905120000_post_r16_commercial_v2.sql";
 
 const arquivos = readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
-const historicas = arquivos.filter((f) => f !== NOVA);
+// "Historicas" = as que PRECEDEM a migration 28, por ordem de timestamp no
+// nome. Migrations posteriores (ex.: 20260907190000) nao entram: comparar a
+// 28 com algo que veio depois inverteria o sentido desta auditoria.
+const historicas = arquivos.filter((f) => f < NOVA);
 const ler = (f: string) => readFileSync(join(DIR, f), "utf8");
 const semComentarios = (sql: string) => sql.replace(/^\s*--.*$/gm, "");
 
@@ -210,8 +213,10 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 28 migrations", () => {
-    expect(arquivos.length).toBe(28);
+  it("exatamente 29 migrations", () => {
+    // 28 ate a Comercial V2, mais 20260907190000, que aposenta a RPC legada
+    // de cadastro de owner apontada pelo lint hospedado do Supabase.
+    expect(arquivos.length).toBe(29);
   });
 
   it("nenhum ponto-base falso como autoridade executável da V2", () => {
