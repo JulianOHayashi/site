@@ -124,8 +124,18 @@ select tests.check('pedido nasce em draft com pagamento pendente',
     (select status='draft' and payment_status='pending'
        from public.commercial_exclusivity_orders where id = :'ord1'));
 select tests.check('snapshot economico do pedido confere com a tabela vigente',
-    (select economic_value_cents=1999900 and contractual_pool_cents=1399930
-        and bdflow_due_cents=599970
+    (select economic_value_cents=1999900 and contractual_pool_cents=1335459
+        and bdflow_due_cents=664441
+       from public.commercial_exclusivity_orders where id = :'ord1'));
+-- A invariante economica vale sobre o proprio snapshot gravado, nao apenas
+-- sobre o calculo que o originou.
+select tests.check('snapshot obedece economico = pool + devido',
+    (select economic_value_cents = contractual_pool_cents + bdflow_due_cents
+       from public.commercial_exclusivity_orders where id = :'ord1'));
+-- Snapshot V2: versao 2 e SEM pontos-base. Gravar um bps aqui seria inventar
+-- autoridade que a V2 nao tem.
+select tests.check('snapshot V2 carimba versao 2 e pool_bps NULO',
+    (select pricing_rule_version = 2 and pool_bps is null
        from public.commercial_exclusivity_orders where id = :'ord1'));
 
 -- Invariante econômica barrada no banco

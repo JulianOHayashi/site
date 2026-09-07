@@ -146,13 +146,19 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp15_super')::uuid,(:'comp_vit')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R15 1',(now()+interval '30 days')::date,'doc://r15-super') as ord_a \gset
+  'Responsavel R15 1',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-super') as ord_a \gset
 commit;
 
 select tests.check('CASO A: venda registrada',
     ((:'ord_a')::jsonb ->> 'ok') = 'true');
-select tests.check('CASO A: chave de cidade devolvida e a cidade REAL da empresa',
-    ((:'ord_a')::jsonb ->> 'city_key') = 'vitoria');
+-- O retorno da RPC sob a V2 nao expoe mais 'city_key' (ver relatorio CP2.2,
+-- achado F-01). A prova de vinculo passa a sair da evidencia PERSISTIDA, que
+-- e mais forte que o campo de retorno: e ela que governa fidelidade futura.
+select tests.check('CASO A: chave de cidade gravada e a cidade REAL da empresa',
+    (select f.city_key from public.commercial_fidelity_records f
+      where f.established_by_order_id = ((:'ord_a')::jsonb ->> 'order_id')::uuid)
+    = 'vitoria');
 select tests.check('CASO A: fidelidade gravada em vitoria, jamais na primeira da regiao',
     (select count(*) from public.commercial_fidelity_records
       where cnpj='71000000000130' and niche_code='supermarket'
@@ -176,11 +182,14 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp15_pharm')::uuid,(:'comp_ser')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R15 2',(now()+interval '30 days')::date,'doc://r15-pharm') as ord_b \gset
+  'Responsavel R15 2',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-pharm') as ord_b \gset
 commit;
 
 select tests.check('CASO B: empresa de Serra fideliza em serra',
-    ((:'ord_b')::jsonb ->> 'city_key') = 'serra'
+    (select f.city_key from public.commercial_fidelity_records f
+      where f.established_by_order_id = ((:'ord_b')::jsonb ->> 'order_id')::uuid)
+    = 'serra'
     and (select count(*) from public.commercial_fidelity_records
           where cnpj='71000137000194' and city_key='serra') = 1);
 select tests.check('CASO B: a regiao NAO colapsa as duas empresas na mesma cidade',
@@ -199,7 +208,8 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp15_wc')::uuid,(:'comp_gua')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R15 3',(now()+interval '30 days')::date,'doc://r15-gua') as ord_c \gset
+  'Responsavel R15 3',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-gua') as ord_c \gset
 select tests.check('CASO C: cidade fora da regiao e recusada',
     ((:'ord_c')::jsonb ->> 'ok') = 'false'
     and ((:'ord_c')::jsonb ->> 'reason') = 'city_not_in_region');
@@ -219,7 +229,8 @@ update public.site_partner_companies set city = '   ' where id = :'comp_gua';
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp15_wc')::uuid,(:'comp_gua')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R15 3',(now()+interval '30 days')::date,'doc://r15-vazio') as ord_d \gset
+  'Responsavel R15 3',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-vazio') as ord_d \gset
 select tests.check('CASO D: cidade em branco e recusada como ausente',
     ((:'ord_d')::jsonb ->> 'reason') = 'company_city_missing');
 select tests.check('CASO D: nenhuma fidelidade criada',
@@ -233,7 +244,8 @@ update public.site_partner_companies
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp15_wc')::uuid,(:'comp_gua')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R15 3',(now()+interval '30 days')::date,'doc://r15-inex') as ord_d2 \gset
+  'Responsavel R15 3',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-inex') as ord_d2 \gset
 select tests.check('CASO D: cidade inexistente na regiao e recusada',
     ((:'ord_d2')::jsonb ->> 'reason') = 'city_not_in_region');
 rollback;
@@ -294,7 +306,8 @@ update public.site_partner_companies
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp15_mc')::uuid,(:'comp_fmt')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R15 4',(now()+interval '30 days')::date,'doc://r15-fmt') as ord_f \gset
+  'Responsavel R15 4',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-fmt') as ord_f \gset
 select tests.check('CNPJ formatado na empresa grava fidelidade em digitos',
     ((:'ord_f')::jsonb ->> 'ok') = 'true'
     and (select count(*) from public.commercial_fidelity_records
@@ -326,7 +339,8 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp16_super')::uuid,(:'comp_vit')::uuid,'v2', now() - interval '1 day',
-  'Responsavel R15 1',(now()+interval '30 days')::date,'doc://r15-super-2') as ord_next \gset
+  'Responsavel R15 1',(now()+interval '30 days')::date,
+  'direct_benefits','doc://r15-super-2') as ord_next \gset
 select tests.check('CICLO: pedido futuro do mesmo contexto sai FIDELIZADO',
     ((:'ord_next')::jsonb ->> 'fidelized') = 'true'
     and ((:'ord_next')::jsonb ->> 'economic_value_cents')::bigint = 3117600);

@@ -111,7 +111,7 @@ select tests.check('payload usa UUID de ponte para rede, filial e validador',
         and jsonb_array_length(p -> 'validators') >= 1) = 6);
 select tests.check('payload envia o POOL contratual, nunca valor individual',
     (select sum((p ->> 'contractual_pool_cents')::bigint)
-       from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p) = 9668675
+       from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p) = 9231600
     and (:'pay1')::jsonb::text not like '%assigned_amount%');
 
 -- NÃO VAZA PII nem financeiro interno.

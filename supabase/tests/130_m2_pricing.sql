@@ -20,14 +20,21 @@ select tests.check('fidelizado 12 = R$ 15.588,00',
     ((:'f12')::jsonb ->> 'economic_value_cents')::bigint = 1558800);
 select tests.check('fidelizado 24 = R$ 31.176,00',
     ((:'f24')::jsonb ->> 'economic_value_cents')::bigint = 3117600);
-select tests.check('pool comum = R$ 13.999,30',
-    ((:'p12')::jsonb ->> 'contractual_pool_cents')::bigint = 1399930);
-select tests.check('devido BDFlow comum = R$ 5.999,70',
-    ((:'p12')::jsonb ->> 'bdflow_due_cents')::bigint = 599970);
-select tests.check('pool supermercado = R$ 26.690,25',
-    ((:'p24')::jsonb ->> 'contractual_pool_cents')::bigint = 2669025);
-select tests.check('devido BDFlow supermercado = R$ 8.896,75',
-    ((:'p24')::jsonb ->> 'bdflow_due_cents')::bigint = 889675);
+select tests.check('pool comum = R$ 13.354,59',
+    ((:'p12')::jsonb ->> 'contractual_pool_cents')::bigint = 1335459);
+select tests.check('devido BDFlow comum = R$ 6.644,41',
+    ((:'p12')::jsonb ->> 'bdflow_due_cents')::bigint = 664441);
+select tests.check('pool supermercado = R$ 25.543,05',
+    ((:'p24')::jsonb ->> 'contractual_pool_cents')::bigint = 2554305);
+select tests.check('devido BDFlow supermercado = R$ 10.043,95',
+    ((:'p24')::jsonb ->> 'bdflow_due_cents')::bigint = 1004395);
+-- Os fidelizados derivam da MESMA razao exata, por aritmetica inteira.
+select tests.check('pool fidelizado comum = R$ 10.409,08',
+    ((:'f12')::jsonb ->> 'contractual_pool_cents')::bigint = 1040908
+    and ((:'f12')::jsonb ->> 'bdflow_due_cents')::bigint = 517892);
+select tests.check('pool fidelizado supermercado = R$ 22.376,99',
+    ((:'f24')::jsonb ->> 'contractual_pool_cents')::bigint = 2237699
+    and ((:'f24')::jsonb ->> 'bdflow_due_cents')::bigint = 879901);
 
 with todos as (
   select public.calculate_niche_contract_pricing(n.code, false) as pr
@@ -39,8 +46,8 @@ with todos as (
     from todos
 )
 select tests.check('formacao completa: economico = R$ 135.582,00', eco = 13558200),
-       tests.check('formacao completa: pools = R$ 96.686,75', pool = 9668675),
-       tests.check('formacao completa: devido = R$ 38.895,25', devido = 3889525)
+       tests.check('formacao completa: pools = R$ 92.316,00', pool = 9231600),
+       tests.check('formacao completa: devido = R$ 43.266,00', devido = 4326600)
   from somas;
 
 -- Invariante em TODAS as combinações
@@ -56,17 +63,37 @@ select tests.check('invariante economico = pool + devido em todas as combinacoes
             <> (pr->>'contractual_pool_cents')::bigint
                + (pr->>'bdflow_due_cents')::bigint) = 0);
 
-select tests.check('supermercado 7500 bps e demais 7000 bps',
+-- V2: a participacao do pool e razao exata de inteiros; nao existe ponto-base
+-- honesto, entao pool_bps e NULL e o modelo declarado e 'exact_ratio'.
+select tests.check('V2 ativa: pool_bps NULO e modelo de razao exata',
     (select count(*) from public.commercial_niches n
       where n.is_active
-        and (public.calculate_niche_contract_pricing(n.code,false)->>'pool_bps')::int
+        and ((public.calculate_niche_contract_pricing(n.code,false)->>'pool_bps') is not null
+             or (public.calculate_niche_contract_pricing(n.code,false)->>'pool_precision_model')
+                <> 'exact_ratio')) = 0);
+-- REGRESSAO HISTORICA: a V1 continua legivel, com os 7500/7000 originais e
+-- os centavos que ela sempre produziu. A ativacao da V2 nao reescreveu nada.
+select tests.check('V1 historica intacta: 7500 bps supermercado e 7000 demais',
+    (select count(*) from public.commercial_niches n
+      where n.is_active
+        and (public.calculate_niche_contract_pricing(n.code,false,1)->>'pool_bps')::int
             <> case when n.code='supermarket' then 7500 else 7000 end) = 0);
+select tests.check('V1 historica preservada na tabela como superseded',
+    (select count(*) from public.commercial_pricing_rules
+      where version = 1 and status = 'superseded'
+        and pool_bps_supermarket = 7500 and pool_bps_common = 7000
+        and pool_precision_model = 'basis_points') = 1);
+select tests.check('V1 historica ainda produz os centavos da V1',
+    (public.calculate_niche_contract_pricing('pharmacy',false,1)
+       ->>'contractual_pool_cents')::bigint = 1399930
+    and (public.calculate_niche_contract_pricing('supermarket',false,1)
+       ->>'contractual_pool_cents')::bigint = 2669025);
 select tests.check('bloco de 12 cobre o nicho comum sem unidade extra',
     ((:'p12')::jsonb ->> 'economic_value_cents')::bigint = 1999900
     and ((:'p12')::jsonb ->> 'nominal_quantity')::int = 12);
 select tests.check('regra ativa e unica e carimbada no retorno',
     (select count(*) from public.commercial_pricing_rules where status='active') = 1
-    and ((:'p24')::jsonb ->> 'pricing_rule_version')::int = 1);
+    and ((:'p24')::jsonb ->> 'pricing_rule_version')::int = 2);
 
 -- Falha fechada (contrato jsonb do M1: ok=false, sem inventar preço)
 select tests.check('nicho invalido nao produz preco',
@@ -84,6 +111,7 @@ create temporary table fn_preco (nome text primary key, args text);
 insert into fn_preco values
   ('calculate_niche_contract_pricing','text,boolean,integer'),
   ('get_public_niche_pricing',''),
+  ('get_public_formation_economics',''),
   ('is_fidelized_context','text,text,text,text');
 
 -- 1. search_path fixo e seguro

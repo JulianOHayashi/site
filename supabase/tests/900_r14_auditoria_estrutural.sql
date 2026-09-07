@@ -69,7 +69,12 @@ insert into esperado_anon_exec values
   ('resolve_commercial_region'),
   -- M2: preço público da vitrine (regras de preço são informação pública)
   ('calculate_niche_contract_pricing'),
-  ('get_public_niche_pricing');
+  ('get_public_niche_pricing'),
+  -- Comercial V2: resumo economico agregado da formacao. Exposicao anon
+  -- INTENCIONAL e declarada na migration 28 (GRANT explicito a anon), pela
+  -- mesma razao das duas acima: e a vitrine publica. Nao le identidade, nao
+  -- escreve, e nao devolve dado de empresa alguma.
+  ('get_public_formation_economics');
 
 create temporary table real_anon_exec as
   select p.proname::text

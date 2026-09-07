@@ -114,7 +114,8 @@ begin;
 select tests.impersonate('authenticated', :'uid_intruso');
 select tests.check_raises('nao-admin nao registra venda manual',
   format($sql$select public.admin_register_manual_commercial_order(
-    %L,%L,'v1',now() - interval '1 day','Resp',(now()+interval '30 days')::date,'doc://x')$sql$,
+    %L,%L,'v1',now() - interval '1 day','Resp',(now()+interval '30 days')::date,
+    'direct_benefits','doc://x')$sql$,
     :'opp_super', :'comp1'),
   'not_authorized');
 rollback;
@@ -123,31 +124,43 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp_super')::uuid,(:'comp1')::uuid,'v1', now() + interval '1 day','Resp',
-  (now()+interval '30 days')::date,'doc://x') as v_fut \gset
+  (now()+interval '30 days')::date,'direct_benefits','doc://x') as v_fut \gset
 select tests.check('assinatura no futuro e recusada',
     ((:'v_fut')::jsonb ->> 'reason') = 'invalid_signature_date');
 select public.admin_register_manual_commercial_order(
   (:'opp_super')::uuid,(:'comp1')::uuid,'v1', now() - interval '1 day','Resp',
-  (now()+interval '30 days')::date) as v_sem_doc \gset
+  (now()+interval '30 days')::date,'direct_benefits') as v_sem_doc \gset
 select tests.check('venda sem evidencia documental e recusada',
     ((:'v_sem_doc')::jsonb ->> 'reason') = 'document_evidence_required');
 
 select public.admin_register_manual_commercial_order(
   (:'opp_super')::uuid,(:'comp1')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R8 1',(now()+interval '30 days')::date,'doc://pedido-super') as ord_s \gset
+  'Responsavel R8 1',(now()+interval '30 days')::date,
+  'direct_benefits','doc://pedido-super') as ord_s \gset
 select tests.check('venda manual do supermercado registrada',
     ((:'ord_s')::jsonb ->> 'ok') = 'true');
 -- PREÇO DO SERVIDOR: o chamador não enviou valor algum.
 select tests.check('snapshot economico calculado no servidor (24 unidades)',
     ((:'ord_s')::jsonb ->> 'economic_value_cents')::bigint = 3558700
-    and ((:'ord_s')::jsonb ->> 'contractual_pool_cents')::bigint = 2669025
-    and ((:'ord_s')::jsonb ->> 'bdflow_due_cents')::bigint = 889675);
+    and ((:'ord_s')::jsonb ->> 'user_pool_cents')::bigint = 2554305
+    and ((:'ord_s')::jsonb ->> 'bdflow_ops_investment_cents')::bigint = 1004395);
+-- Modo direct_benefits: nenhum caixa e exigido para o pool; o unico dinheiro
+-- devido e o da BDFlow. Nao existe custodia nem repasse.
+select tests.check('direct_benefits nao exige caixa para o pool do usuario',
+    ((:'ord_s')::jsonb ->> 'benefit_settlement_mode') = 'direct_benefits'
+    and ((:'ord_s')::jsonb ->> 'cash_user_pool_funding_cents')::bigint = 0
+    and ((:'ord_s')::jsonb ->> 'total_monetary_funding_required_cents')::bigint = 1004395);
+-- Forma de pagamento e DERIVADA da fidelidade no servidor: o chamador nao
+-- enviou nada a respeito.
+select tests.check('forma de pagamento derivada no servidor (nao fidelizado = pix)',
+    ((:'ord_s')::jsonb ->> 'payment_method') = 'pix');
 select tests.check('primeiro contrato do contexto e fundador',
     ((:'ord_s')::jsonb ->> 'fidelized') = 'false');
 
 select public.admin_register_manual_commercial_order(
   (:'opp_super')::uuid,(:'comp1')::uuid,'v1', now() - interval '1 day',
-  'Responsavel R8 1',(now()+interval '30 days')::date,'doc://pedido-super') as ord_s2 \gset
+  'Responsavel R8 1',(now()+interval '30 days')::date,
+  'direct_benefits','doc://pedido-super') as ord_s2 \gset
 select tests.check('venda repetida da mesma oportunidade e idempotente',
     ((:'ord_s2')::jsonb ->> 'already') = 'true');
 commit;
@@ -177,7 +190,7 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp_pharm2')::uuid,(:'comp1')::uuid,'v1', now() - interval '1 day','Resp',
-  (now()+interval '30 days')::date,'doc://y') as v_dup \gset
+  (now()+interval '30 days')::date,'direct_benefits','doc://y') as v_dup \gset
 select tests.check('mesmo CNPJ nao ocupa segundo nicho na exclusividade',
     ((:'v_dup')::jsonb ->> 'reason') = 'company_already_in_exclusivity');
 rollback;
@@ -188,7 +201,7 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_register_manual_commercial_order(
   (:'opp_pharm2')::uuid, gen_random_uuid(),'v1', now() - interval '1 day','Resp',
-  (now()+interval '30 days')::date,'doc://z') as v_sememp \gset
+  (now()+interval '30 days')::date,'direct_benefits','doc://z') as v_sememp \gset
 select tests.check('empresa inexistente e recusada',
     ((:'v_sememp')::jsonb ->> 'reason') = 'company_invalid');
 rollback;
@@ -201,21 +214,21 @@ select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 999) as pg_err \gset
 select tests.check('valor diferente do devido e recusado',
     ((:'pg_err')::jsonb ->> 'reason') = 'amount_differs_from_due'
-    and ((:'pg_err')::jsonb ->> 'expected_cents')::bigint = 889675);
+    and ((:'pg_err')::jsonb ->> 'expected_cents')::bigint = 1004395);
 -- O valor ECONÔMICO integral NÃO é o que a BDFlow recebe.
 select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 3558700) as pg_eco \gset
 select tests.check('confirmar o valor economico integral e recusado',
     ((:'pg_eco')::jsonb ->> 'reason') = 'amount_differs_from_due');
 -- Tampouco o pool contratual.
-select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 2669025) as pg_pool \gset
+select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 2554305) as pg_pool \gset
 select tests.check('confirmar o pool contratual e recusado (BDFlow nao custodia)',
     ((:'pg_pool')::jsonb ->> 'reason') = 'amount_differs_from_due');
 
 select public.admin_confirm_manual_bdflow_payment(
-    (:'order_super')::uuid, 889675, 'pix-r8-001') as pg_ok \gset
+    (:'order_super')::uuid, 1004395, 'pix-r8-001') as pg_ok \gset
 select tests.check('pagamento do valor devido confirmado',
     ((:'pg_ok')::jsonb ->> 'ok') = 'true');
-select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 889675) as pg_idem \gset
+select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 1004395) as pg_idem \gset
 select tests.check('confirmacao repetida e idempotente',
     ((:'pg_idem')::jsonb ->> 'already') = 'true');
 commit;
@@ -251,9 +264,10 @@ begin
     v_ord := public.admin_register_manual_commercial_order(
         v_opp, v_comp, 'v1', now() - interval '1 day',
         'Responsavel R8', (now() + interval '30 days')::date,
-        'doc://pedido-' || v_niches[v_i]);
+        'direct_benefits', 'doc://pedido-' || v_niches[v_i]);
     perform public.admin_confirm_manual_bdflow_payment(
-        (v_ord->>'order_id')::uuid, (v_ord->>'bdflow_due_cents')::bigint, 'pix-lote');
+        (v_ord->>'order_id')::uuid,
+        (v_ord->>'bdflow_ops_investment_cents')::bigint, 'pix-lote');
   end loop;
   perform set_config('request.jwt.claims', null, true);
 end $$;
@@ -267,12 +281,21 @@ select tests.check('seis CNPJs distintos ocupam os seis nichos',
 select tests.check('soma economica da formacao = R$ 135.582,00',
     (select sum(economic_value_cents) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and status='signed') = 13558200);
-select tests.check('soma dos pools contratuais = R$ 96.686,75',
+select tests.check('soma dos pools contratuais = R$ 92.316,00',
     (select sum(contractual_pool_cents) from public.commercial_exclusivity_orders
-      where exclusivity_id = :'excl2' and status='signed') = 9668675);
-select tests.check('soma do devido a BDFlow = R$ 38.895,25',
+      where exclusivity_id = :'excl2' and status='signed') = 9231600);
+select tests.check('soma do devido a BDFlow = R$ 43.266,00',
     (select sum(bdflow_due_cents) from public.commercial_exclusivity_orders
-      where exclusivity_id = :'excl2' and status='signed') = 3889525);
+      where exclusivity_id = :'excl2' and status='signed') = 4326600);
+-- Sob direct_benefits nenhum pedido exige caixa para o pool: o dinheiro
+-- movimentado e exatamente o devido a BDFlow, e a soma dos pools permanece
+-- obrigacao contratual do parceiro, jamais custodia.
+select tests.check('nenhum pedido da formacao exige caixa para o pool',
+    (select count(*) from public.commercial_exclusivity_orders
+      where exclusivity_id = :'excl2' and status='signed'
+        and (benefit_settlement_mode <> 'direct_benefits'
+             or cash_user_pool_funding_cents <> 0
+             or total_monetary_funding_required_cents <> bdflow_due_cents)) = 0);
 select tests.check('todos os seis pagamentos confirmados',
     (select count(*) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and payment_status='confirmed') = 6);

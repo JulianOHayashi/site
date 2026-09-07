@@ -226,7 +226,7 @@ select tests.impersonate('authenticated', :'uid_owner1');
 select public.get_my_company_commercial_summary((:'comp1')::uuid) as sum1 \gset
 select tests.check('owner ve resumo com valores e estado da imagem',
     jsonb_array_length((:'sum1')::jsonb -> 'commercial') = 1
-    and ((:'sum1')::jsonb -> 'commercial' -> 0 ->> 'bdflow_due_cents')::bigint = 889675
+    and ((:'sum1')::jsonb -> 'commercial' -> 0 ->> 'bdflow_due_cents')::bigint = 1004395
     and ((:'sum1')::jsonb -> 'commercial' -> 0 ->> 'has_customization_image') = 'true');
 select tests.check('resumo traz unidades e prontidao',
     jsonb_array_length((:'sum1')::jsonb -> 'units') >= 1
