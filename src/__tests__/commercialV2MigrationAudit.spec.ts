@@ -213,10 +213,47 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 29 migrations", () => {
-    // 28 ate a Comercial V2, mais 20260907190000, que aposenta a RPC legada
-    // de cadastro de owner apontada pelo lint hospedado do Supabase.
-    expect(arquivos.length).toBe(29);
+  it("exatamente 30 migrations", () => {
+    // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada apontada
+    // pelo lint hospedado; 20260908120000 endurece o snapshot de
+    // provisionamento (imutabilidade V2 + payload v2).
+    expect(arquivos.length).toBe(30);
+  });
+
+  it("a migration 30 traz os marcadores do endurecimento V2", () => {
+    const m30 = readFileSync(
+      resolve(DIR, "20260908120000_commercial_v2_provisioning_snapshot_hardening.sql"),
+      "utf8"
+    );
+    const c30 = semComentarios(m30);
+    // Payload versionado e politica 2.
+    expect(c30).toContain("bdflow.commercial_provisioning.v2");
+    expect(c30).toContain("'distribution_policy_version', 2");
+    expect(c30).toContain("'participant_target', 84");
+    // Os quatro campos V2 entram na protecao de imutabilidade.
+    for (const campo of [
+      "benefit_settlement_mode",
+      "cash_user_pool_funding_cents",
+      "total_monetary_funding_required_cents",
+      "benefit_distribution_policy_version",
+    ]) {
+      expect(c30, campo).toContain(`NEW.${campo}`);
+    }
+    // Falha fechada, nunca coercao silenciosa para a politica 2.
+    expect(c30).toContain("incompatible_distribution_policy");
+    expect(c30).toContain("stale_schema_version");
+    // Minimizacao: contabilidade do lado Site NAO entra no payload.
+    const payload = c30.slice(
+      c30.indexOf("'partner_network_bridge_id'"),
+      c30.indexOf("RETURN pg_catalog.jsonb_build_object(\n    'ok', true,")
+    );
+    for (const proibido of ["bdflow_due_cents", "economic_value_cents", "payment_method"]) {
+      expect(payload, proibido).not.toContain(`'${proibido}'`);
+    }
+    // Nenhuma aritmetica monetaria de ponto flutuante.
+    expect(c30).not.toMatch(/::\s*(float|double|numeric|real)/i);
+    // Sem alargamento de privilegio para papeis de API.
+    expect(c30).not.toMatch(/GRANT\s+EXECUTE[^;]*TO\s+anon/i);
   });
 
   it("nenhum ponto-base falso como autoridade executável da V2", () => {

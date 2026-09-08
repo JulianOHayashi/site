@@ -1,6 +1,22 @@
 /**
  * BLOCO 8 — Distribuição do POOL CONTRATUAL em benefícios individuais.
  *
+ * ┌──────────────────────────────────────────────────────────────────────┐
+ * │ POLÍTICA DE DISTRIBUIÇÃO **VERSÃO 1 — HISTÓRICA, NÃO É A ATIVA**.    │
+ * │                                                                      │
+ * │ A política ATIVA da Comercial V2 é a versão 2, implementada em       │
+ * │ `residualAllocation.ts`: ela distribui o resíduo de forma            │
+ * │ determinística e fecha em 109.900 centavos por participante          │
+ * │ completo. Esta V1 para em 109.898 porque deixa o resto sem           │
+ * │ distribuir — era correta quando foi escrita e continua sendo a       │
+ * │ referência de como o sistema se comportava.                         │
+ * │                                                                      │
+ * │ Mantida para regressão histórica. Não importar em caminho novo:      │
+ * │ hoje nenhum código de produto a importa, apenas testes. Ao ler o     │
+ * │ campo `benefit_distribution_policy_version` de um pedido, 1 aponta   │
+ * │ para este arquivo e 2 para `residualAllocation.ts`.                  │
+ * └──────────────────────────────────────────────────────────────────────┘
+ *
  * O pool de cada contrato é distribuído sobre os MESMOS 84 usuários reais do
  * ciclo (não 84 produtos avulsos).
  *

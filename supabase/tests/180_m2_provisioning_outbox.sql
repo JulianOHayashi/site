@@ -100,10 +100,32 @@ select payload as pay1 from public.app_provisioning_messages where id = :'msg1' 
 select tests.check('payload traz os seis parceiros',
     jsonb_array_length((:'pay1')::jsonb -> 'partners') = 6);
 select tests.check('payload carimba versoes de schema e politicas',
-    (:'pay1')::jsonb ->> 'schema_version' = 'bdflow.commercial_provisioning.v1'
+    (:'pay1')::jsonb ->> 'schema_version' = 'bdflow.commercial_provisioning.v2'
     and ((:'pay1')::jsonb ->> 'participant_target')::int = 84
-    and ((:'pay1')::jsonb ->> 'distribution_policy_version')::int = 1
+    and ((:'pay1')::jsonb ->> 'distribution_policy_version')::int = 2
+    -- Cronograma NAO muda nesta etapa: continua a matriz 7x7 versao 1.
     and ((:'pay1')::jsonb ->> 'schedule_policy_version')::int = 1);
+select tests.check('coluna schema_version da fila concorda com o payload',
+    (select m.schema_version from public.app_provisioning_messages m
+      where m.id = :'msg1') = ((:'pay1')::jsonb ->> 'schema_version'));
+-- V2: cada parceiro carrega a PROPRIA escolha contratual e a politica 2.
+select tests.check('cada parceiro carrega modo de liquidacao e politica 2',
+    (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
+      where (p ->> 'benefit_settlement_mode') in ('direct_benefits','cash')
+        and (p ->> 'benefit_distribution_policy_version')::int = 2) = 6);
+select tests.check('payload reflete a formacao MISTA, nao um modo unico',
+    (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
+      where (p ->> 'benefit_settlement_mode') = 'direct_benefits') = 5
+    and (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
+      where (p ->> 'benefit_settlement_mode') = 'cash') = 1);
+-- O modo de cada parceiro vem do snapshot do pedido, nao de um padrao.
+select tests.check('modo de cada parceiro confere com o snapshot imutavel',
+    (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
+       join public.commercial_exclusivity_orders o
+         on o.id = (p ->> 'site_order_reference')::uuid
+      where p ->> 'benefit_settlement_mode' is distinct from o.benefit_settlement_mode
+         or (p ->> 'contractual_pool_cents')::bigint
+              is distinct from o.contractual_pool_cents) = 0);
 select tests.check('payload usa UUID de ponte para rede, filial e validador',
     (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
       where (p ->> 'partner_network_bridge_id') is not null
@@ -132,6 +154,16 @@ select tests.check('payload NAO contem financeiro interno da BDFlow',
     and (:'pay1')::jsonb::text not like '%payment%'
     and (:'pay1')::jsonb::text not like '%economic_value%'
     and (:'pay1')::jsonb::text not like '%document_reference%');
+-- A V2 acrescentou campos ao pedido; NENHUM deles de contabilidade entrou no
+-- payload. O App recebe pool + modo, nao o financiamento devido a BDFlow.
+select tests.check('payload NAO contem o financiamento V2 do lado Site',
+    (:'pay1')::jsonb::text not like '%cash_user_pool_funding%'
+    and (:'pay1')::jsonb::text not like '%total_monetary_funding%'
+    and (:'pay1')::jsonb::text not like '%fidelized%'
+    and (:'pay1')::jsonb::text not like '%pool_bps%'
+    and (:'pay1')::jsonb::text not like '%cnpj%'
+    and (:'pay1')::jsonb::text not like '%cpf%'
+    and (:'pay1')::jsonb::text not like '%email%');
 select tests.check('nenhum segredo/chave e persistido na fila',
     (select count(*) from public.app_provisioning_messages
       where payload::text ~* '(private_key|secret|token|password|service_role)') = 0);
@@ -254,5 +286,86 @@ select tests.check('o banco NAO assina nem faz HTTP (camadas 2-3 fora daqui)',
     (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='public' and p.proname like 'prov\_%'
         and p.prosrc ~* '(ed25519|sign|http|curl|net\.)') = 0);
+
+-- ---------------------------------------------------------------------------
+-- TRANSICAO DE VERSAO: mensagem V1 pendente nao vira despacho V2 por acidente
+--
+-- O payload e o schema_version da linha sao IMUTAVEIS. Reconstruir a mensagem
+-- no lugar exigiria enfraquecer m2_provisioning_protect(), o que nao se faz.
+-- A saida e recusa na reivindicacao com transicao de estado que o ciclo de
+-- vida ja previa, liberando o indice parcial para um reenfileiramento V2.
+-- ---------------------------------------------------------------------------
+insert into public.app_provisioning_messages
+    (environment, exclusivity_id, schema_version, payload, payload_hash, created_by)
+values ('staging', (:'excl2')::uuid, 'bdflow.commercial_provisioning.v1',
+        jsonb_build_object(
+          'ok', true,
+          'schema_version', 'bdflow.commercial_provisioning.v1',
+          'environment', 'staging',
+          'commercial_exclusivity_id', (:'excl2')::uuid,
+          'participant_target', 84,
+          'distribution_policy_version', 1,
+          'schedule_policy_version', 1,
+          'partners', '[]'::jsonb),
+        repeat('a', 64), (:'uid_admin')::uuid)
+returning id as msg_v1 \gset
+
+begin;
+select tests.impersonate('service_role', null);
+select public.prov_claim_provisioning_message((:'msg_v1')::uuid) as claim_v1 \gset
+select tests.check('mensagem V1 pendente NAO e despachada como se fosse V2',
+    ((:'claim_v1')::jsonb ->> 'ok') = 'false'
+    and ((:'claim_v1')::jsonb ->> 'reason') = 'stale_schema_version'
+    and ((:'claim_v1')::jsonb ->> 'found_schema_version')
+        = 'bdflow.commercial_provisioning.v1');
+-- Idempotente: reivindicar de novo devolve exatamente o mesmo veredito.
+select public.prov_claim_provisioning_message((:'msg_v1')::uuid) as claim_v1b \gset
+select tests.check('recusa por versao obsoleta e idempotente',
+    ((:'claim_v1b')::jsonb ->> 'reason') = 'stale_schema_version');
+commit;
+
+select tests.check('mensagem V1 fica failed com motivo explicito, sem mutar payload',
+    (select status = 'failed' and last_error = 'stale_schema_version'
+        and payload ->> 'schema_version' = 'bdflow.commercial_provisioning.v1'
+       from public.app_provisioning_messages where id = :'msg_v1'));
+
+-- Liberado o indice parcial de unicidade, o reenfileiramento produz V2.
+begin;
+select tests.impersonate('authenticated', :'uid_admin');
+select public.admin_enqueue_app_provisioning((:'excl2')::uuid,'staging') as enq_v2 \gset
+select tests.check('reenfileiramento apos recusa produz mensagem nova',
+    ((:'enq_v2')::jsonb ->> 'ok') = 'true'
+    and ((:'enq_v2')::jsonb ->> 'already') = 'false'
+    and ((:'enq_v2')::jsonb ->> 'message_id') <> (:'msg_v1'));
+commit;
+
+select ((:'enq_v2')::jsonb ->> 'message_id') as msg_v2 \gset
+select tests.check('a mensagem reenfileirada e V2 no payload e na coluna',
+    (select schema_version = 'bdflow.commercial_provisioning.v2'
+        and payload ->> 'schema_version' = 'bdflow.commercial_provisioning.v2'
+        and (payload ->> 'distribution_policy_version')::int = 2
+       from public.app_provisioning_messages where id = :'msg_v2'));
+select tests.check('idempotencia por exclusividade preservada: uma viva por ambiente',
+    (select count(*) from public.app_provisioning_messages
+      where exclusivity_id = :'excl2' and environment = 'staging'
+        and status in ('pending','dispatching','accepted')) = 1);
+-- Mensagem finalizada NAO e reavaliada pela porta de versao.
+begin;
+select tests.impersonate('service_role', null);
+select public.prov_claim_provisioning_message((:'msg1')::uuid) as claim_ok \gset
+select tests.check('mensagem ja aceita permanece aceita, sem reavaliar versao',
+    ((:'claim_ok')::jsonb ->> 'already') = 'true'
+    and ((:'claim_ok')::jsonb ->> 'status') = 'accepted');
+commit;
+
+-- Formacao sem semantica V2 nao vira asserção comercial: falha fechada.
+select tests.check('payload falha fechado se algum pedido nao declarar V2',
+    ((select public.build_app_provisioning_payload((:'excl3')::uuid,'local'))
+       ->> 'reason') is not distinct from
+    (case when (select count(*) from public.commercial_exclusivity_orders
+                 where exclusivity_id = :'excl3' and status='signed'
+                   and (benefit_settlement_mode is null
+                        or benefit_distribution_policy_version is distinct from 2)) > 0
+          then 'incompatible_distribution_policy' else null end));
 
 select tests.finish('180_m2_provisioning_outbox');

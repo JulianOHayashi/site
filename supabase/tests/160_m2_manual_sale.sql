@@ -261,10 +261,13 @@ begin
     select id into v_opp from public.commercial_opportunities
      where exclusivity_id = v_excl and niche_code = v_niches[v_i];
     select id into v_comp from public.site_partner_companies where cnpj = v_cnpjs[v_i];
+    -- Farmacia contrata em 'cash': a escolha e por contrato, e a formacao
+    -- de referencia precisa provar que modos convivem na mesma exclusividade.
     v_ord := public.admin_register_manual_commercial_order(
         v_opp, v_comp, 'v1', now() - interval '1 day',
         'Responsavel R8', (now() + interval '30 days')::date,
-        'direct_benefits', 'doc://pedido-' || v_niches[v_i]);
+        case when v_niches[v_i] = 'pharmacy' then 'cash' else 'direct_benefits' end,
+        'doc://pedido-' || v_niches[v_i]);
     perform public.admin_confirm_manual_bdflow_payment(
         (v_ord->>'order_id')::uuid,
         (v_ord->>'bdflow_ops_investment_cents')::bigint, 'pix-lote');
@@ -287,15 +290,32 @@ select tests.check('soma dos pools contratuais = R$ 92.316,00',
 select tests.check('soma do devido a BDFlow = R$ 43.266,00',
     (select sum(bdflow_due_cents) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and status='signed') = 4326600);
--- Sob direct_benefits nenhum pedido exige caixa para o pool: o dinheiro
--- movimentado e exatamente o devido a BDFlow, e a soma dos pools permanece
--- obrigacao contratual do parceiro, jamais custodia.
-select tests.check('nenhum pedido da formacao exige caixa para o pool',
+-- A formacao e MISTA e cada pedido responde pelo proprio modo. Sob
+-- direct_benefits nenhum caixa e exigido para o pool; sob cash o caixa e
+-- exatamente o pool. Em nenhum dos dois a BDFlow custodia coisa alguma.
+select tests.check('financiamento de cada pedido coerente com o proprio modo',
     (select count(*) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and status='signed'
-        and (benefit_settlement_mode <> 'direct_benefits'
-             or cash_user_pool_funding_cents <> 0
-             or total_monetary_funding_required_cents <> bdflow_due_cents)) = 0);
+        and not (
+          (benefit_settlement_mode = 'direct_benefits'
+             and cash_user_pool_funding_cents = 0
+             and total_monetary_funding_required_cents = bdflow_due_cents)
+          or (benefit_settlement_mode = 'cash'
+             and cash_user_pool_funding_cents = contractual_pool_cents
+             and total_monetary_funding_required_cents
+                   = bdflow_due_cents + contractual_pool_cents))) = 0);
+select tests.check('formacao de referencia e mista: cinco direct_benefits e um cash',
+    (select count(*) filter (where benefit_settlement_mode = 'direct_benefits')
+       from public.commercial_exclusivity_orders
+      where exclusivity_id = :'excl2' and status='signed') = 5
+    and (select count(*) filter (where benefit_settlement_mode = 'cash')
+       from public.commercial_exclusivity_orders
+      where exclusivity_id = :'excl2' and status='signed') = 1);
+-- Todo pedido V2 carimba a politica de distribuicao 2 no proprio snapshot.
+select tests.check('todo pedido V2 carimba politica de distribuicao 2',
+    (select count(*) from public.commercial_exclusivity_orders
+      where exclusivity_id = :'excl2' and status='signed'
+        and benefit_distribution_policy_version is distinct from 2) = 0);
 select tests.check('todos os seis pagamentos confirmados',
     (select count(*) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and payment_status='confirmed') = 6);

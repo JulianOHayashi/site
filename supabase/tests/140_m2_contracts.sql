@@ -138,6 +138,43 @@ select tests.check('snapshot V2 carimba versao 2 e pool_bps NULO',
     (select pricing_rule_version = 2 and pool_bps is null
        from public.commercial_exclusivity_orders where id = :'ord1'));
 
+-- Os campos V2 entram no MESMO bloco imutavel do snapshot economico: sem
+-- porta de rascunho, congelados desde a insercao, exatamente como
+-- contractual_pool_cents sempre esteve.
+select tests.check_raises('modo de liquidacao e imutavel',
+  format($sql$update public.commercial_exclusivity_orders
+           set benefit_settlement_mode = 'cash' where id = %L$sql$, :'ord1'),
+  'pedido_imutavel');
+select tests.check_raises('caixa exigido para o pool e imutavel',
+  format($sql$update public.commercial_exclusivity_orders
+           set cash_user_pool_funding_cents = 1 where id = %L$sql$, :'ord1'),
+  'pedido_imutavel');
+select tests.check_raises('financiamento monetario total e imutavel',
+  format($sql$update public.commercial_exclusivity_orders
+           set total_monetary_funding_required_cents = 1 where id = %L$sql$, :'ord1'),
+  'pedido_imutavel');
+select tests.check_raises('versao da politica de distribuicao e imutavel',
+  format($sql$update public.commercial_exclusivity_orders
+           set benefit_distribution_policy_version = 1 where id = %L$sql$, :'ord1'),
+  'pedido_imutavel');
+-- A protecao antiga nao foi trocada pela nova: o bloco historico continua.
+select tests.check_raises('pool contratual continua imutavel',
+  format($sql$update public.commercial_exclusivity_orders
+           set contractual_pool_cents = 1 where id = %L$sql$, :'ord1'),
+  'pedido_imutavel');
+-- A fronteira e a MESMA do snapshot economico historico: congelada desde a
+-- insercao, inclusive em 'draft'. Nao foi inventado um ciclo de vida novo.
+select tests.check('pedido sob teste ainda esta em draft',
+    (select status = 'draft'
+       from public.commercial_exclusivity_orders where id = :'ord1'));
+-- E o pedido segue atualizavel no que NAO e snapshot: a protecao congela
+-- significado contratual, nao a linha inteira.
+update public.commercial_exclusivity_orders
+   set signatory_name = 'Responsavel Renomeado' where id = :'ord1';
+select tests.check('campo fora do snapshot continua atualizavel',
+    (select signatory_name = 'Responsavel Renomeado'
+       from public.commercial_exclusivity_orders where id = :'ord1'));
+
 -- Invariante econômica barrada no banco
 select tests.check_raises('invariante economico = pool + devido e obrigatoria',
   format($sql$insert into public.commercial_exclusivity_orders
