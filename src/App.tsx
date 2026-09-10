@@ -11,6 +11,13 @@ import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalValidar from "./pages/portal/PortalValidar";
+import BeneficiosValidar from "./pages/beneficios/BeneficiosValidar";
+// A captura do fragmento roda no IMPORT, antes de qualquer rota montar:
+// o guard de autenticacao pode navegar, e o fragmento nao sobrevive a
+// navegacao — a memoria do modulo sobrevive.
+import { capturarFragmento } from "./lib/benefitTokenFragment";
+
+capturarFragmento();
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 import SelecionarLocalidade from "./pages/SelecionarLocalidade";
 import Oportunidades from "./pages/Oportunidades";
@@ -105,6 +112,7 @@ export default function App() {
         {/* Cadastro legado neutralizado: redirect seguro, sem RPC legada. */}
         <Route path="/portal/cadastro" element={<Navigate to="/parceiros/cadastro" replace />} />
         <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
+        <Route path="/beneficios/validar/:publicLookupId" element={<PortalGuard><BeneficiosValidar /></PortalGuard>} />
         <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
         {/* Compatibilidade temporária do antigo endereço do painel. */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />

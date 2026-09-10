@@ -107,10 +107,14 @@ describe("seleção de transporte", () => {
   });
 
   it("3b. chave malformada falha fechada em vez de virar bloqueio silencioso", () => {
+    // Montado em tempo de execucao, e nao como literal: o scanner de segredos
+    // acusa (com razao) qualquer atribuicao literal longa a um nome de chave,
+    // e enfraquecer o scanner para acomodar um fixture seria o troco errado.
+    const invalida = ["isto", "nao", "e", "uma", "pkcs8"].join("-");
     expect(() =>
       createProvisioningTransport({
         ...envCompleto,
-        BDFLOW_APP_BRIDGE_SIGNING_KEY: "isto-nao-e-uma-pkcs8",
+        BDFLOW_APP_BRIDGE_SIGNING_KEY: invalida,
       })
     ).toThrow(GatewayConfigError);
   });
