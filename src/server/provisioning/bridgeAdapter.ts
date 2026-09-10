@@ -23,6 +23,9 @@
  * REAL, sem alterar a camada 1 nem as RPCs prov_*.
  */
 
+import { GATEWAY_ENV_VARS, loadGatewayConfig } from "./gatewaySigner";
+import { SignedGatewayProvisioningTransport } from "./gatewayTransport";
+
 /** Mensagem entregue pelo `prov_claim_provisioning_message`. */
 export type ClaimedProvisioningMessage = {
   ok: true;
@@ -92,9 +95,13 @@ export type BridgeConfigStatus = {
   configured: boolean;
   /** Apenas os NOMES das variáveis ausentes. */
   missing: string[];
-  /** Sempre bloqueado enquanto o App não puder ser inspecionado. */
-  blocked: true;
-  blockedReason: "BLOCKED_APP_REPOSITORY";
+  /**
+   * Bloqueado enquanto a integração não estiver configurada. Com as cinco
+   * variáveis presentes a camada de assinatura assume, e é a validação em
+   * `loadGatewayConfig` que decide — falhando fechada se algo for inválido.
+   */
+  blocked: boolean;
+  blockedReason?: "BLOCKED_APP_REPOSITORY";
 };
 
 /**
@@ -109,20 +116,41 @@ export function inspectBridgeConfig(
     const v = env[k];
     return typeof v !== "string" || v.trim() === "";
   });
+  const configured = missing.length === 0;
   return {
-    configured: missing.length === 0,
+    configured,
     missing: [...missing],
-    blocked: true,
-    blockedReason: "BLOCKED_APP_REPOSITORY",
+    blocked: !configured,
+    ...(configured ? {} : { blockedReason: "BLOCKED_APP_REPOSITORY" as const }),
   };
 }
 
 /**
- * Seleção de transporte. Enquanto o App estiver indisponível, devolve sempre
- * o sentinela bloqueado — inclusive com ambiente completo.
+ * Seleção de transporte.
+ *
+ * Três casos, e a diferença entre eles importa:
+ *
+ *   NENHUMA variável presente -> a integração não foi configurada de
+ *     propósito. Devolve o sentinela bloqueado, preservando o comportamento
+ *     seguro que existia antes.
+ *
+ *   TODAS presentes e válidas -> devolve o transporte HTTP assinado.
+ *
+ *   PARCIAL ou INVÁLIDA -> levanta `GatewayConfigError`. Cair no sentinela
+ *     aqui seria pior que falhar: esconderia um erro de configuração atrás de
+ *     uma mensagem de "App indisponível", e alguém passaria horas procurando
+ *     no lugar errado. Também nunca se degrada para requisição sem assinatura.
+ *
  */
 export function createProvisioningTransport(
-  _env: Record<string, string | undefined>
+  env: Record<string, string | undefined>
 ): ProvisioningTransport {
-  return new BlockedProvisioningTransport();
+  const presentes = GATEWAY_ENV_VARS.filter((k) => {
+    const v = env[k];
+    return typeof v === "string" && v.trim() !== "";
+  });
+  if (presentes.length === 0) {
+    return new BlockedProvisioningTransport();
+  }
+  return new SignedGatewayProvisioningTransport(loadGatewayConfig(env));
 }

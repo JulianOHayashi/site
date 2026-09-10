@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { generateKeyPairSync } from "node:crypto";
 import {
   inspectBridgeConfig,
   createProvisioningTransport,
@@ -7,18 +8,43 @@ import {
   PROVISIONING_ENV_VARS,
   type ClaimedProvisioningMessage,
 } from "../server/provisioning/bridgeAdapter";
+import { GatewayConfigError } from "../server/provisioning/gatewaySigner";
+import { SignedGatewayProvisioningTransport } from "../server/provisioning/gatewayTransport";
 
 /**
- * R11 — a fronteira da ponte precisa FALHAR EXPLICITAMENTE enquanto o
- * repositório do App não puder ser inspecionado. Nenhum contrato inventado.
+ * R11 — fronteira da ponte Site -> App.
+ *
+ * O QUE MUDOU E POR QUE
+ * Antes esta fronteira devolvia SEMPRE o sentinela bloqueado, mesmo com o
+ * ambiente completo: nao havia camada de assinatura, e configurar nao
+ * substituia um contrato inexistente. Com o gateway de uso de beneficio
+ * congelado, a camada de assinatura existe e a selecao passa a distinguir tres
+ * casos — nada configurado, tudo valido, e configuracao quebrada.
+ *
+ * O que NAO mudou: nenhum contrato e inventado, nenhuma chave vaza, e o
+ * despacho de provisionamento comercial continua falhando explicitamente,
+ * porque o gateway nao expoe rota de provisionamento.
  */
-const CHAVE = "chave-de-assinatura-super-secreta-123456";
-const envCompleto = {
+
+/** Valor propositalmente INVALIDO: nao e uma Ed25519 PKCS#8 em base64. */
+const CHAVE_INVALIDA = "chave-de-assinatura-super-secreta-123456";
+
+const par = generateKeyPairSync("ed25519");
+const CHAVE_VALIDA_B64 = par.privateKey
+  .export({ format: "der", type: "pkcs8" })
+  .toString("base64");
+
+const envQuebrado = {
   BDFLOW_APP_BRIDGE_URL: "https://app.exemplo/bridge",
   BDFLOW_APP_BRIDGE_KEY_ID: "kid-1",
-  BDFLOW_APP_BRIDGE_SIGNING_KEY: CHAVE,
-  BDFLOW_APP_BRIDGE_ISSUER: "site",
-  BDFLOW_APP_BRIDGE_AUDIENCE: "app",
+  BDFLOW_APP_BRIDGE_SIGNING_KEY: CHAVE_INVALIDA,
+  BDFLOW_APP_BRIDGE_ISSUER: "bdflow-site-gate3-http",
+  BDFLOW_APP_BRIDGE_AUDIENCE: "bdflow-app-gateway",
+};
+
+const envValido = {
+  ...envQuebrado,
+  BDFLOW_APP_BRIDGE_SIGNING_KEY: CHAVE_VALIDA_B64,
 };
 
 const mensagem: ClaimedProvisioningMessage = {
@@ -26,14 +52,14 @@ const mensagem: ClaimedProvisioningMessage = {
   message_id: "msg-1",
   correlation_id: "corr-1",
   environment: "local",
-  schema_version: "bdflow.commercial_provisioning.v1",
+  schema_version: "bdflow.commercial_provisioning.v2",
   payload: { partners: [] },
   payload_hash: "a".repeat(64),
   attempt: 1,
 };
 
-describe("R11 — fronteira de adaptador bloqueada", () => {
-  it("ambiente vazio: não configurado e bloqueado", () => {
+describe("R11 — fronteira de adaptador da ponte Site->App", () => {
+  it("ambiente vazio: nao configurado e bloqueado", () => {
     const s = inspectBridgeConfig({});
     expect(s.configured).toBe(false);
     expect(s.blocked).toBe(true);
@@ -41,36 +67,53 @@ describe("R11 — fronteira de adaptador bloqueada", () => {
     expect(s.missing).toEqual([...PROVISIONING_ENV_VARS]);
   });
 
-  it("ambiente COMPLETO continua bloqueado (config não substitui contrato)", () => {
-    const s = inspectBridgeConfig(envCompleto);
+  it("ambiente completo: deixa de estar bloqueado por ausencia", () => {
+    const s = inspectBridgeConfig(envValido);
     expect(s.configured).toBe(true);
-    expect(s.blocked).toBe(true);
+    expect(s.blocked).toBe(false);
+    expect(s.missing).toEqual([]);
   });
 
-  it("relata apenas NOMES de variáveis, nunca valores", () => {
-    const s = inspectBridgeConfig({ BDFLOW_APP_BRIDGE_SIGNING_KEY: CHAVE });
-    expect(JSON.stringify(s)).not.toContain(CHAVE);
+  it("relata apenas NOMES de variaveis, nunca valores", () => {
+    const s = inspectBridgeConfig({
+      BDFLOW_APP_BRIDGE_SIGNING_KEY: CHAVE_INVALIDA,
+    });
+    expect(JSON.stringify(s)).not.toContain(CHAVE_INVALIDA);
   });
 
-  it("o transporte é sempre o sentinela bloqueado", () => {
+  it("sem nenhuma variavel, o transporte e o sentinela bloqueado", () => {
     expect(createProvisioningTransport({})).toBeInstanceOf(
       BlockedProvisioningTransport
     );
-    expect(createProvisioningTransport(envCompleto)).toBeInstanceOf(
-      BlockedProvisioningTransport
+  });
+
+  it("configuracao completa e valida seleciona o transporte assinado", () => {
+    expect(createProvisioningTransport(envValido)).toBeInstanceOf(
+      SignedGatewayProvisioningTransport
     );
   });
 
-  it("despachar FALHA explicitamente, sem inventar contrato", async () => {
-    const t = createProvisioningTransport(envCompleto);
-    await expect(t.dispatch(mensagem)).rejects.toBeInstanceOf(
-      ProvisioningBlockedError
+  it("configuracao presente mas quebrada FALHA, nao vira bloqueio silencioso", () => {
+    // Esconder erro de configuracao atras de "App indisponivel" mandaria
+    // alguem procurar defeito no lugar errado.
+    expect(() => createProvisioningTransport(envQuebrado)).toThrow(
+      GatewayConfigError
     );
-    await expect(t.dispatch(mensagem)).rejects.toThrow(/BLOCKED_APP_REPOSITORY/);
+    expect(() => createProvisioningTransport(envQuebrado)).toThrow(
+      /BDFLOW_APP_BRIDGE_SIGNING_KEY/
+    );
   });
 
-  it("o erro não vaza a chave de assinatura", async () => {
-    const t = createProvisioningTransport(envCompleto);
+  it("nem o erro de configuracao nem o de despacho vazam a chave", async () => {
+    let erroConfig: Error | null = null;
+    try {
+      createProvisioningTransport(envQuebrado);
+    } catch (e) {
+      erroConfig = e as Error;
+    }
+    expect(erroConfig!.message).not.toContain(CHAVE_INVALIDA);
+
+    const t = createProvisioningTransport(envValido);
     let erro: Error | null = null;
     try {
       await t.dispatch(mensagem);
@@ -78,13 +121,22 @@ describe("R11 — fronteira de adaptador bloqueada", () => {
       erro = e as Error;
     }
     expect(erro).not.toBeNull();
-    expect(erro!.message).not.toContain(CHAVE);
+    expect(erro!.message).not.toContain(CHAVE_VALIDA_B64);
     expect(erro!.message).toContain("msg-1");
   });
 
-  it("nenhuma assinatura ou rede é executada nesta camada", () => {
-    // O sentinela não expõe método de assinatura nem cliente HTTP.
-    const t = createProvisioningTransport(envCompleto) as unknown as Record<
+  it("despachar provisionamento FALHA: o gateway nao tem essa rota", async () => {
+    const t = createProvisioningTransport(envValido);
+    await expect(t.dispatch(mensagem)).rejects.toBeInstanceOf(
+      ProvisioningBlockedError
+    );
+    await expect(t.dispatch(mensagem)).rejects.toThrow(
+      /sem rota de provisionamento comercial/
+    );
+  });
+
+  it("o sentinela continua sem assinatura e sem cliente HTTP", () => {
+    const t = createProvisioningTransport({}) as unknown as Record<
       string,
       unknown
     >;
