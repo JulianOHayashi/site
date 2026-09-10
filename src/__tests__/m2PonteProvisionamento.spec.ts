@@ -125,6 +125,19 @@ describe("R11 — fronteira de adaptador da ponte Site->App", () => {
     expect(erro!.message).toContain("msg-1");
   });
 
+  it("o sentinela bloqueado FALHA ao despachar, nunca vira no-op", async () => {
+    // Sem esta assercao, neutralizar o throw de BlockedProvisioningTransport
+    // passaria despercebido — e um transporte que "conclui" sem enviar nada e
+    // exatamente o defeito mais caro que esta fronteira existe para impedir.
+    const t = createProvisioningTransport({});
+    expect(t).toBeInstanceOf(BlockedProvisioningTransport);
+    await expect(t.dispatch(mensagem)).rejects.toBeInstanceOf(
+      ProvisioningBlockedError
+    );
+    await expect(t.dispatch(mensagem)).rejects.toThrow(/BLOCKED_APP_REPOSITORY/);
+    await expect(t.dispatch(mensagem)).rejects.toThrow(/msg-1/);
+  });
+
   it("despachar provisionamento FALHA: o gateway nao tem essa rota", async () => {
     const t = createProvisioningTransport(envValido);
     await expect(t.dispatch(mensagem)).rejects.toBeInstanceOf(
