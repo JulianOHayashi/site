@@ -35,7 +35,16 @@ import { pathToFileURL } from "node:url";
  */
 
 const RAIZ = resolve(__dirname, "../..");
-const ENTRADA = "api/benefit-usage/validate.ts";
+
+/**
+ * Toda função serverless entra aqui. Acrescentar um endpoint e esquecer esta
+ * lista reproduziria o defeito original numa rota nova.
+ */
+const ENTRADAS = [
+  "api/benefit-usage/validate.ts",
+  "api/_internal/gate-d-probe.ts",
+] as const;
+const ENTRADA = ENTRADAS[0];
 
 /** Import/export relativo, incluindo `import type` e side-effect import. */
 const RE_FROM = /^[ \t]*(?:import|export)\b[^;]*?from\s+["'](\.[^"']+)["']/gm;
@@ -68,10 +77,12 @@ function resolverParaFonte(deArquivo: string, spec: string): string | null {
 
 type Aresta = { de: string; spec: string; para: string | null };
 
-function percorrerGrafo(): { modulos: string[]; arestas: Aresta[] } {
+function percorrerGrafo(
+  entradas: readonly string[] = ENTRADAS
+): { modulos: string[]; arestas: Aresta[] } {
   const vistos = new Set<string>();
   const arestas: Aresta[] = [];
-  const fila = [ENTRADA];
+  const fila = [...entradas];
   while (fila.length > 0) {
     const atual = fila.shift() as string;
     if (vistos.has(atual)) continue;
@@ -89,8 +100,15 @@ function percorrerGrafo(): { modulos: string[]; arestas: Aresta[] } {
 describe("fronteira ESM do Node na função serverless", () => {
   const { modulos, arestas } = percorrerGrafo();
 
-  it("o ponto de entrada da função existe", () => {
-    expect(existsSync(resolve(RAIZ, ENTRADA))).toBe(true);
+  it("todo ponto de entrada declarado existe", () => {
+    for (const e of ENTRADAS) {
+      expect(existsSync(resolve(RAIZ, e)), e).toBe(true);
+    }
+  });
+
+  it("a sonda temporaria do Gate D esta no grafo auditado", () => {
+    expect(modulos).toContain("api/_internal/gate-d-probe.ts");
+    expect(modulos).toContain("src/server/gateD/gateDProbe.ts");
   });
 
   it("o grafo de runtime é percorrido por inteiro, não só o primeiro nível", () => {
@@ -160,8 +178,15 @@ describe("fronteira ESM do Node na função serverless", () => {
     // ERR_MODULE_NOT_FOUND que nao tem nada a ver com o defeito auditado.
     symlinkSync(resolve(RAIZ, "node_modules"), join(dir, "node_modules"), "dir");
 
+    for (const entrada of ENTRADAS) {
+      importarComoNode(dir, entrada);
+    }
+  });
+});
+
+function importarComoNode(dir: string, entrada: string): void {
     const alvo = pathToFileURL(
-      join(dir, ENTRADA.replace(/\.ts$/, ".js"))
+      join(dir, entrada.replace(/\.ts$/, ".js"))
     ).href;
     const script =
       `import(${JSON.stringify(alvo)})` +
@@ -182,9 +207,8 @@ describe("fronteira ESM do Node na função serverless", () => {
         `import ESM falhou: ${(err.stderr ?? err.stdout ?? "").trim()}`
       );
     }
-    expect(saida).toContain("IMPORT_OK");
-  });
-});
+    expect(saida, entrada).toContain("IMPORT_OK");
+}
 
 describe("relatório do grafo (documental)", () => {
   it("lista o grafo auditado", () => {
