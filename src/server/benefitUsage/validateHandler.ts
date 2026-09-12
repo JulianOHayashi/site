@@ -31,8 +31,8 @@ import {
   montarCreateRequestBody,
   montarOpenTokenBody,
   type BenefitUsageAuthority,
-} from "./benefitUsageContract";
-import type { BenefitUsageGatewayClient } from "./benefitUsageGatewayClient";
+} from "./benefitUsageContract.js";
+import type { BenefitUsageGatewayClient } from "./benefitUsageGatewayClient.js";
 
 /** Cliente de banco atuando COMO O USUÁRIO logado, nunca como service_role. */
 export type UserScopedDb = {

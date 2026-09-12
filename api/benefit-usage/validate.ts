@@ -17,12 +17,12 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { BenefitUsageError } from "../../src/server/benefitUsage/benefitUsageContract";
-import { createBenefitUsageGatewayClient } from "../../src/server/benefitUsage/benefitUsageGatewayClient";
+import { BenefitUsageError } from "../../src/server/benefitUsage/benefitUsageContract.js";
+import { createBenefitUsageGatewayClient } from "../../src/server/benefitUsage/benefitUsageGatewayClient.js";
 import {
   executarUsoDeBeneficio,
   type UserScopedDb,
-} from "../../src/server/benefitUsage/validateHandler";
+} from "../../src/server/benefitUsage/validateHandler.js";
 
 type Req = {
   method?: string;

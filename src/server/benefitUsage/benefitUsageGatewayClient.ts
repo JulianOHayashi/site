@@ -18,8 +18,8 @@ import {
   signGatewayRequest,
   type GatewayAction,
   type GatewayConfig,
-} from "../provisioning/gatewaySigner";
-import type { CreateRequestBody, OpenTokenBody } from "./benefitUsageContract";
+} from "../provisioning/gatewaySigner.js";
+import type { CreateRequestBody, OpenTokenBody } from "./benefitUsageContract.js";
 
 export type FetchLike = (
   url: string,
