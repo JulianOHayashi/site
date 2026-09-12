@@ -24,6 +24,7 @@
  * do candidato final — ver o requisito de limpeza do Gate D.
  */
 
+import { randomUUID } from "node:crypto";
 import {
   GATEWAY_CONTENT_TYPE,
   GATEWAY_SIGNATURE_HEADER,
@@ -33,15 +34,24 @@ import {
 } from "../provisioning/gatewaySigner.js";
 
 /**
- * Fixtures FIXOS no código. Nada aqui vem do chamador: a sonda não aceita
- * ação, URL, locator, ponte, segredo, JTI, correlação, issuer, audience nem
- * kid. Um diagnóstico que aceitasse qualquer um desses viraria um oráculo de
+ * Fixtures da sonda. Nada aqui vem do chamador: a sonda não aceita ação, URL,
+ * locator, ponte, segredo, JTI, correlação, issuer, audience nem kid. Um
+ * diagnóstico que aceitasse qualquer um desses viraria um oráculo de
  * assinatura — alguém com acesso ao endpoint mandaria o Site assinar o que
  * quisesse.
+ *
+ * O locator e a ponte são SORTEADOS a cada invocação, com `randomUUID`, antes
+ * de assinar. UUIDs baixos e fixos eram obviamente sintéticos, mas ainda
+ * assim endereçáveis: se alguém algum dia semeasse um registro com aquele
+ * exato valor, a sonda deixaria de ser inofensiva. Um UUID v4 novo a cada
+ * chamada tira essa possibilidade do caminho sem devolver controle nenhum a
+ * quem chama.
+ *
+ * O segredo continua sendo os 64 zeros: é um valor sintético reconhecível, e
+ * sorteá-lo não acrescentaria segurança alguma — nenhum token real se parece
+ * com isto.
  */
-const SONDA_PUBLIC_LOOKUP_ID = "00000000-0000-0000-0000-000000000001";
 const SONDA_RAW_TOKEN_SECRET = "0".repeat(64);
-const SONDA_PARTNER_NETWORK_BRIDGE_ID = "00000000-0000-0000-0000-000000000002";
 
 export type FetchLike = (
   url: string,
@@ -97,6 +107,11 @@ export function extrairCodigoSeguro(texto: string): string | null {
     const limpo = bruto.trim();
     if (limpo === "" || limpo.length > 64) continue;
     if (!/^[A-Za-z0-9_.:-]+$/.test(limpo)) continue;
+    // O segredo da sonda NUNCA volta, nem que a resposta o coloque num campo
+    // chamado `code`. Ele passaria pelo filtro de charset e de comprimento —
+    // 64 zeros são caracteres perfeitamente "seguros" —, então a recusa
+    // precisa ser explícita.
+    if (limpo === SONDA_RAW_TOKEN_SECRET) continue;
     return limpo;
   }
   return null;
@@ -137,14 +152,19 @@ export async function executarSondaGateD(
 
   const assinar = deps.assinar ?? signGatewayRequest;
 
-  // ASSINATURA ÚNICA.
+  // Sorteados UMA vez por invocação, ANTES de assinar. Não vêm de `req`,
+  // query, cabeçalho, ambiente nem de parâmetro algum.
+  const publicLookupId = randomUUID();
+  const partnerNetworkBridgeId = randomUUID();
+
+  // ASSINATURA ÚNICA, sobre o corpo já sorteado.
   const req = assinar({
     config,
     action: "benefit_usage.open_token",
     body: {
-      public_lookup_id: SONDA_PUBLIC_LOOKUP_ID,
+      public_lookup_id: publicLookupId,
       raw_token_secret: SONDA_RAW_TOKEN_SECRET,
-      partner_network_bridge_id: SONDA_PARTNER_NETWORK_BRIDGE_ID,
+      partner_network_bridge_id: partnerNetworkBridgeId,
     },
   });
 

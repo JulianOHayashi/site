@@ -50,6 +50,10 @@ const RESPOSTAS_ESPERADAS = [
 
 const ASSINATURA = "X-BDFlow-Gateway-Signature";
 
+/** UUID v4 conforme `randomUUID` emite. */
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 describe("porta de ambiente", () => {
   it("fora do Preview recusa ANTES de assinar e ANTES de qualquer rede", async () => {
     for (const v of ["production", "development", "", undefined]) {
@@ -154,23 +158,72 @@ describe("nenhum campo do gateway e controlado pelo chamador", () => {
     expect(executarSondaGateD.length).toBe(2);
   });
 
-  it("os fixtures sao fixos no codigo-fonte, nao vem do ambiente", async () => {
+  it("locator e ponte sao UUID sorteados; o segredo segue sintetico e fixo", async () => {
     const src = readFileSync(
       resolve(__dirname, "../server/gateD/gateDProbe.ts"),
       "utf8"
     );
-    expect(src).toContain('"00000000-0000-0000-0000-000000000001"');
+    // Import de PACOTE, nao relativo.
+    expect(src).toContain('import { randomUUID } from "node:crypto";');
     expect(src).toContain('"0".repeat(64)');
-    expect(src).toContain('"00000000-0000-0000-0000-000000000002"');
+    // Os UUIDs baixos e enderecaveis sairam de vez.
+    expect(src).not.toContain("00000000-0000-0000-0000-000000000001");
+    expect(src).not.toContain("00000000-0000-0000-0000-000000000002");
 
     const { envios, impl } = espiao(RESPOSTAS_ESPERADAS);
     await executarSondaGateD(envPreview, { fetchImpl: impl });
     const corpo = JSON.parse(envios[0].body);
-    expect(corpo).toEqual({
-      public_lookup_id: "00000000-0000-0000-0000-000000000001",
-      raw_token_secret: "0".repeat(64),
-      partner_network_bridge_id: "00000000-0000-0000-0000-000000000002",
-    });
+    expect(Object.keys(corpo).sort()).toEqual(
+      ["public_lookup_id", "raw_token_secret", "partner_network_bridge_id"].sort()
+    );
+    expect(corpo.public_lookup_id).toMatch(UUID_V4);
+    expect(corpo.partner_network_bridge_id).toMatch(UUID_V4);
+    expect(corpo.public_lookup_id).not.toBe(corpo.partner_network_bridge_id);
+    expect(corpo.raw_token_secret).toBe("0".repeat(64));
+  });
+
+  it("uma invocacao usa o MESMO corpo sorteado nas duas transmissoes", async () => {
+    const { envios, impl } = espiao(RESPOSTAS_ESPERADAS);
+    const assinar = vi.fn(signGatewayRequest);
+    await executarSondaGateD(envPreview, { fetchImpl: impl, assinar });
+    // Sortear de novo entre os envios geraria outro corpo, outro hash e outra
+    // assinatura — e nao provaria replay nenhum.
+    expect(envios[0].body).toBe(envios[1].body);
+    expect(assinar).toHaveBeenCalledTimes(1);
+  });
+
+  it("invocacoes DIFERENTES sorteiam locator e ponte diferentes", async () => {
+    const corpos: Array<Record<string, string>> = [];
+    for (let i = 0; i < 3; i += 1) {
+      const { envios, impl } = espiao(RESPOSTAS_ESPERADAS);
+      await executarSondaGateD(envPreview, { fetchImpl: impl });
+      corpos.push(JSON.parse(envios[0].body));
+    }
+    const lookups = new Set(corpos.map((c) => c.public_lookup_id));
+    const pontes = new Set(corpos.map((c) => c.partner_network_bridge_id));
+    expect(lookups.size).toBe(3);
+    expect(pontes.size).toBe(3);
+    // O segredo sintetico nao varia.
+    expect(new Set(corpos.map((c) => c.raw_token_secret)).size).toBe(1);
+  });
+
+  it("os UUIDs sorteados nao sao influenciaveis pelo ambiente", async () => {
+    // Mesmo com o ambiente carregando valores parecidos com UUID, o corpo
+    // sorteado nao os reproduz.
+    const isca = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const { envios, impl } = espiao(RESPOSTAS_ESPERADAS);
+    await executarSondaGateD(
+      {
+        ...envPreview,
+        PUBLIC_LOOKUP_ID: isca,
+        PARTNER_NETWORK_BRIDGE_ID: isca,
+        BDFLOW_APP_BRIDGE_KEY_ID: isca,
+      },
+      { fetchImpl: impl }
+    );
+    const corpo = JSON.parse(envios[0].body);
+    expect(corpo.public_lookup_id).not.toBe(isca);
+    expect(corpo.partner_network_bridge_id).not.toBe(isca);
   });
 
   it("o endpoint HTTP nao le corpo nem query da requisicao", () => {
@@ -217,10 +270,18 @@ describe("resposta sanitizada", () => {
     // Caracteres fora do conjunto seguro, e comprimento excessivo.
     expect(extrairCodigoSeguro('{"code":"eco <script>"}')).toBeNull();
     expect(extrairCodigoSeguro('{"code":"' + "A".repeat(65) + '"}')).toBeNull();
-    // Um corpo que devolvesse o segredo nao passa pelo filtro.
-    expect(extrairCodigoSeguro('{"code":"' + "0".repeat(64) + '"}')).toBe(
-      "0".repeat(64)
-    );
+    // O segredo da sonda NUNCA volta, nem num campo chamado `code`: ele
+    // passaria pelo filtro de charset e de comprimento, entao a recusa e
+    // explicita.
+    expect(extrairCodigoSeguro('{"code":"' + "0".repeat(64) + '"}')).toBeNull();
+    expect(extrairCodigoSeguro('{"status":"' + "0".repeat(64) + '"}')).toBeNull();
+    expect(extrairCodigoSeguro('{"reason":"' + "0".repeat(64) + '"}')).toBeNull();
+    // E um codigo legitimo ao lado do eco continua passando.
+    expect(
+      extrairCodigoSeguro(
+        '{"code":"' + "0".repeat(64) + '","reason":"REPLAY_DETECTED"}'
+      )
+    ).toBe("REPLAY_DETECTED");
   });
 
   it("nem a sonda nem o endpoint escrevem em log", () => {
