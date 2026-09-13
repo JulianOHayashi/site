@@ -40,10 +40,7 @@ const RAIZ = resolve(__dirname, "../..");
  * Toda função serverless entra aqui. Acrescentar um endpoint e esquecer esta
  * lista reproduziria o defeito original numa rota nova.
  */
-const ENTRADAS = [
-  "api/benefit-usage/validate.ts",
-  "api/gate-d-probe.ts",
-] as const;
+const ENTRADAS = ["api/benefit-usage/validate.ts"] as const;
 const ENTRADA = ENTRADAS[0];
 
 /** Import/export relativo, incluindo `import type` e side-effect import. */
@@ -106,28 +103,17 @@ describe("fronteira ESM do Node na função serverless", () => {
     }
   });
 
-  it("a sonda temporaria do Gate D esta no grafo auditado", () => {
-    expect(modulos).toContain("api/gate-d-probe.ts");
-    expect(modulos).toContain("src/server/gateD/gateDProbe.ts");
-  });
-
   it("nenhum segmento de caminho de entrada comeca com sublinhado", () => {
     // A Vercel trata arquivo/pasta com sublinhado na frente como auxiliar e
-    // NAO o transforma em funcao: a rota devolve o 404 de plataforma e o
-    // handler nunca roda. Foi exatamente o que aconteceu com
-    // api/_internal/gate-d-probe.ts.
+    // NAO o transforma em funcao: a rota devolve o 404 de plataforma, em
+    // texto puro, e o handler nunca roda. Custou um ciclo inteiro de
+    // depuracao num endpoint que ja foi removido; a regra fica para a
+    // proxima funcao que alguem criar.
     for (const e of ENTRADAS) {
       for (const seg of e.split("/")) {
         expect(seg.startsWith("_"), `${e} :: '${seg}'`).toBe(false);
       }
     }
-  });
-
-  it("a entrada do Gate D fica DIRETO em api/, sem subpasta", () => {
-    const gateD = ENTRADAS.filter((e) => e.includes("gate-d"));
-    expect(gateD).toEqual(["api/gate-d-probe.ts"]);
-    expect(gateD[0].split("/")).toHaveLength(2);
-    expect(existsSync(resolve(RAIZ, "api/_internal"))).toBe(false);
   });
 
   it("o grafo de runtime é percorrido por inteiro, não só o primeiro nível", () => {
