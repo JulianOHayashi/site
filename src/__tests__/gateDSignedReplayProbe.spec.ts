@@ -284,6 +284,51 @@ describe("resposta sanitizada", () => {
     ).toBe("REPLAY_DETECTED");
   });
 
+  it("o campo `error` tambem e inspecionado, sob as MESMAS regras", () => {
+    // A primeira sonda ao vivo voltou 401 no replay com rotulo nulo: o App
+    // poe o rotulo em `error`. A chave entrou na busca; o filtro nao mudou.
+    expect(extrairCodigoSeguro('{"error":"REPLAY_DETECTED"}')).toBe(
+      "REPLAY_DETECTED"
+    );
+    expect(extrairCodigoSeguro('{"error":"UNKNOWN_OR_REVOKED_KEY"}')).toBe(
+      "UNKNOWN_OR_REVOKED_KEY"
+    );
+
+    // Texto hostil em `error` continua sendo recusado pelas mesmas regras.
+    expect(extrairCodigoSeguro('{"error":"replay foi detectado"}')).toBeNull();
+    expect(extrairCodigoSeguro('{"error":"<b>erro</b>"}')).toBeNull();
+    expect(extrairCodigoSeguro('{"error":"' + "A".repeat(65) + '"}')).toBeNull();
+    expect(extrairCodigoSeguro('{"error":""}')).toBeNull();
+    expect(extrairCodigoSeguro('{"error":{"code":"X"}}')).toBeNull();
+
+    // O segredo da sonda nao volta por `error` tampouco.
+    expect(extrairCodigoSeguro('{"error":"' + "0".repeat(64) + '"}')).toBeNull();
+
+    // Eco do segredo em `code` NAO impede que `error` entregue o rotulo real:
+    // o candidato recusado e pulado, a busca continua.
+    expect(
+      extrairCodigoSeguro(
+        '{"code":"' + "0".repeat(64) + '","error":"REPLAY_DETECTED"}'
+      )
+    ).toBe("REPLAY_DETECTED");
+
+    // Precedencia: `code` valido continua vencendo `error`.
+    expect(
+      extrairCodigoSeguro('{"code":"TOKEN_NOT_FOUND","error":"OUTRO"}')
+    ).toBe("TOKEN_NOT_FOUND");
+  });
+
+  it("nenhuma chave de texto livre entrou na lista de candidatos", () => {
+    // message/detail/description/stack carregam frase humana e, com ela,
+    // qualquer coisa que o App tenha ecoado. Ficam de fora de proposito.
+    for (const chave of ["message", "detail", "description", "stack", "trace"]) {
+      expect(
+        extrairCodigoSeguro(`{"${chave}":"REPLAY_DETECTED"}`),
+        chave
+      ).toBeNull();
+    }
+  });
+
   it("nem a sonda nem o endpoint escrevem em log", () => {
     for (const f of [
       "../server/gateD/gateDProbe.ts",

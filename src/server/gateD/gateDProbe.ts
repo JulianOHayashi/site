@@ -101,7 +101,11 @@ export function extrairCodigoSeguro(texto: string): string | null {
   }
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
-  for (const chave of ["code", "error_code", "status", "reason"]) {
+  // `error` entrou depois da primeira sonda ao vivo: o gateway do App
+  // devolveu 401 no replay, mas o rótulo saiu nulo porque o rótulo vinha
+  // nesse campo. É uma chave a mais na busca — nenhuma regra do filtro
+  // abaixo foi afrouxada para acomodá-la.
+  for (const chave of ["code", "error_code", "status", "reason", "error"]) {
     const bruto = o[chave];
     if (typeof bruto !== "string") continue;
     const limpo = bruto.trim();
