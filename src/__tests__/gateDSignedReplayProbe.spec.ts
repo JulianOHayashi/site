@@ -228,7 +228,7 @@ describe("nenhum campo do gateway e controlado pelo chamador", () => {
 
   it("o endpoint HTTP nao le corpo nem query da requisicao", () => {
     const src = readFileSync(
-      resolve(__dirname, "../../api/_internal/gate-d-probe.ts"),
+      resolve(__dirname, "../../api/gate-d-probe.ts"),
       "utf8"
     );
     expect(src).not.toMatch(/req\.body/);
@@ -287,7 +287,7 @@ describe("resposta sanitizada", () => {
   it("nem a sonda nem o endpoint escrevem em log", () => {
     for (const f of [
       "../server/gateD/gateDProbe.ts",
-      "../../api/_internal/gate-d-probe.ts",
+      "../../api/gate-d-probe.ts",
     ]) {
       const src = readFileSync(resolve(__dirname, f), "utf8");
       expect(src, f).not.toMatch(/console\.|logger\./);
@@ -329,7 +329,7 @@ describe("isolamento", () => {
   it("todo import relativo novo usa especificador .js", () => {
     for (const f of [
       "../server/gateD/gateDProbe.ts",
-      "../../api/_internal/gate-d-probe.ts",
+      "../../api/gate-d-probe.ts",
     ]) {
       const src = readFileSync(resolve(__dirname, f), "utf8")
         .replace(/\/\*[\s\S]*?\*\//g, "")

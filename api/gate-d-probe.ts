@@ -1,5 +1,12 @@
 /**
- * POST /api/_internal/gate-d-probe — DIAGNÓSTICO TEMPORÁRIO, SÓ PREVIEW.
+ * POST /api/gate-d-probe — DIAGNÓSTICO TEMPORÁRIO, SÓ PREVIEW.
+ *
+ * O arquivo mora DIRETO em `api/`, sem subpasta e sem prefixo de sublinhado.
+ * A primeira tentativa viveu em `api/_internal/`, e a Vercel devolveu o 404
+ * de plataforma: arquivos com sublinhado na frente são tratados como auxiliar
+ * e não viram função. O handler nunca chegou a rodar — o 404 dele seria JSON
+ * com `Cache-Control: no-store`, e o observado era texto puro com
+ * `X-Vercel-Error: NOT_FOUND`. Caminho raso elimina a ambiguidade.
  *
  * Assina UMA requisição `benefit_usage.open_token` com a chave que a Vercel
  * guarda e envia exatamente os mesmos bytes duas vezes, para o gateway do App
@@ -17,7 +24,7 @@ import {
   SondaConfigError,
   SondaIndisponivelError,
   executarSondaGateD,
-} from "../../src/server/gateD/gateDProbe.js";
+} from "../src/server/gateD/gateDProbe.js";
 
 type Req = {
   method?: string;
