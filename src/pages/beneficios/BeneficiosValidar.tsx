@@ -89,7 +89,13 @@ export default function BeneficiosValidar() {
     }
   };
 
-  if (!locatorValido || !segredoPresente) {
+  // A guarda de QR inválido é PRÉ-envio. Depois de um envio bem-sucedido o
+  // segredo já foi descartado de propósito, e `segredoPresente` passa a ser
+  // falso no render seguinte — sem `!sucesso` aqui, a tela cairia em "código
+  // inválido ou incompleto" logo apos ter criado a solicitação no App, que e
+  // a mensagem mais enganosa possível: diz "nenhuma validação foi
+  // encaminhada" quando uma foi.
+  if (!sucesso && (!locatorValido || !segredoPresente)) {
     return (
       <>
         <Header />
