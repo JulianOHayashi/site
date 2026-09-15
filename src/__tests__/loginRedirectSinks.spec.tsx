@@ -143,4 +143,66 @@ describe("/portal/login — destino do ?next=", () => {
     montarPortal("/portal\\validar");
     expect(await destinoFinal()).toBe("/portal/validar");
   });
+
+  // -------------------------------------------------------------------------
+  // Gate E — /beneficios/validar passou a ser a SEGUNDA subárvore que pode
+  // iniciar autenticação. O QR do aplicativo cai nessa rota antes do login, e
+  // sem isso o parceiro era jogado no painel e perdia o benefício em mãos.
+  //
+  // A allowlist é de duas subárvores, aplicada DEPOIS da normalização — não
+  // um prefixo único. Estas provas são de comportamento: exercitam
+  // sessão → efeito → navigate, sem ler o código-fonte.
+  // -------------------------------------------------------------------------
+
+  it("permite a rota de validação de benefício vinda do QR", async () => {
+    montarPortal("/beneficios/validar/11111111-2222-4333-8444-555555555555");
+    expect(await destinoFinal()).toBe(
+      "/beneficios/validar/11111111-2222-4333-8444-555555555555"
+    );
+  });
+
+  it("permite a raiz exata da subárvore de validação", async () => {
+    montarPortal("/beneficios/validar");
+    expect(await destinoFinal()).toBe("/beneficios/validar");
+  });
+
+  it("rejeita prefixo colado /beneficios/validarfalso", async () => {
+    // Fronteira de segmento: "validarfalso" não é filho de "validar".
+    montarPortal("/beneficios/validarfalso");
+    expect(await destinoFinal()).toBe("/portal/dashboard");
+  });
+
+  it("rejeita irmã da subárvore permitida dentro de /beneficios", async () => {
+    montarPortal("/beneficios/resgatar/abc");
+    expect(await destinoFinal()).toBe("/portal/dashboard");
+  });
+
+  it("rejeita URL absoluta externa", async () => {
+    for (const externo of [
+      "https://evil.com/x",
+      "http://evil.com",
+      "//evil.com/x",
+      "javascript:alert(1)",
+      "data:text/html,<script>1</script>",
+    ]) {
+      cleanup();
+      montarPortal(externo);
+      expect(await destinoFinal(), externo).toBe("/portal/dashboard");
+    }
+  });
+
+  it("rejeita fuga de origem por backslash que se disfarça de rota de benefício", async () => {
+    // Backslash na posição 1 é protocolo-relativo disfarçado: o parser o
+    // trata como "/", a origem muda, e o destino reprova antes mesmo da
+    // allowlist. Não confundir com backslash NO MEIO do caminho, que apenas
+    // normaliza para "/" e continua interno — esse caso é legítimo e cai
+    // numa rota inexistente, tratada pelo roteador.
+    montarPortal("/\\\\beneficios/validar/abc");
+    expect(await destinoFinal()).toBe("/portal/dashboard");
+  });
+
+  it("preserva a query do destino de validação, que carrega contexto legítimo", async () => {
+    montarPortal("/beneficios/validar/abc?origem=qr");
+    expect(await destinoFinal()).toBe("/beneficios/validar/abc?origem=qr");
+  });
 });

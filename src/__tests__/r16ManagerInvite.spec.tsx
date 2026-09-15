@@ -218,13 +218,25 @@ describe("R16_MANAGER_INVITE_ACCEPTANCE_UI — autenticação", () => {
     expect(chamadasRpc()).toHaveLength(0);
   });
 
-  it("a proteção requiredPrefix=/portal do PortalLogin NÃO é enfraquecida", () => {
-    const portalLogin = lerFonte("src/pages/portal/PortalLogin.tsx");
-    expect(portalLogin).toContain('requiredPrefix: "/portal"');
-    // A página de convite não usa o next do PortalLogin.
+  it("o convite permanece ISOLADO do fluxo ?next= do PortalLogin", () => {
+    // Esta asserção cobria também o PortalLogin, exigindo a string
+    // 'requiredPrefix: "/portal"' no fonte. Isso acoplava o teste a UMA
+    // implementação: o Gate E passou a normalizar o destino primeiro e a
+    // aplicar depois a allowlist das duas subárvores que podem iniciar
+    // autenticação (/portal e /beneficios/validar). O contrato de segurança
+    // ficou mais forte, e ainda assim a asserção antiga reprovava.
+    //
+    // O comportamento do redirecionamento agora é provado por
+    // loginRedirectSinks.spec.tsx, que exercita o caminho real
+    // (sessão → efeito → navigate) em vez de ler o código-fonte.
+    //
+    // O que permanece aqui é o invariante do CONVITE, que é de acoplamento
+    // legítimo: a página de aceite não participa daquele fluxo. Se um dia
+    // participar, este teste tem de ser reaberto de propósito.
     const convite = lerFonte("src/pages/parceiros/AceitarConviteManager.tsx");
     expect(convite).not.toContain("safeInternalDestination");
     expect(convite).not.toContain("next=");
+    expect(convite).not.toContain("/portal/login");
   });
 });
 
