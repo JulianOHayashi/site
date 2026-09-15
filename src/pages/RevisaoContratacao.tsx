@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import { formatarCentavos } from "../domain/pricing/contractPricing";
@@ -52,15 +52,60 @@ const ROTULO_MODO: Record<BenefitSettlementMode, string> = {
   cash: "Dinheiro real",
 };
 
+import {
+  reservarOportunidade,
+  type ReservaComercial,
+} from "../services/commercialReservationService";
+import { obterVinculosParceiro } from "../services/partnerApplicationService";
+
+/**
+ * Bloco de reserva — só aparece para TITULAR ativo com vínculo durável.
+ *
+ * Tudo que ele mostra vem da resposta do servidor: o prazo é `reserved_until`
+ * calculado com `now()` do banco, não um relógio do navegador. Um contador
+ * regressivo pode ser somado depois, mas ele exibe, não decide.
+ */
 export default function RevisaoContratacao() {
   const [params] = useSearchParams();
   // Apenas SELEÇÃO de nicho vem da URL. Nenhum valor monetário é aceito de
-  // query string, e nada aqui lê localStorage.
+  // query string, e nada aqui lê armazenamento do navegador.
   const nichoParam = params.get("nicho");
   const nicho =
     NICHOS_REFERENCIA.find((n) => n.code === nichoParam) ?? NICHOS_REFERENCIA[0];
 
   const [modo, setModo] = useState<BenefitSettlementMode>("direct_benefits");
+
+  const [empresa, setEmpresa] = useState<string | null>(null);
+  const [reserva, setReserva] = useState<ReservaComercial | null>(null);
+  const [reservando, setReservando] = useState(false);
+  const [falhaReserva, setFalhaReserva] = useState<string | null>(null);
+
+  // Só descobrimos se há vínculo de titular; a autorização real é do servidor.
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      const v = await obterVinculosParceiro();
+      if (!vivo) return;
+      setEmpresa(v.tipo === "ok" ? (v.vinculos[0]?.company_id ?? null) : null);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const reservar = useCallback(async () => {
+    if (!empresa || reservando) return;
+    setReservando(true);
+    setFalhaReserva(null);
+    const r = await reservarOportunidade({
+      companyId: empresa,
+      nicheCode: nicho.code,
+      benefitSettlementMode: modo,
+    });
+    setReservando(false);
+    if (r.tipo === "ok") setReserva(r.reserva);
+    else setFalhaReserva(r.codigo);
+  }, [empresa, modo, nicho.code, reservando]);
 
   // Condição fundadora: quem revisa publicamente ainda não tem histórico.
   const composicao = useMemo(
@@ -200,12 +245,61 @@ export default function RevisaoContratacao() {
           Esta página não realiza pagamento, não gera contrato e não confirma
           contratação. Nenhum provedor de pagamento está integrado.
         </p>
-        <Link
-          to="/parceiros/cadastro"
-          className="btn-primary mt-4 inline-block w-full text-center"
-        >
-          Solicitar contratação
-        </Link>
+
+        {reserva ? (
+          <section className="card mt-6 p-6" aria-labelledby="reserva-titulo">
+            <h2 id="reserva-titulo" className="text-lg font-bold">
+              Oportunidade reservada por {reserva.reservationMinutes} minutos
+            </h2>
+            <p className="mt-2 text-sm text-tinta/70">
+              O nicho inteiro está reservado para a sua empresa até{" "}
+              <strong>
+                {new Date(reserva.reservedUntil).toLocaleString("pt-BR")}
+              </strong>
+              . Passado esse prazo a oportunidade volta a ficar disponível.
+            </p>
+            <p className="mt-2 text-xs text-tinta/50">
+              Reserva não é pagamento nem contrato. Nenhum valor foi cobrado.
+            </p>
+            {reserva.already && (
+              <p className="mt-2 text-xs text-tinta/50">
+                Você já tinha esta reserva em andamento; o prazo original foi
+                mantido.
+              </p>
+            )}
+          </section>
+        ) : empresa ? (
+          <>
+            <button
+              onClick={reservar}
+              disabled={reservando}
+              className="btn-primary mt-4 w-full disabled:opacity-50"
+            >
+              {reservando ? "Reservando..." : "Reservar por 30 minutos"}
+            </button>
+            {falhaReserva && (
+              <div
+                role="alert"
+                className="mt-3 rounded-xl bg-magenta/10 p-3 text-sm text-magenta"
+              >
+                {falhaReserva === "opportunity_reserved"
+                  ? "Esta oportunidade está reservada por outra empresa no momento."
+                  : falhaReserva === "not_company_owner"
+                    ? "Apenas o responsável da empresa pode reservar."
+                    : falhaReserva === "region_not_operating"
+                      ? "Ainda não operamos na cidade cadastrada para a sua empresa."
+                      : "Não foi possível reservar agora. Nada foi cobrado."}
+              </div>
+            )}
+          </>
+        ) : (
+          <Link
+            to="/parceiros/cadastro"
+            className="btn-primary mt-4 inline-block w-full text-center"
+          >
+            Solicitar contratação
+          </Link>
+        )}
       </main>
     </>
   );
