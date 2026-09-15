@@ -12,8 +12,7 @@ import { safeInternalDestination } from "../../lib/safeInternalDestination";
  *
  * Não chama mais nenhuma RPC do Supabase do APP. A verificação de
  * vínculo com um parceiro comercial e as consultas de contexto/uso
- * ficarão em uma camada de serviço separada, a ser conectada em
- * outra etapa.
+ * ficam em uma camada de serviço separada.
  */
 export default function PortalLogin() {
   const navigate = useNavigate();
@@ -25,11 +24,21 @@ export default function PortalLogin() {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // next seguro: apenas caminhos internos dentro da subarvore /portal
-  const destinoAposLogin = () =>
-    safeInternalDestination(params.get("next"), "/portal/dashboard", {
-      requiredPrefix: "/portal",
+  // next seguro: aceita somente as duas subárvores legítimas que podem
+  // iniciar autenticação no Portal. Mantemos a validação de mesma origem
+  // de safeInternalDestination e nunca aceitamos um destino arbitrário.
+  const destinoAposLogin = () => {
+    const raw = params.get("next");
+    const portal = safeInternalDestination(raw, "", { requiredPrefix: "/portal" });
+    if (portal) return portal;
+
+    const beneficio = safeInternalDestination(raw, "", {
+      requiredPrefix: "/beneficios/validar",
     });
+    if (beneficio) return beneficio;
+
+    return "/portal/dashboard";
+  };
 
   // Já logado? Segue direto.
   useEffect(() => {
