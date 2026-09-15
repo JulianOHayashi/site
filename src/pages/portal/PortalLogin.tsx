@@ -24,18 +24,21 @@ export default function PortalLogin() {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // next seguro: aceita somente as duas subárvores legítimas que podem
-  // iniciar autenticação no Portal. Mantemos a validação de mesma origem
-  // de safeInternalDestination e nunca aceitamos um destino arbitrário.
+  // Normaliza primeiro como destino estritamente interno e, em seguida,
+  // aplica a allowlist das duas subárvores que podem iniciar autenticação.
   const destinoAposLogin = () => {
-    const raw = params.get("next");
-    const portal = safeInternalDestination(raw, "", { requiredPrefix: "/portal" });
-    if (portal) return portal;
+    const destino = safeInternalDestination(
+      params.get("next"),
+      "/portal/dashboard"
+    );
+    const pathname = destino.split(/[?#]/, 1)[0];
 
-    const beneficio = safeInternalDestination(raw, "", {
-      requiredPrefix: "/beneficios/validar",
-    });
-    if (beneficio) return beneficio;
+    const dentroDe = (prefixo: string) =>
+      pathname === prefixo || pathname.startsWith(`${prefixo}/`);
+
+    if (dentroDe("/portal") || dentroDe("/beneficios/validar")) {
+      return destino;
+    }
 
     return "/portal/dashboard";
   };
