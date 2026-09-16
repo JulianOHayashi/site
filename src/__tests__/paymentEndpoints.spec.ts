@@ -30,6 +30,24 @@ const PAY = "22222222-2222-4222-8222-222222222222";
 const IDEM = "bdflow-order-" + ORDER;
 const ATE = "2026-09-18T12:30:00.000Z";
 
+/** Contexto de cliente devolvido pela RPC privilegiada, dado autoritativo. */
+const CTX_CLIENTE = {
+  ok: true,
+  legal_name: "Empresa Teste LTDA",
+  cnpj: "21010001000197",
+  email: "contato@teste.local",
+  phone: "(27) 99999-0000",
+  address: {
+    postal_code: "29100-000",
+    street: "Rua Teste",
+    street_number: "100",
+    complement: null,
+    district: "Centro",
+    city: "Vitoria",
+    uf: "ES",
+  },
+};
+
 function aberturaPix(over: Record<string, unknown> = {}) {
   return {
     ok: true, already: false, payment_id: PAY, status: "created",
@@ -45,6 +63,9 @@ function dbFalso(abertura: unknown, over: Record<string, unknown> = {}) {
       chamadas.push({ fn, args });
       if (fn === "open_commercial_payment_attempt") return { data: abertura, error: null };
       if (fn === "prov_record_payment_identifiers") return { data: { ok: true }, error: null };
+      if (fn === "prov_get_commercial_payment_customer_context") {
+        return { data: over.customer ?? CTX_CLIENTE, error: null };
+      }
       if (fn === "prov_find_commercial_payment_by_provider_order") {
         return { data: over.lookup ?? { ok: true, payment_id: PAY }, error: null };
       }
@@ -188,7 +209,9 @@ describe("cartao do fidelizado", () => {
 
     const corpo = JSON.parse(x.envios[0].body as string);
     expect(corpo.payment_settings.accepted_payment_methods).toEqual(["credit_card"]);
-    expect(corpo.max_sessions).toBe(1);
+    // Limite de PAGAMENTOS bem-sucedidos, nao de ordens geradas.
+    expect(corpo.max_paid_sessions).toBe(1);
+    expect(corpo.max_sessions).toBeUndefined();
     expect(corpo.expires_at).toBe(ATE);
     expect(JSON.stringify(corpo)).not.toMatch(/boleto|"pix"|debit/i);
 
@@ -412,5 +435,45 @@ describe("isolamento de credencial", () => {
       expect(src).not.toMatch(/VITE_PAGARME/);
       expect(src).toContain("no-store");
     }
+  });
+});
+
+describe("cliente do provedor: autoridade do servidor", () => {
+  it("o navegador nao fornece nenhum dado de cliente", () => {
+    const leitura = readFileSync(
+      resolve(__dirname, "../../api/payments/create.ts"),
+      "utf8"
+    );
+    for (const proibido of ["customer", "cnpj", "document", "address", "email", "phone"]) {
+      expect(leitura, proibido).not.toContain(`corpo.${proibido}`);
+    }
+  });
+
+  it("contexto incompleto falha fechada ANTES da rede", async () => {
+    for (const ruim of [
+      { ok: false, reason: "company_not_found" },
+      { ok: true, legal_name: null, cnpj: "21010001000197", email: "a@b.test", address: CTX_CLIENTE.address },
+      { ...CTX_CLIENTE, address: { ...CTX_CLIENTE.address, postal_code: null } },
+    ]) {
+      const x = deps(aberturaPix(), provedorFalso({ id: "or_1", charges: [] }), {
+        customer: ruim,
+      });
+      await expect(
+        criarPagamento({ orderId: ORDER }, "jwt", x.d)
+      ).rejects.toMatchObject({ code: "provider_customer_data_incomplete", status: 409 });
+      expect(x.envios).toHaveLength(0);
+    }
+  });
+
+  it("o cliente enviado vem do contexto privilegiado, campo a campo", async () => {
+    const x = deps(aberturaPix());
+    await criarPagamento({ orderId: ORDER }, "jwt", x.d);
+    const corpo = JSON.parse(x.envios[0].body as string);
+    expect(corpo.customer.name).toBe("Empresa Teste LTDA");
+    expect(corpo.customer.document).toBe("21010001000197");
+    expect(corpo.customer.type).toBe("company");
+    expect(corpo.customer.document_type).toBe("CNPJ");
+    expect(corpo.customer.address.zip_code).toBe("29100000");
+    expect(corpo.customer.phones.mobile_phone.area_code).toBe("27");
   });
 });

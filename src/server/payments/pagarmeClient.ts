@@ -24,6 +24,22 @@ import { createHash, randomUUID } from "node:crypto";
 export const PAGARME_API_FAMILY = "/core/v5";
 export const PAGARME_DEFAULT_BASE_URL = "https://api.pagar.me/core/v5";
 
+/**
+ * Host de teste documentado para o Checkout/Payment Link. A referência de
+ * `POST /paymentlinks` é explícita: conta de teste usa `sdx-api` com
+ * `sk_test`. Para `/orders` a documentação descreve teste x produção pela
+ * CHAVE, não pelo host — por isso a configuração é separada e o padrão de
+ * produção nunca aponta para sandbox sozinho.
+ */
+export const PAGARME_CHECKOUT_SANDBOX_BASE_URL = "https://sdx-api.pagar.me/core/v5";
+
+/**
+ * Cabeçalho que a documentação do Checkout declara obrigatório em toda
+ * requisição. Valor FIXO e não secreto — nunca derivado de entrada do
+ * usuário.
+ */
+export const PAGARME_CHECKOUT_USER_AGENT = "pagarme-skill-generated/1.0";
+
 /** Teto de parcelas da regra comercial, não do provedor. */
 export const MAX_INSTALLMENTS = 6;
 export const MIN_INSTALLMENTS = 1;
@@ -39,6 +55,8 @@ export class PagarmeConfigError extends Error {
 
 export type PagarmeConfig = {
   readonly baseUrl: string;
+  /** Host do Checkout/Payment Link, que a documentação trata à parte. */
+  readonly checkoutBaseUrl: string;
   /** Presente só na memória do processo; nunca serializada. */
   readonly secretKey: string;
 };
@@ -64,7 +82,24 @@ export function loadPagarmeConfig(
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new PagarmeConfigError("PAGARME_API_BASE_URL");
   }
-  return { baseUrl: base.replace(/\/+$/, ""), secretKey: secret };
+  // O Checkout tem host próprio documentado para teste. Se não for
+  // configurado, ele acompanha a base — e a base padrão é PRODUÇÃO, então
+  // nada é roteado para sandbox por omissão.
+  const checkoutBruto = (env.PAGARME_CHECKOUT_BASE_URL ?? base).trim();
+  try {
+    const u = new URL(checkoutBruto);
+    if (u.protocol !== "https:" && u.protocol !== "http:") {
+      throw new PagarmeConfigError("PAGARME_CHECKOUT_BASE_URL");
+    }
+  } catch {
+    throw new PagarmeConfigError("PAGARME_CHECKOUT_BASE_URL");
+  }
+
+  return {
+    baseUrl: base.replace(/\/+$/, ""),
+    checkoutBaseUrl: checkoutBruto.replace(/\/+$/, ""),
+    secretKey: secret,
+  };
 }
 
 /**
@@ -79,6 +114,118 @@ export function montarParcelas(
     saida.push({ number: n, total: amountCents });
   }
   return saida;
+}
+
+/**
+ * Cliente do provedor, montado SÓ a partir de dado autoritativo do servidor.
+ * Campo ausente vira falha fechada antes da rede — nunca placeholder.
+ */
+export type ClienteProvedor = {
+  name: string;
+  email: string;
+  document: string;
+  document_type: "CNPJ";
+  type: "company";
+  address: {
+    line_1: string;
+    line_2?: string;
+    zip_code: string;
+    city: string;
+    state: string;
+    country: "BR";
+  };
+  phones?: {
+    mobile_phone: { country_code: string; area_code: string; number: string };
+  };
+};
+
+export type ContextoCliente = {
+  legal_name?: unknown;
+  cnpj?: unknown;
+  email?: unknown;
+  phone?: unknown;
+  address?: {
+    postal_code?: unknown;
+    street?: unknown;
+    street_number?: unknown;
+    complement?: unknown;
+    district?: unknown;
+    city?: unknown;
+    uf?: unknown;
+  };
+};
+
+export class PagarmeCustomerDataError extends Error {
+  readonly code = "provider_customer_data_incomplete";
+  constructor() {
+    super("provider_customer_data_incomplete");
+    this.name = "PagarmeCustomerDataError";
+  }
+}
+
+const texto = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t === "" ? null : t;
+};
+
+/**
+ * Telefone brasileiro só é enviado quando pode ser lido sem ambiguidade:
+ * 10 ou 11 dígitos depois de remover formatação. Caso contrário, é omitido —
+ * fabricar número seria pior que não mandar.
+ */
+export function normalizarTelefoneBR(
+  bruto: unknown
+): { country_code: string; area_code: string; number: string } | null {
+  const t = texto(bruto);
+  if (!t) return null;
+  const d = t.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  if (d.length !== 10 && d.length !== 11) return null;
+  return { country_code: "55", area_code: d.slice(0, 2), number: d.slice(2) };
+}
+
+/**
+ * Monta o cliente do provedor. Endereço incompleto reprova: CEP, logradouro,
+ * número, cidade e UF são obrigatórios, e nenhum deles é inventado.
+ */
+export function montarClienteProvedor(ctx: ContextoCliente): ClienteProvedor {
+  const nome = texto(ctx.legal_name);
+  const email = texto(ctx.email);
+  const doc = texto(ctx.cnpj)?.replace(/\D/g, "") ?? null;
+  const a = ctx.address ?? {};
+  const cep = texto(a.postal_code)?.replace(/\D/g, "") ?? null;
+  const rua = texto(a.street);
+  const num = texto(a.street_number);
+  const cidade = texto(a.city);
+  const uf = texto(a.uf)?.toUpperCase() ?? null;
+
+  if (!nome || !email || !doc || doc.length !== 14 || !cep || cep.length !== 8
+      || !rua || !num || !cidade || !uf || uf.length !== 2) {
+    throw new PagarmeCustomerDataError();
+  }
+
+  // line_1 no formato V5: número, logradouro, bairro.
+  const bairro = texto(a.district);
+  const line1 = [num, rua, bairro].filter(Boolean).join(", ");
+  const comp = texto(a.complement);
+  const fone = normalizarTelefoneBR(ctx.phone);
+
+  return {
+    name: nome,
+    email,
+    document: doc,
+    document_type: "CNPJ",
+    type: "company",
+    address: {
+      line_1: line1,
+      ...(comp ? { line_2: comp } : {}),
+      zip_code: cep,
+      city: cidade,
+      state: uf,
+      country: "BR",
+    },
+    ...(fone ? { phones: { mobile_phone: fone } } : {}),
+  };
 }
 
 export type AberturaPagamento = {
@@ -128,17 +275,22 @@ export class PagarmeClient {
     caminho: string,
     metodo: string,
     corpo: unknown,
-    idempotencyKey?: string
+    idempotencyKey?: string,
+    checkout = false
   ): Promise<{ status: number; ok: boolean; json: Record<string, unknown> | null }> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Authorization: autorizacao(this.cfg),
     };
+    // A documentação do Checkout declara este cabeçalho obrigatório em toda
+    // requisição. Valor fixo, não secreto, jamais derivado de entrada.
+    if (checkout) headers["User-Agent"] = PAGARME_CHECKOUT_USER_AGENT;
     // A MESMA chave em toda retentativa lógica: o provedor não cria recurso
     // novo a cada clique do navegador.
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
 
-    const res = await this.fetchImpl(`${this.cfg.baseUrl}${caminho}`, {
+    const base = checkout ? this.cfg.checkoutBaseUrl : this.cfg.baseUrl;
+    const res = await this.fetchImpl(`${base}${caminho}`, {
       method: metodo,
       headers,
       ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
@@ -154,13 +306,23 @@ export class PagarmeClient {
     return { status: res.status, ok: res.ok, json };
   }
 
-  /** Pix do não fidelizado. Expiração exata da reserva, nunca recalculada. */
-  async criarPix(a: AberturaPagamento): Promise<ResultadoProvedor> {
+  /**
+   * Pix do não fidelizado. Expiração exata da reserva, nunca recalculada.
+   *
+   * A V5 exige `customer` ou `customer_id` na criação do pedido; o cliente
+   * vem montado de dado autoritativo do servidor e já falhou fechado se
+   * estivesse incompleto.
+   */
+  async criarPix(
+    a: AberturaPagamento,
+    cliente: ClienteProvedor
+  ): Promise<ResultadoProvedor> {
     const r = await this.chamar(
       "/orders",
       "POST",
       {
         code: a.orderReference,
+        customer: cliente,
         items: [
           {
             amount: a.amountCents,
@@ -208,9 +370,10 @@ export class PagarmeClient {
       {
         name: "Exclusividade comercial BDFlow",
         type: "order",
-        // Um único pagamento bem-sucedido: o link não é reutilizável.
-        max_sessions: 1,
-        expires_in: undefined,
+        // A regra de negócio é UM PAGAMENTO BEM-SUCEDIDO. `max_sessions`
+        // limita ORDENS GERADAS, pagas ou não, e por isso não serve: um
+        // comprador que tentasse e falhasse queimaria o link.
+        max_paid_sessions: 1,
         expires_at: a.expiresAt,
         payment_settings: {
           // Cartão de crédito APENAS. Sem boleto, sem Pix, sem débito.
@@ -230,7 +393,8 @@ export class PagarmeClient {
           ],
         },
       },
-      a.idempotencyKey
+      a.idempotencyKey,
+      true
     );
     return {
       ok: r.ok,

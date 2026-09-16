@@ -27,6 +27,9 @@ import {
   MAX_INSTALLMENTS,
   MIN_INSTALLMENTS,
   PagarmeConfigError,
+  PagarmeCustomerDataError,
+  montarClienteProvedor,
+  type ContextoCliente,
   type PagarmeClient,
 } from "./pagarmeClient.js";
 
@@ -184,10 +187,34 @@ export async function criarPagamento(
     orderReference: a.idempotency_key,
   };
 
-  const r =
-    a.payment_method === "pix"
-      ? await cliente.criarPix(abertura)
-      : await cliente.criarLinkCartao(abertura);
+  let r;
+  if (a.payment_method === "pix") {
+    // A V5 exige `customer` na criação do pedido. O contexto vem da
+    // identidade privilegiada e do dado de onboarding da própria empresa —
+    // o navegador não fornece nada disso e não tem por onde fornecer.
+    const { data: ctx, error: e3 } = await deps
+      .dbPrivilegiado()
+      .rpc("prov_get_commercial_payment_customer_context", {
+        p_payment_id: a.payment_id,
+      });
+    if (e3) throw new PaymentError("provider_customer_lookup_failed", 502);
+    const c = (ctx ?? {}) as ContextoCliente & { ok?: boolean };
+    if (c.ok !== true) throw new PaymentError("provider_customer_data_incomplete", 409);
+
+    let clienteProvedor;
+    try {
+      // Dado faltando reprova AQUI, antes da rede. Nada de placeholder.
+      clienteProvedor = montarClienteProvedor(c);
+    } catch (e) {
+      if (e instanceof PagarmeCustomerDataError) {
+        throw new PaymentError("provider_customer_data_incomplete", 409);
+      }
+      throw e;
+    }
+    r = await cliente.criarPix(abertura, clienteProvedor);
+  } else {
+    r = await cliente.criarLinkCartao(abertura);
+  }
 
   if (!r.ok) {
     // Falha do provedor NÃO abre segunda tentativa: a chave de idempotência

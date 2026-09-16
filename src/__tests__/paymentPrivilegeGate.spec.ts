@@ -65,6 +65,7 @@ describe("nao existe despachante privilegiado generico", () => {
         "open_commercial_payment_attempt",
         "prov_confirm_commercial_payment",
         "prov_find_commercial_payment_by_provider_order",
+        "prov_get_commercial_payment_customer_context",
         "prov_record_payment_identifiers",
       ].sort()
     );
@@ -280,13 +281,17 @@ describe("grants declarados nas migrations", () => {
     resolve(__dirname, "../../supabase/migrations/20260917120000_commercial_payments_pagarme.sql"),
     "utf8"
   );
+  const m36 = readFileSync(
+    resolve(__dirname, "../../supabase/migrations/20260919120000_provider_customer_context.sql"),
+    "utf8"
+  );
   const m35 = readFileSync(
     resolve(__dirname, "../../supabase/migrations/20260918120000_commercial_payment_lookup_status.sql"),
     "utf8"
   );
 
   it("nenhuma RPC de provedor e concedida a anon ou authenticated", () => {
-    for (const [nome, sql] of [["m34", m34], ["m35", m35]] as const) {
+    for (const [nome, sql] of [["m34", m34], ["m35", m35], ["m36", m36]] as const) {
       // Nao pode existir GRANT de prov_* para papel de navegador.
       expect(sql, nome).not.toMatch(/GRANT\s+EXECUTE[^;]*prov_[^;]*TO[^;]*\b(anon|authenticated)\b/);
       expect(sql, nome).toMatch(/REVOKE EXECUTE[^;]*prov_[^;]*FROM[^;]*anon/);
@@ -297,6 +302,7 @@ describe("grants declarados nas migrations", () => {
     const guarda = /auth\.role\(\), current_user::text\) <> 'service_role'/g;
     expect((m34.match(guarda) ?? []).length).toBeGreaterThanOrEqual(3);
     expect((m35.match(guarda) ?? []).length).toBeGreaterThanOrEqual(1);
+    expect((m36.match(guarda) ?? []).length).toBeGreaterThanOrEqual(1);
   });
 
   it("so as operacoes seguras do titular sao expostas a authenticated", () => {
