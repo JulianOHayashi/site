@@ -40,7 +40,11 @@ const RAIZ = resolve(__dirname, "../..");
  * Toda função serverless entra aqui. Acrescentar um endpoint e esquecer esta
  * lista reproduziria o defeito original numa rota nova.
  */
-const ENTRADAS = ["api/benefit-usage/validate.ts"] as const;
+const ENTRADAS = [
+  "api/benefit-usage/validate.ts",
+  "api/payments/create.ts",
+  "api/payments/webhook.ts",
+] as const;
 const ENTRADA = ENTRADAS[0];
 
 /** Import/export relativo, incluindo `import type` e side-effect import. */
