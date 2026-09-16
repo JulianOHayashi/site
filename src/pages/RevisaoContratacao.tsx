@@ -57,6 +57,7 @@ import {
   type ReservaComercial,
 } from "../services/commercialReservationService";
 import { obterVinculosParceiro } from "../services/partnerApplicationService";
+import EtapasContratacao from "./comercial/EtapasContratacao";
 
 /**
  * Bloco de reserva — só aparece para TITULAR ativo com vínculo durável.
@@ -268,6 +269,16 @@ export default function RevisaoContratacao() {
               </p>
             )}
           </section>
+        ) : null}
+
+        {reserva ? (
+          // Contrato e pagamento só aparecem DEPOIS da reserva viva, e todos
+          // os valores vêm da resposta do servidor.
+          <EtapasContratacao
+            intentId={reserva.intentId}
+            amountCents={reserva.totalMonetaryFundingRequiredCents}
+            fidelizado={reserva.fidelized}
+          />
         ) : empresa ? (
           <>
             <button
