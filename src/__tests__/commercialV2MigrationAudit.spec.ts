@@ -213,12 +213,12 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 33 migrations", () => {
+  it("exatamente 34 migrations", () => {
     // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada;
     // 20260908120000 endurece o snapshot de provisionamento; 20260909120000
     // acrescenta a RPC de autoridade de uso de beneficio; 20260915120000
     // corrige o portao de titular e implementa a reserva de 30 minutos.
-    expect(arquivos.length).toBe(33);
+    expect(arquivos.length).toBe(34);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {
