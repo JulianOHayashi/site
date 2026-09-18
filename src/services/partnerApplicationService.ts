@@ -53,6 +53,10 @@ const MENSAGENS: Record<string, string> = {
   duplicate_unit: "Já existe uma unidade ativa com esse nome.",
   invalid_unit: "Selecione uma unidade ativa da empresa.",
   company_inactive: "A empresa não está ativa no momento.",
+  invalid_action: "Esta ação de manager não é válida.",
+  manager_only: "Esta ação só pode ser aplicada a managers.",
+  manager_inactive: "O manager precisa estar ativo para alterar vínculos de unidade.",
+  invalid_transition: "Esta mudança de status não é permitida no estado atual.",
   not_reviewable: "Esta solicitação não está em análise.",
   not_rejected: "Esta solicitação não está rejeitada.",
   already_reconsidered: "Esta solicitação já teve uma reconsideração.",
@@ -402,10 +406,19 @@ export type MembroEmpresa = {
   email: string | null;
 };
 
+export type VinculoUnidadeManager = {
+  id: string;
+  member_id: string;
+  unit_id: string;
+  status: string;
+  revoked_at: string | null;
+};
+
 export type EquipeOwner = {
   unidades: UnidadeParceiro[];
   convites: ConviteManager[];
   membros: MembroEmpresa[];
+  vinculosUnidade: VinculoUnidadeManager[];
 };
 
 export async function carregarEquipeOwner(
@@ -413,7 +426,7 @@ export async function carregarEquipeOwner(
 ): Promise<ResultadoRpc<EquipeOwner>> {
   if (!supabase) return { ok: false, motivo: "not_configured" };
 
-  const [unidades, convites, membros] = await Promise.all([
+  const [unidades, convites, membros, vinculosUnidade] = await Promise.all([
     supabase
       .from("site_partner_units")
       .select("id, company_id, name, city, uf, status, partner_branch_bridge_id")
@@ -429,9 +442,13 @@ export async function carregarEquipeOwner(
       .select("id, company_id, auth_user_id, role, status, full_name, email")
       .eq("company_id", companyId)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("site_member_unit_bindings")
+      .select("id, member_id, unit_id, status, revoked_at")
+      .eq("status", "active"),
   ]);
 
-  if (unidades.error || convites.error || membros.error) {
+  if (unidades.error || convites.error || membros.error || vinculosUnidade.error) {
     return { ok: false, motivo: "rpc_error" };
   }
 
@@ -441,6 +458,7 @@ export async function carregarEquipeOwner(
       unidades: (unidades.data ?? []) as UnidadeParceiro[],
       convites: (convites.data ?? []) as ConviteManager[],
       membros: (membros.data ?? []) as MembroEmpresa[],
+      vinculosUnidade: (vinculosUnidade.data ?? []) as VinculoUnidadeManager[],
     },
   };
 }
@@ -478,6 +496,32 @@ export function ownerRevogarConviteManager(inviteId: string) {
     "owner_revoke_manager_invite",
     { p_invite_id: inviteId }
   );
+}
+
+export function ownerDefinirStatusManager(
+  memberId: string,
+  action: "suspend" | "reactivate" | "revoke",
+  reason?: string
+) {
+  return chamarRpc<{ already?: boolean }>("owner_set_manager_status", {
+    p_member_id: memberId,
+    p_action: action,
+    p_reason: reason?.trim() || null,
+  });
+}
+
+export function ownerDefinirVinculoManager(
+  memberId: string,
+  unitId: string,
+  bound: boolean,
+  reason?: string
+) {
+  return chamarRpc<{ already?: boolean }>("owner_set_manager_unit_binding", {
+    p_member_id: memberId,
+    p_unit_id: unitId,
+    p_bound: bound,
+    p_reason: reason?.trim() || null,
+  });
 }
 
 // ---------------------------------------------------------------------------
