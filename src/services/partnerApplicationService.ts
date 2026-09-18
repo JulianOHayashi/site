@@ -57,6 +57,7 @@ const MENSAGENS: Record<string, string> = {
   manager_only: "Esta ação só pode ser aplicada a managers.",
   manager_inactive: "O manager precisa estar ativo para alterar vínculos de unidade.",
   invalid_transition: "Esta mudança de status não é permitida no estado atual.",
+  access_revoked: "Este acesso de manager foi revogado definitivamente.",
   not_reviewable: "Esta solicitação não está em análise.",
   not_rejected: "Esta solicitação não está rejeitada.",
   already_reconsidered: "Esta solicitação já teve uma reconsideração.",
@@ -336,6 +337,28 @@ export async function obterVinculosParceiro(): Promise<
   const vinculos = interpretarContextoParceiro(data);
   if (vinculos === null) return { tipo: "erro" };
   return { tipo: "ok", vinculos };
+}
+
+export type EstadoBloqueioParceiro = "suspended" | "revoked" | null;
+
+export async function obterEstadoBloqueioParceiro(
+  authUserId: string
+): Promise<{ tipo: "ok"; estado: EstadoBloqueioParceiro } | { tipo: "erro" }> {
+  if (!supabase) return { tipo: "erro" };
+
+  const { data, error } = await supabase
+    .from("site_company_members")
+    .select("status")
+    .eq("auth_user_id", authUserId)
+    .eq("role", "partner_manager")
+    .in("status", ["suspended", "revoked"]);
+
+  if (error) return { tipo: "erro" };
+
+  const estados = new Set((data ?? []).map((m) => m.status));
+  if (estados.has("suspended")) return { tipo: "ok", estado: "suspended" };
+  if (estados.has("revoked")) return { tipo: "ok", estado: "revoked" };
+  return { tipo: "ok", estado: null };
 }
 
 export async function obterContextoConta(): Promise<ContextoConta> {
