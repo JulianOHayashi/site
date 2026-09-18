@@ -16,7 +16,19 @@ vi.mock("../lib/supabase", () => {
     getSession: vi.fn(async () => ({ data: { session: { access_token: "t", user: { id: "u1" } } } })),
     onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
   };
-  return { supabase: { auth, rpc: (...a: unknown[]) => rpcMock(...(a as [])) }, supabaseConfigurado: true };
+  const from = vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          in: vi.fn(async () => ({ data: [], error: null })),
+        })),
+      })),
+    })),
+  }));
+  return {
+    supabase: { auth, rpc: (...a: unknown[]) => rpcMock(...(a as [])), from },
+    supabaseConfigurado: true,
+  };
 });
 
 import PortalGuard from "../components/PortalGuard";
