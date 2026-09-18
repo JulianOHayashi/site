@@ -3,7 +3,12 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import SiteHeader from "./SiteHeader";
 import { usePortalSiteAuth } from "../hooks/usePortalSiteAuth";
 import { supabaseConfigurado } from "../lib/supabase";
-import { obterContextoConta, type ContextoConta } from "../services/partnerApplicationService";
+import {
+  obterContextoConta,
+  obterEstadoBloqueioParceiro,
+  type ContextoConta,
+  type EstadoBloqueioParceiro,
+} from "../services/partnerApplicationService";
 
 /**
  * PortalGuard — acesso ao Portal do parceiro APROVADO.
@@ -55,20 +60,34 @@ export default function PortalGuard({ children }: { children: React.ReactNode })
   const { session, carregando } = usePortalSiteAuth();
   const location = useLocation();
   const [contexto, setContexto] = useState<ContextoConta | null>(null);
+  const [bloqueio, setBloqueio] = useState<EstadoBloqueioParceiro | "carregando" | "erro">("carregando");
 
   useEffect(() => {
     let ativo = true;
     if (carregando || !session) {
       setContexto(null);
+      setBloqueio("carregando");
       return;
     }
     (async () => {
       try {
         const ctx = await obterContextoConta();
-        if (ativo) setContexto(ctx);
+        if (!ativo) return;
+        setContexto(ctx);
+
+        if (ctx.tipo === "sem_contexto_parceiro") {
+          const estado = await obterEstadoBloqueioParceiro(session.user.id);
+          if (!ativo) return;
+          setBloqueio(estado.tipo === "ok" ? estado.estado : "erro");
+        } else {
+          setBloqueio(null);
+        }
       } catch {
         // Exceção inesperada também é erro, e erro nega.
-        if (ativo) setContexto({ tipo: "erro" });
+        if (ativo) {
+          setContexto({ tipo: "erro" });
+          setBloqueio("erro");
+        }
       }
     })();
     return () => {
@@ -112,11 +131,32 @@ export default function PortalGuard({ children }: { children: React.ReactNode })
   }
 
   if (decisao === "sem_contexto") {
+    if (bloqueio === "carregando") {
+      return <Carregando texto="Verificando acesso..." />;
+    }
+
+    if (bloqueio === "suspended") {
+      return (
+        <Negado
+          titulo="Acesso temporariamente suspenso."
+          detalhe="Seu acesso de manager foi suspenso pelo responsável da empresa. Enquanto estiver suspenso, o Portal e as validações permanecem bloqueados."
+        />
+      );
+    }
+
+    if (bloqueio === "revoked") {
+      return (
+        <Negado
+          titulo="Acesso de manager revogado."
+          detalhe="Este vínculo foi revogado definitivamente. Um novo convite não reativa automaticamente este acesso."
+        />
+      );
+    }
+
     return (
       <Negado
         titulo="Portal indisponível para esta conta."
-        detalhe="Esta área é do parceiro aprovado. Se você está em processo de cadastro, acompanhe sua solicitação."
-        acao={{ para: "/parceiros/solicitacao", rotulo: "Acompanhar solicitação" }}
+        detalhe="Esta conta não possui um vínculo ativo de parceiro com acesso ao Portal."
       />
     );
   }
