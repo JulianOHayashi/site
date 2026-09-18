@@ -77,6 +77,9 @@ export default function RevisaoContratacao() {
   const [modo, setModo] = useState<BenefitSettlementMode>("direct_benefits");
 
   const [empresa, setEmpresa] = useState<string | null>(null);
+  const [perfilComercial, setPerfilComercial] = useState<
+    "carregando" | "owner" | "manager" | "sem_vinculo" | "erro"
+  >("carregando");
   const [reserva, setReserva] = useState<ReservaComercial | null>(null);
   const [reservando, setReservando] = useState(false);
   const [falhaReserva, setFalhaReserva] = useState<string | null>(null);
@@ -87,7 +90,27 @@ export default function RevisaoContratacao() {
     void (async () => {
       const v = await obterVinculosParceiro();
       if (!vivo) return;
-      setEmpresa(v.tipo === "ok" ? (v.vinculos[0]?.company_id ?? null) : null);
+
+      if (v.tipo !== "ok") {
+        setEmpresa(null);
+        setPerfilComercial("erro");
+        return;
+      }
+
+      const owner = v.vinculos.find(
+        (item) => item.role === "partner_owner" && item.member_status === "active"
+      );
+      if (owner) {
+        setEmpresa(owner.company_id);
+        setPerfilComercial("owner");
+        return;
+      }
+
+      const manager = v.vinculos.find(
+        (item) => item.role === "partner_manager" && item.member_status === "active"
+      );
+      setEmpresa(null);
+      setPerfilComercial(manager ? "manager" : "sem_vinculo");
     })();
     return () => {
       vivo = false;
@@ -280,7 +303,7 @@ export default function RevisaoContratacao() {
             amountCents={reserva.totalMonetaryFundingRequiredCents}
             fidelizado={reserva.fidelized}
           />
-        ) : empresa ? (
+        ) : perfilComercial === "owner" && empresa ? (
           <>
             <button
               onClick={reservar}
@@ -304,6 +327,23 @@ export default function RevisaoContratacao() {
               </div>
             )}
           </>
+        ) : perfilComercial === "manager" ? (
+          <section className="card mt-6 p-6 text-center" role="alert">
+            <h2 className="text-lg font-bold">Acesso comercial restrito ao responsável da empresa</h2>
+            <p className="mt-2 text-sm text-tinta/70">
+              Managers podem operar as validações das unidades autorizadas, mas não podem
+              reservar oportunidades, aceitar termos comerciais, finalizar contratos ou
+              iniciar pagamentos.
+            </p>
+          </section>
+        ) : perfilComercial === "carregando" ? (
+          <p className="mt-6 text-center text-sm text-tinta/60" role="status">
+            Verificando acesso comercial...
+          </p>
+        ) : perfilComercial === "erro" ? (
+          <div role="alert" className="mt-6 rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
+            Não foi possível verificar o acesso comercial. Nenhuma contratação foi liberada.
+          </div>
         ) : (
           <Link
             to="/parceiros/cadastro"
