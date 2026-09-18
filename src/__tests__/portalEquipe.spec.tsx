@@ -7,6 +7,8 @@ const carregarEquipeOwner = vi.fn();
 const ownerCriarUnidade = vi.fn();
 const ownerConvidarManager = vi.fn();
 const ownerRevogarConviteManager = vi.fn();
+const ownerDefinirStatusManager = vi.fn();
+const ownerDefinirVinculoManager = vi.fn();
 
 vi.mock("../services/partnerApplicationService", () => ({
   obterVinculosParceiro: (...a: unknown[]) => obterVinculosParceiro(...a),
@@ -14,6 +16,8 @@ vi.mock("../services/partnerApplicationService", () => ({
   ownerCriarUnidade: (...a: unknown[]) => ownerCriarUnidade(...a),
   ownerConvidarManager: (...a: unknown[]) => ownerConvidarManager(...a),
   ownerRevogarConviteManager: (...a: unknown[]) => ownerRevogarConviteManager(...a),
+  ownerDefinirStatusManager: (...a: unknown[]) => ownerDefinirStatusManager(...a),
+  ownerDefinirVinculoManager: (...a: unknown[]) => ownerDefinirVinculoManager(...a),
   mensagemDeMotivo: (m: string) => m,
 }));
 
@@ -56,11 +60,14 @@ beforeEach(() => {
       }],
       convites: [],
       membros: [],
+      vinculosUnidade: [],
     },
   });
   ownerCriarUnidade.mockResolvedValue({ ok: true, dados: { unit_id: UNIT } });
   ownerConvidarManager.mockResolvedValue({ ok: true, dados: { invite_id: "i1" } });
   ownerRevogarConviteManager.mockResolvedValue({ ok: true, dados: {} });
+  ownerDefinirStatusManager.mockResolvedValue({ ok: true, dados: {} });
+  ownerDefinirVinculoManager.mockResolvedValue({ ok: true, dados: {} });
 });
 
 describe("PortalEquipe", () => {
@@ -110,6 +117,93 @@ describe("PortalEquipe", () => {
         "manager@example.com",
         "Manager QA",
         UNIT
+      )
+    );
+  });
+
+
+  it("owner suspende manager pela RPC canônica", async () => {
+    carregarEquipeOwner.mockResolvedValue({
+      ok: true,
+      dados: {
+        unidades: [{
+          id: UNIT,
+          company_id: COMPANY,
+          name: "Matriz",
+          city: "Vitória",
+          uf: "ES",
+          status: "active",
+          partner_branch_bridge_id: "b1",
+        }],
+        convites: [],
+        membros: [{
+          id: "m-manager",
+          company_id: COMPANY,
+          auth_user_id: "u-manager",
+          role: "partner_manager",
+          status: "active",
+          full_name: "Manager QA",
+          email: "manager@example.com",
+        }],
+        vinculosUnidade: [{
+          id: "bind-1",
+          member_id: "m-manager",
+          unit_id: UNIT,
+          status: "active",
+          revoked_at: null,
+        }],
+      },
+    });
+
+    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
+    await screen.findByText("Manager QA");
+    fireEvent.click(screen.getByRole("button", { name: "Suspender" }));
+
+    await waitFor(() =>
+      expect(ownerDefinirStatusManager).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "m-manager" }),
+        "suspend"
+      )
+    );
+  });
+
+  it("owner altera vínculo de unidade pela RPC canônica", async () => {
+    carregarEquipeOwner.mockResolvedValue({
+      ok: true,
+      dados: {
+        unidades: [{
+          id: UNIT,
+          company_id: COMPANY,
+          name: "Matriz",
+          city: "Vitória",
+          uf: "ES",
+          status: "active",
+          partner_branch_bridge_id: "b1",
+        }],
+        convites: [],
+        membros: [{
+          id: "m-manager",
+          company_id: COMPANY,
+          auth_user_id: "u-manager",
+          role: "partner_manager",
+          status: "active",
+          full_name: "Manager QA",
+          email: "manager@example.com",
+        }],
+        vinculosUnidade: [],
+      },
+    });
+
+    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
+    await screen.findByText("Manager QA");
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    await waitFor(() =>
+      expect(ownerDefinirVinculoManager).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "m-manager" }),
+        UNIT,
+        true,
+        undefined
       )
     );
   });
