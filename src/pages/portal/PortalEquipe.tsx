@@ -155,7 +155,7 @@ export default function PortalEquipe() {
 
     setNomeManager("");
     setEmailManager("");
-    setMensagem("Convite criado. O link é válido por 48 horas após o despacho.");
+    setMensagem("Convite criado e colocado na fila de envio. O prazo de 48 horas começa quando o link for despachado.");
     await carregar();
   };
 
