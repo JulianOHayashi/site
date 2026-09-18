@@ -21,7 +21,8 @@ type Estado =
 /**
  * /oportunidades — protegida por CommercialTerritoryGuard.
  * Mostra a exclusividade atual, o progresso da formação e as seis
- * oportunidades. Sem seletor de quantidade, carrinho, preço ou reserva.
+ * oportunidades. Não há unidades avulsas; o detalhe conduz o titular ao
+ * checkout, onde a reserva e as etapas contratuais são controladas pelo servidor.
  */
 export default function Oportunidades() {
   const [estado, setEstado] = useState<Estado>({ fase: "loading" });
@@ -142,8 +143,9 @@ export default function Oportunidades() {
                 Oportunidades comerciais
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-tinta/60">
-                Cada nicho é uma oportunidade comercial contratada integralmente.
-                A contratação será implementada em uma fase posterior.
+                Cada nicho é contratado integralmente. Abra uma oportunidade
+                para revisar as condições e, como titular autenticado, avançar
+                ao checkout e reservar o nicho.
               </p>
               {estado.dados.exclusivity.plannedStartAt && (
                 <p className="mt-2 text-sm font-semibold">

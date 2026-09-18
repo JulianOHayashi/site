@@ -235,6 +235,13 @@ describe("COMERCIAL V2 UI — resumo agregado da formação", () => {
     const fonte = lerFonte("src/pages/Oportunidades.tsx");
     expect(fonte).toContain("<ResumoFormacao />");
   });
+
+  it("não anuncia mais a contratação como fase futura", () => {
+    const fonte = semComentarios(lerFonte("src/pages/Oportunidades.tsx"));
+    expect(fonte).not.toContain("A contratação será implementada em uma fase posterior");
+    expect(fonte).toContain("avançar");
+    expect(fonte).toContain("checkout");
+  });
 });
 
 describe("COMERCIAL V2 UI — rota /checkout", () => {
