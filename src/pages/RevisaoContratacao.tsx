@@ -321,9 +321,11 @@ export default function RevisaoContratacao() {
                   ? "Esta oportunidade está reservada por outra empresa no momento."
                   : falhaReserva === "not_company_owner"
                     ? "Apenas o responsável da empresa pode reservar."
-                    : falhaReserva === "region_not_operating"
-                      ? "Ainda não operamos na cidade cadastrada para a sua empresa."
-                      : "Não foi possível reservar agora. Nada foi cobrado."}
+                    : falhaReserva === "company_already_contracted_in_exclusivity"
+                      ? "Esta empresa já possui um nicho contratado nesta exclusividade. Cada CNPJ pode contratar apenas um nicho por exclusividade."
+                      : falhaReserva === "region_not_operating"
+                        ? "Ainda não operamos na cidade cadastrada para a sua empresa."
+                        : "Não foi possível reservar agora. Nada foi cobrado."}
               </div>
             )}
           </>
