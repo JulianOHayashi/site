@@ -146,6 +146,15 @@ export default function PortalLogin() {
           <button type="submit" disabled={enviando} className="btn-primary w-full">
             {enviando ? "Aguarde..." : "Entrar"}
           </button>
+
+          <p className="text-center text-sm">
+            <Link
+              to="/portal/recuperar-senha"
+              className="font-medium text-ciano hover:underline"
+            >
+              Esqueci minha senha
+            </Link>
+          </p>
         </form>
 
         <p className="mt-6 text-center text-sm">

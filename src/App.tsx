@@ -9,6 +9,8 @@ import PortalGuard from "./components/PortalGuard";
 import Parceiros from "./pages/Parceiros";
 import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
+import PortalForgotPassword from "./pages/portal/PortalForgotPassword";
+import PortalResetPassword from "./pages/portal/PortalResetPassword";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalValidar from "./pages/portal/PortalValidar";
 import BeneficiosValidar from "./pages/beneficios/BeneficiosValidar";
@@ -108,6 +110,8 @@ export default function App() {
         {/* Portal do parceiro BDFlow (Supabase do Site). */}
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
+        <Route path="/portal/recuperar-senha" element={<PortalForgotPassword />} />
+        <Route path="/portal/redefinir-senha" element={<PortalResetPassword />} />
         <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
         {/* Cadastro legado neutralizado: redirect seguro, sem RPC legada. */}
         <Route path="/portal/cadastro" element={<Navigate to="/parceiros/cadastro" replace />} />
