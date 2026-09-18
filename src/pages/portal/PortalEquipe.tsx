@@ -8,9 +8,12 @@ import {
   obterVinculosParceiro,
   ownerConvidarManager,
   ownerCriarUnidade,
+  ownerDefinirStatusManager,
+  ownerDefinirVinculoManager,
   ownerRevogarConviteManager,
   type ConviteManager,
   type EquipeOwner,
+  type MembroEmpresa,
 } from "../../services/partnerApplicationService";
 
 type Estado =
@@ -37,6 +40,7 @@ export default function PortalEquipe() {
   const [unitId, setUnitId] = useState("");
   const [acao, setAcao] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<string | null>(null);
+  const [motivosRevogacao, setMotivosRevogacao] = useState<Record<string, string>>({});
 
   const carregar = useCallback(async () => {
     setEstado({ fase: "carregando" });
@@ -166,6 +170,67 @@ export default function PortalEquipe() {
       return;
     }
     setMensagem("Convite revogado.");
+    await carregar();
+  };
+
+  const alterarStatusManager = async (
+    manager: MembroEmpresa,
+    action: "suspend" | "reactivate" | "revoke"
+  ) => {
+    if (acao) return;
+    const motivo = motivosRevogacao[manager.id]?.trim() ?? "";
+    if (action === "revoke" && motivo.length < 3) {
+      setMensagem("Informe o motivo da revogação do manager.");
+      return;
+    }
+
+    setMensagem(null);
+    setAcao(`status:${manager.id}:${action}`);
+    const r = await ownerDefinirStatusManager(
+      manager.id,
+      action,
+      action === "revoke" ? motivo : undefined
+    );
+    setAcao(null);
+
+    if (!r.ok) {
+      setMensagem(mensagemDeMotivo(r.motivo));
+      return;
+    }
+
+    if (action === "suspend") setMensagem("Manager suspenso.");
+    if (action === "reactivate") setMensagem("Manager reativado.");
+    if (action === "revoke") setMensagem("Acesso do manager revogado.");
+
+    if (action === "revoke") {
+      setMotivosRevogacao((atual) => ({ ...atual, [manager.id]: "" }));
+    }
+    await carregar();
+  };
+
+  const alterarVinculoManager = async (
+    manager: MembroEmpresa,
+    unitIdAlvo: string,
+    bound: boolean
+  ) => {
+    if (acao || manager.status !== "active") return;
+
+    setMensagem(null);
+    setAcao(`binding:${manager.id}:${unitIdAlvo}`);
+    const r = await ownerDefinirVinculoManager(
+      manager.id,
+      unitIdAlvo,
+      bound,
+      bound ? undefined : "Desvinculado pelo responsável da empresa"
+    );
+    setAcao(null);
+
+    if (!r.ok) {
+      setMensagem(mensagemDeMotivo(r.motivo));
+      return;
+    }
+
+    setMensagem(bound ? "Unidade vinculada ao manager." : "Unidade removida do manager.");
     await carregar();
   };
 
@@ -348,21 +413,129 @@ export default function PortalEquipe() {
 
             <section className="card mt-6 p-6">
               <h2 className="text-xl font-bold">Managers</h2>
+              <p className="mt-1 text-sm text-tinta/60">
+                Suspenda, reative, revogue o acesso ou altere as unidades em que cada manager pode validar.
+              </p>
               {estado.dados.membros.filter((m) => m.role === "partner_manager").length === 0 ? (
                 <p className="mt-3 text-sm text-tinta/60">Nenhum manager ativo ou histórico.</p>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 space-y-4">
                   {estado.dados.membros
                     .filter((m) => m.role === "partner_manager")
-                    .map((m) => (
-                      <div key={m.id} className="rounded-xl border border-borda p-4">
-                        <div className="flex flex-wrap justify-between gap-2">
-                          <strong>{m.full_name}</strong>
-                          <span className="text-sm">{m.status}</span>
+                    .map((m) => {
+                      const vinculosAtivos = new Set(
+                        estado.dados.vinculosUnidade
+                          .filter((v) => v.member_id === m.id && v.status === "active")
+                          .map((v) => v.unit_id)
+                      );
+                      const emAcao = acao?.includes(m.id) ?? false;
+
+                      return (
+                        <div key={m.id} className="rounded-xl border border-borda p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <strong>{m.full_name}</strong>
+                              {m.email && <p className="mt-1 text-sm text-tinta/60">{m.email}</p>}
+                            </div>
+                            <span className="text-sm font-semibold">{m.status}</span>
+                          </div>
+
+                          <div className="mt-4">
+                            <p className="text-sm font-semibold">Unidades autorizadas</p>
+                            {unidadesAtivas.length === 0 ? (
+                              <p className="mt-2 text-sm text-tinta/60">Nenhuma unidade ativa.</p>
+                            ) : (
+                              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                {unidadesAtivas.map((u) => {
+                                  const vinculado = vinculosAtivos.has(u.id);
+                                  return (
+                                    <label
+                                      key={u.id}
+                                      className="flex items-center gap-2 rounded-lg border border-borda px-3 py-2 text-sm"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={vinculado}
+                                        disabled={m.status !== "active" || acao !== null}
+                                        onChange={(e) =>
+                                          void alterarVinculoManager(m, u.id, e.target.checked)
+                                        }
+                                      />
+                                      <span>{u.name} — {u.city}/{u.uf}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {m.status === "suspended" && (
+                              <p className="mt-2 text-xs text-tinta/60">
+                                Reative o manager antes de alterar os vínculos de unidade.
+                              </p>
+                            )}
+                            {m.status === "revoked" && (
+                              <p className="mt-2 text-xs text-tinta/60">
+                                Este acesso foi revogado e não pode ser reativado por esta tela.
+                              </p>
+                            )}
+                          </div>
+
+                          {m.status !== "revoked" && (
+                            <div className="mt-4 border-t border-borda pt-4">
+                              <div className="flex flex-wrap gap-2">
+                                {m.status === "active" && (
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    disabled={acao !== null}
+                                    onClick={() => void alterarStatusManager(m, "suspend")}
+                                  >
+                                    {acao === `status:${m.id}:suspend` ? "Suspendendo..." : "Suspender"}
+                                  </button>
+                                )}
+                                {m.status === "suspended" && (
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    disabled={acao !== null}
+                                    onClick={() => void alterarStatusManager(m, "reactivate")}
+                                  >
+                                    {acao === `status:${m.id}:reactivate` ? "Reativando..." : "Reativar"}
+                                  </button>
+                                )}
+                              </div>
+
+                              <label
+                                htmlFor={`motivo-revogacao-${m.id}`}
+                                className="mt-4 block text-sm font-semibold"
+                              >
+                                Motivo da revogação
+                              </label>
+                              <input
+                                id={`motivo-revogacao-${m.id}`}
+                                value={motivosRevogacao[m.id] ?? ""}
+                                onChange={(e) =>
+                                  setMotivosRevogacao((atual) => ({
+                                    ...atual,
+                                    [m.id]: e.target.value,
+                                  }))
+                                }
+                                disabled={emAcao}
+                                className="mt-1 w-full rounded-xl border border-borda px-4 py-3"
+                                placeholder="Obrigatório para revogar definitivamente"
+                              />
+                              <button
+                                type="button"
+                                className="mt-2 text-sm font-semibold text-magenta hover:underline disabled:opacity-50"
+                                disabled={acao !== null}
+                                onClick={() => void alterarStatusManager(m, "revoke")}
+                              >
+                                {acao === `status:${m.id}:revoke` ? "Revogando..." : "Revogar acesso definitivamente"}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        {m.email && <p className="mt-1 text-sm text-tinta/60">{m.email}</p>}
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               )}
             </section>
