@@ -51,6 +51,7 @@ const MENSAGENS: Record<string, string> = {
   email_mismatch:
     "O e-mail desta conta não é o mesmo que recebeu o convite. Entre com o e-mail convidado.",
   already_member: "Você já faz parte desta empresa.",
+  access_revoked: "Este acesso de manager foi revogado definitivamente e não pode ser reativado por este convite.",
   not_configured: "Serviço em configuração.",
   rpc_error: "Não foi possível concluir. Tente novamente.",
 };
@@ -224,8 +225,8 @@ export default function AceitarConviteManager() {
               Seu vínculo foi confirmado. As permissões são definidas pela
               empresa; acesso financeiro não é concedido automaticamente.
             </p>
-            <Link to="/parceiros/painel" className="btn-primary mt-6 inline-block">
-              Ir para o painel
+            <Link to="/portal/dashboard" className="btn-primary mt-6 inline-block">
+              Ir para o Portal BDFlow
             </Link>
           </div>
         ) : null}
