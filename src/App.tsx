@@ -12,6 +12,7 @@ import PortalLogin from "./pages/portal/PortalLogin";
 import PortalForgotPassword from "./pages/portal/PortalForgotPassword";
 import PortalResetPassword from "./pages/portal/PortalResetPassword";
 import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalEquipe from "./pages/portal/PortalEquipe";
 import PortalValidar from "./pages/portal/PortalValidar";
 import BeneficiosValidar from "./pages/beneficios/BeneficiosValidar";
 // A captura do fragmento roda no IMPORT, antes de qualquer rota montar:
@@ -113,6 +114,7 @@ export default function App() {
         <Route path="/portal/recuperar-senha" element={<PortalForgotPassword />} />
         <Route path="/portal/redefinir-senha" element={<PortalResetPassword />} />
         <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
+        <Route path="/portal/equipe" element={<PortalGuard><PortalEquipe /></PortalGuard>} />
         {/* Cadastro legado neutralizado: redirect seguro, sem RPC legada. */}
         <Route path="/portal/cadastro" element={<Navigate to="/parceiros/cadastro" replace />} />
         <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />

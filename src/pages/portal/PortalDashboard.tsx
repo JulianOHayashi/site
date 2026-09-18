@@ -14,7 +14,11 @@ import { obterVinculosParceiro } from "../../services/partnerApplicationService"
  * integração voltará por uma camada segura de servidor em etapa
  * futura. Sem dados falsos: mostramos o estado real ("em preparação").
  */
-type Empresa = { trade_name: string; status: string } | null;
+type Empresa = {
+  trade_name: string;
+  status: string;
+  role: "partner_owner" | "partner_manager";
+} | null;
 
 const STATUS_EMPRESA: Record<string, string> = {
   pending: "Aguardando análise da BDFlow",
@@ -48,7 +52,11 @@ export default function PortalDashboard() {
       setTemVinculo(ctx.vinculos.length > 0);
       setEmpresa(
         vinculo
-          ? { trade_name: vinculo.trade_name, status: vinculo.company_status }
+          ? {
+              trade_name: vinculo.trade_name,
+              status: vinculo.company_status,
+              role: vinculo.role,
+            }
           : null
       );
     })();
@@ -108,7 +116,7 @@ export default function PortalDashboard() {
         )}
 
         {/* Atalhos (páginas existem, com estado de indisponibilidade) */}
-        <section className="mt-8 grid gap-4 sm:grid-cols-2">
+        <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             to="/portal/validar"
             className="group rounded-3xl bg-magenta p-7 text-white shadow-lg transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(229,0,126,0.35)]"
@@ -135,6 +143,21 @@ export default function PortalDashboard() {
               Abrir →
             </span>
           </Link>
+          {empresa?.role === "partner_owner" && (
+            <Link
+              to="/portal/equipe"
+              className="group rounded-3xl border-2 border-borda bg-white p-7 text-tinta shadow-lg transition hover:-translate-y-1"
+            >
+              <span className="text-3xl">👥</span>
+              <h3 className="mt-3 text-2xl font-bold">Equipe e unidades</h3>
+              <p className="mt-1 text-sm text-tinta/70">
+                Cadastre filiais e convide managers para validar benefícios.
+              </p>
+              <span className="mt-4 inline-block font-semibold text-ciano transition group-hover:translate-x-1">
+                Gerenciar →
+              </span>
+            </Link>
+          )}
         </section>
       </main>
     </>

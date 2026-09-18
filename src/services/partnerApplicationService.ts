@@ -50,6 +50,9 @@ const MENSAGENS: Record<string, string> = {
   already_linked: "Esta solicitação já está vinculada a outra conta.",
   reviews_incomplete: "As análises de empresa e autoridade precisam estar aprovadas.",
   reason_required: "Informe o motivo da decisão.",
+  duplicate_unit: "Já existe uma unidade ativa com esse nome.",
+  invalid_unit: "Selecione uma unidade ativa da empresa.",
+  company_inactive: "A empresa não está ativa no momento.",
   not_reviewable: "Esta solicitação não está em análise.",
   not_rejected: "Esta solicitação não está rejeitada.",
   already_reconsidered: "Esta solicitação já teve uma reconsideração.",
@@ -362,6 +365,119 @@ export async function obterContextoConta(): Promise<ContextoConta> {
   }
   // Nenhum outro account_kind confere acesso operacional.
   return { tipo: "sem_contexto_parceiro" };
+}
+
+// ---------------------------------------------------------------------------
+// Equipe, unidades e convites de manager (owner)
+// ---------------------------------------------------------------------------
+export type UnidadeParceiro = {
+  id: string;
+  company_id: string;
+  name: string;
+  city: string;
+  uf: string;
+  status: string;
+  partner_branch_bridge_id: string;
+};
+
+export type ConviteManager = {
+  id: string;
+  company_id: string;
+  unit_id: string | null;
+  email: string;
+  full_name: string;
+  status: string;
+  created_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+};
+
+export type MembroEmpresa = {
+  id: string;
+  company_id: string;
+  auth_user_id: string;
+  role: "partner_owner" | "partner_manager";
+  status: string;
+  full_name: string;
+  email: string | null;
+};
+
+export type EquipeOwner = {
+  unidades: UnidadeParceiro[];
+  convites: ConviteManager[];
+  membros: MembroEmpresa[];
+};
+
+export async function carregarEquipeOwner(
+  companyId: string
+): Promise<ResultadoRpc<EquipeOwner>> {
+  if (!supabase) return { ok: false, motivo: "not_configured" };
+
+  const [unidades, convites, membros] = await Promise.all([
+    supabase
+      .from("site_partner_units")
+      .select("id, company_id, name, city, uf, status, partner_branch_bridge_id")
+      .eq("company_id", companyId)
+      .order("name", { ascending: true }),
+    supabase
+      .from("site_manager_invites")
+      .select("id, company_id, unit_id, email, full_name, status, created_at, accepted_at, revoked_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("site_company_members")
+      .select("id, company_id, auth_user_id, role, status, full_name, email")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (unidades.error || convites.error || membros.error) {
+    return { ok: false, motivo: "rpc_error" };
+  }
+
+  return {
+    ok: true,
+    dados: {
+      unidades: (unidades.data ?? []) as UnidadeParceiro[],
+      convites: (convites.data ?? []) as ConviteManager[],
+      membros: (membros.data ?? []) as MembroEmpresa[],
+    },
+  };
+}
+
+export function ownerCriarUnidade(
+  companyId: string,
+  name: string,
+  city: string,
+  uf: string
+) {
+  return chamarRpc<{ unit_id: string }>("owner_create_unit", {
+    p_company_id: companyId,
+    p_name: name,
+    p_city: city,
+    p_uf: uf,
+  });
+}
+
+export function ownerConvidarManager(
+  companyId: string,
+  email: string,
+  fullName: string,
+  unitId: string
+) {
+  return chamarRpc<{ invite_id: string }>("owner_create_manager_invite", {
+    p_company_id: companyId,
+    p_email: email.trim().toLowerCase(),
+    p_full_name: fullName.trim(),
+    p_unit_id: unitId,
+  });
+}
+
+export function ownerRevogarConviteManager(inviteId: string) {
+  return chamarRpc<{ already?: boolean; status?: string }>(
+    "owner_revoke_manager_invite",
+    { p_invite_id: inviteId }
+  );
 }
 
 // ---------------------------------------------------------------------------
