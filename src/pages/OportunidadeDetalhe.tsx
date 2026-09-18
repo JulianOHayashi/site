@@ -175,9 +175,9 @@ export default function OportunidadeDetalhe() {
                   unidades avulsas.
                 </p>
                 <p className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
-                  A contratação é conduzida pela equipe BDFlow. Esta tela
-                  apresenta a oportunidade comercial, sem reserva ou pagamento
-                  on-line.
+                  Revise as condições comerciais abaixo. O titular autenticado
+                  pode avançar ao checkout para reservar a oportunidade por 30
+                  minutos e, após o aceite dos termos, iniciar o pagamento.
                 </p>
               </div>
 

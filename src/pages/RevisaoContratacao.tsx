@@ -243,8 +243,9 @@ export default function RevisaoContratacao() {
         </section>
 
         <p className="mt-6 text-center text-sm text-tinta/60">
-          Esta página não realiza pagamento, não gera contrato e não confirma
-          contratação. Nenhum provedor de pagamento está integrado.
+          A reserva não cobra valores. O pagamento só é iniciado após a
+          reserva, o aceite dos termos vigentes e a finalização do pedido pelo
+          servidor.
         </p>
 
         {reserva ? (

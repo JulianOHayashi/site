@@ -211,6 +211,21 @@ describe("cartao fidelizado", () => {
   });
 });
 
+describe("falha de configuração do provedor", () => {
+  it("explica indisponibilidade temporária sem sugerir cobrança", async () => {
+    montarRpc();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, code: "payment_provider_not_configured" }),
+    });
+    montar();
+    fireEvent.click(await screen.findByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /Aceitar e ir/i }));
+    await screen.findByText(/provedor de pagamento está temporariamente indisponível/i);
+    expect(screen.getByText(/pedido foi registrado e nenhum valor foi cobrado/i)).toBeTruthy();
+  });
+});
+
 describe("estado do pagamento vem do banco", () => {
   it("pago so aparece quando o estado LOCAL diz pago", async () => {
     montarRpc({ status: { ok: true, status: "paid" } });

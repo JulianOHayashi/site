@@ -133,7 +133,7 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
         histórico da empresa, não escolhida na contratação.
       </p>
 
-      <Cta />
+      <Cta nicheCode={nicheCode} />
     </div>
   );
 }
@@ -176,18 +176,23 @@ function Composicao({ titulo, p }: { titulo: string; p: NichePricing }) {
   );
 }
 
-function Cta() {
+function Cta({ nicheCode }: { nicheCode?: string }) {
+  const destino = nicheCode
+    ? `/checkout?nicho=${encodeURIComponent(nicheCode)}`
+    : "/parceiros/cadastro";
+
   return (
     <>
       <Link
-        to="/parceiros/cadastro"
+        to={destino}
         className="btn-primary mt-5 inline-block w-full text-center"
       >
         Solicitar contratação
       </Link>
       <p className="mt-2 text-center text-xs text-tinta/50">
-        A contratação é conduzida pela equipe BDFlow. Esta página não realiza
-        pagamento nem gera contrato.
+        {nicheCode
+          ? "No checkout, o titular autenticado pode reservar a oportunidade por 30 minutos e avançar após o aceite dos termos."
+          : "As condições vigentes não estão disponíveis. Solicite o contato da BDFlow para receber a proposta atualizada."}
       </p>
     </>
   );

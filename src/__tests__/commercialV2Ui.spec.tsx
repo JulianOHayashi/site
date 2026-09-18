@@ -139,6 +139,18 @@ describe("COMERCIAL V2 UI — composição do supermercado em reais", () => {
     expect(screen.getByText(/Dinheiro real/)).toBeDefined();
   });
 
+  it("leva a oportunidade ao checkout preservando o nicho", async () => {
+    montar(<PainelPreco nicheCode="supermarket" />);
+    const link = await screen.findByRole("link", { name: /Solicitar contratação/i });
+    expect(link.getAttribute("href")).toBe("/checkout?nicho=supermarket");
+  });
+
+  it("o detalhe não afirma mais que reserva e pagamento on-line não existem", () => {
+    const fonte = semComentarios(lerFonte("src/pages/OportunidadeDetalhe.tsx"));
+    expect(fonte).not.toContain("sem reserva ou pagamento");
+    expect(fonte).toContain("avançar ao checkout");
+  });
+
   it("não afirma mais, sem condição, que o pool nunca é pago em dinheiro", () => {
     const fonte = semComentarios(lerFonte("src/components/commercial/PainelPreco.tsx"));
     expect(fonte).not.toContain("não é pago à BDFlow");
@@ -304,11 +316,14 @@ describe("COMERCIAL V2 UI — rota /checkout", () => {
     expect(screen.getByText("Supermercado")).toBeDefined();
   });
 
-  it("não afirma pagamento, contrato nem custódia", () => {
+  it("explica a fronteira entre reserva e pagamento sem alegar integração ausente", () => {
     montarCheckout();
     expect(
-      screen.getByText(/não realiza pagamento, não gera contrato/)
+      screen.getByText(/A reserva não cobra valores\. O pagamento só é iniciado após a reserva/i)
     ).toBeDefined();
+    expect(
+      screen.queryByText(/Nenhum provedor de pagamento está integrado/i)
+    ).toBeNull();
     const fonte = semComentarios(lerFonte("src/pages/RevisaoContratacao.tsx"));
     for (const proibido of ["custodia", "custódia", "escrow", "já pago", "garantido em conta"]) {
       expect(fonte.toLowerCase(), proibido).not.toContain(proibido.toLowerCase());

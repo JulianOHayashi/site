@@ -316,7 +316,9 @@ export default function EtapasContratacao(props: {
               ? "Os termos do pedido ainda não foram publicados."
               : falha === "not_company_owner"
                 ? "Apenas o responsável da empresa pode contratar."
-                : "Não foi possível concluir agora. Nenhum valor foi cobrado."}
+                : falha === "payment_provider_not_configured"
+                  ? "O provedor de pagamento está temporariamente indisponível. Seu pedido foi registrado e nenhum valor foi cobrado."
+                  : "Não foi possível concluir agora. Nenhum valor foi cobrado."}
         </div>
       )}
     </section>
