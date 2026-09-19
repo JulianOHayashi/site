@@ -63,18 +63,14 @@ export default function OpportunityCard({
       </p>
 
       <div className="mt-auto pt-4">
-        {opportunity.status === "available" ? (
-          <Link
-            to={`/oportunidades/${slugByCode(opportunity.nicheCode)}`}
-            className="btn-secondary w-full text-center"
-          >
-            Ver oportunidade
-          </Link>
-        ) : (
-          <span className="block w-full rounded-xl bg-papel2 py-2.5 text-center text-sm font-semibold text-tinta/50">
-            {statusLabel}
-          </span>
-        )}
+        <Link
+          to={`/oportunidades/${slugByCode(opportunity.nicheCode)}`}
+          className="btn-secondary w-full text-center"
+        >
+          {opportunity.status === "available"
+            ? "Ver oportunidade"
+            : "Ver próxima exclusividade"}
+        </Link>
       </div>
     </div>
   );
