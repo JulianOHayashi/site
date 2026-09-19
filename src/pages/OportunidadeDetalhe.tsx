@@ -5,6 +5,12 @@ import ReferenciaOperacional from "../components/commercial/ReferenciaOperaciona
 import PainelPreco from "../components/commercial/PainelPreco";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { fetchCurrentFormation } from "../services/commercialService";
+import { obterVinculosParceiro } from "../services/partnerApplicationService";
+import {
+  getFutureInterest,
+  joinFutureQueue,
+  type FutureInterest,
+} from "../services/commercialFutureInterestService";
 import {
   nicheByCode,
   nicheCodeFromSlug,
@@ -35,6 +41,9 @@ export default function OportunidadeDetalhe() {
   // Aceita SOMENTE o slug canônico (hífen). Desconhecido → null → inválido.
   const codigo = rota ? nicheCodeFromSlug(rota) : null;
   const [estado, setEstado] = useState<Estado>({ fase: "loading" });
+  const [ownerCompanyId, setOwnerCompanyId] = useState<string | null>(null);
+  const [future, setFuture] = useState<FutureInterest>({ tipo: "none" });
+  const [futureBusy, setFutureBusy] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!codigo) {
@@ -67,6 +76,47 @@ export default function OportunidadeDetalhe() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  useEffect(() => {
+    let ativo = true;
+    void (async () => {
+      const v = await obterVinculosParceiro();
+      if (!ativo || v.tipo !== "ok") return;
+      const owner = v.vinculos.find(
+        (item) => item.role === "partner_owner" && item.member_status === "active"
+      );
+      setOwnerCompanyId(owner?.company_id ?? null);
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ownerCompanyId || !codigo) return;
+    let ativo = true;
+    void (async () => {
+      const r = await getFutureInterest({
+        companyId: ownerCompanyId,
+        nicheCode: codigo,
+      });
+      if (ativo) setFuture(r);
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [ownerCompanyId, codigo]);
+
+  const registrarInteresseFuturo = async () => {
+    if (!ownerCompanyId || !codigo || futureBusy) return;
+    setFutureBusy(true);
+    const r = await joinFutureQueue({
+      companyId: ownerCompanyId,
+      nicheCode: codigo,
+    });
+    setFutureBusy(false);
+    setFuture(r);
+  };
 
   const meta = codigo ? nicheByCode(codigo) : null;
 
@@ -174,11 +224,74 @@ export default function OportunidadeDetalhe() {
                   com {opp.contractedQuantity} unidades — não há venda de
                   unidades avulsas.
                 </p>
-                <p className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
-                  Revise as condições comerciais abaixo. O titular autenticado
-                  pode avançar ao checkout para reservar a oportunidade por 30
-                  minutos e, após o aceite dos termos, iniciar o pagamento.
-                </p>
+                {opp.status === "available" ? (
+                  <p className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
+                    Revise as condições comerciais abaixo. O titular autenticado
+                    pode avançar ao checkout para reservar a oportunidade por 30
+                    minutos e, após o aceite dos termos, iniciar o pagamento.
+                  </p>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
+                    <p>
+                      A oportunidade atual não está disponível. O titular da empresa
+                      pode registrar interesse na próxima exclusividade. Esse registro
+                      não cria contrato, reserva, pagamento nem fidelidade.
+                    </p>
+
+                    {ownerCompanyId ? (
+                      <div className="mt-4">
+                        {future.tipo === "preorder" ? (
+                          <div className="rounded-xl bg-white/70 p-3">
+                            <p className="font-semibold">
+                              Pré-compra registrada para a exclusividade {future.targetSequenceNumber}.
+                            </p>
+                            <p className="mt-1 text-xs">
+                              Status: {future.status}. A contratação só nasce depois de
+                              uma oportunidade real ser oferecida e das etapas comerciais
+                              aplicáveis serem concluídas.
+                            </p>
+                          </div>
+                        ) : future.tipo === "sales_waitlist" ? (
+                          <div className="rounded-xl bg-white/70 p-3">
+                            <p className="font-semibold">
+                              Lista de espera de venda registrada.
+                            </p>
+                            <p className="mt-1 text-xs">
+                              Posição histórica: {future.position}. Primeira exclusividade
+                              possível: {future.firstPossibleExclusivitySequence}. A posição
+                              não equivale a contrato ou exclusividade.
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={registrarInteresseFuturo}
+                            disabled={futureBusy || future.tipo === "erro"}
+                            className="btn-primary w-full disabled:opacity-50"
+                          >
+                            {futureBusy
+                              ? "Registrando..."
+                              : "Registrar interesse na próxima exclusividade"}
+                          </button>
+                        )}
+
+                        {future.tipo === "erro" && (
+                          <p className="mt-2 text-sm text-magenta" role="alert">
+                            {future.codigo === "current_opportunity_available"
+                              ? "A oportunidade atual voltou a ficar disponível; use o checkout normal."
+                              : future.codigo === "company_already_preordered_next_exclusivity"
+                                ? "Esta empresa já possui uma pré-compra ativa em outro nicho da próxima exclusividade."
+                                : "Não foi possível registrar o interesse agora."}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs">
+                        Entre como responsável da empresa para registrar interesse futuro.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <PainelPreco nicheCode={meta.code} />
