@@ -4,6 +4,8 @@ import Header from "../components/Header";
 import { UFS } from "../lib/brazilStates";
 import { useCommercialTerritory } from "../hooks/useCommercialTerritory";
 import { safeInternalDestination } from "../lib/safeInternalDestination";
+import { NICHES } from "../domain/commercial/niches";
+import { registerTerritorialInterest } from "../services/commercialFutureInterestService";
 
 /**
  * /selecionar-localidade — seleção de UF + cidade.
@@ -22,6 +24,16 @@ export default function SelecionarLocalidade() {
   const [resultado, setResultado] = useState<
     { ativa: boolean; regionName: string | null } | null
   >(null);
+  const [territorialForm, setTerritorialForm] = useState({
+    cnpj: "",
+    companyName: "",
+    responsibleName: "",
+    email: "",
+    phone: "",
+    nicheCode: "supermarket",
+  });
+  const [territorialBusy, setTerritorialBusy] = useState(false);
+  const [territorialMessage, setTerritorialMessage] = useState<string | null>(null);
 
   // Destino interno validado por parser de URL (ver safeInternalDestination).
   const destino = safeInternalDestination(params.get("next"), "/oportunidades");
@@ -34,6 +46,41 @@ export default function SelecionarLocalidade() {
       ativa: t.regionStatus === "active",
       regionName: t.regionName,
     });
+  };
+
+  const registrarInteresseTerritorial = async () => {
+    if (territorialBusy) return;
+    setTerritorialBusy(true);
+    setTerritorialMessage(null);
+
+    const r = await registerTerritorialInterest({
+      ...territorialForm,
+      uf,
+      city: cidade,
+    });
+
+    setTerritorialBusy(false);
+    if (r.tipo === "ok") {
+      setTerritorialMessage(
+        r.already
+          ? "Este interesse territorial já estava registrado."
+          : "Interesse territorial registrado. Isso não representa compra nem concede exclusividade."
+      );
+      return;
+    }
+
+    const mensagens: Record<string, string> = {
+      invalid_cnpj: "Informe um CNPJ válido.",
+      invalid_company_name: "Informe o nome da empresa.",
+      invalid_responsible_name: "Informe o nome do responsável.",
+      invalid_email: "Informe um e-mail válido.",
+      invalid_location: "A localidade informada é inválida.",
+      invalid_niche: "Selecione um nicho válido.",
+      region_already_active: "Esta região já está ativa. Consulte as oportunidades disponíveis.",
+    };
+    setTerritorialMessage(
+      mensagens[r.codigo] ?? "Não foi possível registrar o interesse territorial agora."
+    );
   };
 
   return (
@@ -126,13 +173,93 @@ export default function SelecionarLocalidade() {
             ) : (
               <div className="rounded-3xl bg-papel2 p-6">
                 <p className="font-semibold">
-                  Ainda não há uma região comercial BDFlow ativa para esta
-                  cidade.
+                  Ainda não há uma região comercial BDFlow ativa para esta cidade.
                 </p>
                 <p className="mt-2 text-sm text-tinta/70">
-                  O registro de interesse territorial será disponibilizado em
-                  uma próxima etapa.
+                  Você pode registrar interesse territorial. A inscrição serve
+                  apenas para contato futuro: não representa compra, reserva ou
+                  exclusividade.
                 </p>
+
+                <div className="mt-5 grid gap-3">
+                  <input
+                    value={territorialForm.cnpj}
+                    onChange={(e) =>
+                      setTerritorialForm((v) => ({ ...v, cnpj: e.target.value }))
+                    }
+                    placeholder="CNPJ"
+                    className="w-full rounded-xl border border-borda px-4 py-3"
+                  />
+                  <input
+                    value={territorialForm.companyName}
+                    onChange={(e) =>
+                      setTerritorialForm((v) => ({ ...v, companyName: e.target.value }))
+                    }
+                    placeholder="Empresa"
+                    className="w-full rounded-xl border border-borda px-4 py-3"
+                  />
+                  <input
+                    value={territorialForm.responsibleName}
+                    onChange={(e) =>
+                      setTerritorialForm((v) => ({ ...v, responsibleName: e.target.value }))
+                    }
+                    placeholder="Responsável"
+                    className="w-full rounded-xl border border-borda px-4 py-3"
+                  />
+                  <input
+                    type="email"
+                    value={territorialForm.email}
+                    onChange={(e) =>
+                      setTerritorialForm((v) => ({ ...v, email: e.target.value }))
+                    }
+                    placeholder="E-mail"
+                    className="w-full rounded-xl border border-borda px-4 py-3"
+                  />
+                  <input
+                    value={territorialForm.phone}
+                    onChange={(e) =>
+                      setTerritorialForm((v) => ({ ...v, phone: e.target.value }))
+                    }
+                    placeholder="Telefone"
+                    className="w-full rounded-xl border border-borda px-4 py-3"
+                  />
+                  <select
+                    value={territorialForm.nicheCode}
+                    onChange={(e) =>
+                      setTerritorialForm((v) => ({ ...v, nicheCode: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-borda px-4 py-3"
+                  >
+                    {NICHES.map((n) => (
+                      <option key={n.code} value={n.code}>
+                        {n.displayName}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={registrarInteresseTerritorial}
+                    disabled={
+                      territorialBusy ||
+                      !territorialForm.cnpj.trim() ||
+                      !territorialForm.companyName.trim() ||
+                      !territorialForm.responsibleName.trim() ||
+                      !territorialForm.email.trim()
+                    }
+                    className="btn-primary w-full disabled:opacity-50"
+                  >
+                    {territorialBusy
+                      ? "Registrando..."
+                      : "Registrar interesse territorial"}
+                  </button>
+
+                  {territorialMessage && (
+                    <p className="text-sm text-tinta/70" role="status">
+                      {territorialMessage}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
