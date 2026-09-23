@@ -43,14 +43,10 @@ export default function PortalValidar() {
   const [falha, setFalha] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<{ correlationId: string } | null>(null);
 
-  // Canônico para o backend: 8 alfanuméricos, sem hífen. A exibição usa
-  // XXXX-XXXX só para facilitar a leitura em voz alta no balcão.
+  // O valor digitado é preservado literalmente até a validação autoritativa.
+  // Isso impede TAB, Unicode ou hífens extras de serem "limpos" pelo cliente e
+  // acidentalmente virarem um código válido antes de chegar ao servidor.
   const canonico = normalizarDisplayCode(codigo);
-  const exibicao = codigo
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 8)
-    .replace(/^(.{4})(.+)$/, "$1-$2");
 
   const carregar = useCallback(async () => {
     setEstado({ fase: "carregando" });
@@ -158,12 +154,12 @@ export default function PortalValidar() {
             <label className="block text-sm">
               <span className="font-semibold">Código do benefício</span>
               <input
-                value={exibicao}
+                value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 inputMode="text"
                 autoComplete="off"
                 spellCheck={false}
-                maxLength={9}
+                maxLength={32}
                 className="mt-1 w-full rounded-xl border-2 border-borda px-3 py-2 font-mono tracking-widest"
                 placeholder="XXXX-XXXX"
                 aria-label="Código do benefício"

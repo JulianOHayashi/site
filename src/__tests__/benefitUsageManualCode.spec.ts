@@ -75,7 +75,7 @@ function gatewayFalso(over: { corpo?: unknown; ok?: boolean } = {}) {
       status: ok ? 200 : 409,
       ok,
       text: async () =>
-        JSON.stringify(over.corpo ?? { status: "awaiting_user_confirmation" }),
+        JSON.stringify(over.corpo ?? { request_status: "awaiting_user_confirmation" }),
     };
   };
   return { envios, cliente: new BenefitUsageGatewayClient(loadGatewayConfig(envGw), impl) };
@@ -109,14 +109,39 @@ function envelope(e: { headers: Record<string, string> }) {
 beforeEach(() => vi.restoreAllMocks());
 
 describe("normalizacao do codigo, sem adivinhar se existe", () => {
-  it("aceita a forma de oito alfanumericos, com ou sem hifen", () => {
-    for (const v of ["ABCD7K2M", "abcd7k2m", "ABCD-7K2M", " abcd-7k2m ", "AB CD7K2M"]) {
-      expect(normalizarDisplayCode(v), v).toBe("ABCD7K2M");
+  it("aceita somente as formas auditadas e devolve o canonico", () => {
+    expect(normalizarDisplayCode("ABCD7K2M")).toBe("ABCD7K2M");
+    expect(normalizarDisplayCode("ABCD-7K2M")).toBe("ABCD7K2M");
+    expect(normalizarDisplayCode("abcd-7k2m")).toBe("ABCD7K2M");
+    expect(normalizarDisplayCode(" AB CD-7K2M ")).toBe("ABCD7K2M");
+  });
+
+  it("rejeita Unicode, hifen extra e whitespace que nao seja espaco ASCII", () => {
+    for (const v of [
+      "ſBCD7K2M",
+      "AB--CD7K2M",
+      "AB\tCD7K2M",
+      "AB\nCD7K2M",
+      "AB\rCD7K2M",
+    ]) {
+      expect(normalizarDisplayCode(v), JSON.stringify(v)).toBeNull();
     }
   });
 
-  it("recusa qualquer outra forma", () => {
-    for (const v of ["ABCD7K2", "ABCD7K2MX", "ABCD-7K2!", "", null, 12345678, "        "]) {
+  it("rejeita caracteres ambiguos e formatos fora do contrato", () => {
+    for (const v of [
+      "ABCD7K2",
+      "ABCD7K2MX",
+      "ABCD-7K2!",
+      "ABCD0K2M",
+      "ABCD1K2M",
+      "ABCDIK2M",
+      "ABCDOK2M",
+      "",
+      null,
+      12345678,
+      "        ",
+    ]) {
       expect(normalizarDisplayCode(v), String(v)).toBeNull();
     }
   });
@@ -289,6 +314,7 @@ describe("assinatura e resposta", () => {
     const x = deps();
     const r = await executarCodigoManual(entrada, "jwt", x.d);
     const texto = JSON.stringify(r);
+    expect(r.app_status).toBe("awaiting_user_confirmation");
     expect(Object.keys(r).sort()).toEqual(
       [
         "ok",
@@ -306,6 +332,18 @@ describe("assinatura e resposta", () => {
     expect(texto).not.toContain("eyJ");
     // O codigo digitado tambem nao volta.
     expect(texto).not.toContain(CODIGO);
+  });
+
+  it("usa request_status do Gateway, nao o campo status", async () => {
+    const gw = gatewayFalso({
+      corpo: {
+        request_status: "awaiting_user_confirmation",
+        status: "campo-incorreto",
+      },
+    });
+    const x = deps({}, gw);
+    const r = await executarCodigoManual(entrada, "jwt", x.d);
+    expect(r.app_status).toBe("awaiting_user_confirmation");
   });
 
   it("16. o codigo nunca aparece em log nem em erro", async () => {
@@ -361,6 +399,8 @@ describe("fronteira navegador/servidor", () => {
     expect(src).not.toMatch(/localStorage|sessionStorage/);
     expect(src).not.toMatch(/useSearchParams|searchParams|\?qt=/);
     expect(src).not.toMatch(/console\.|logger\./);
+    expect(src).toContain("value={codigo}");
+    expect(src).not.toContain('replace(/[^A-Z0-9]/g, "")');
     // O caminho legado saiu desta tela.
     expect(src).not.toContain("prepararValidacaoBeneficio");
   });

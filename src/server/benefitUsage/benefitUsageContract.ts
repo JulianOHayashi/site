@@ -185,18 +185,39 @@ export function montarCreateRequestBody(
 // Ele transporta o código tal como foi digitado e prova QUEM está validando.
 // ---------------------------------------------------------------------------
 
-/** Forma aceita no cliente: 8 alfanuméricos maiúsculos, já normalizados. */
-export const DISPLAY_CODE_RE = /^[A-Z0-9]{8}$/;
+/**
+ * Código canônico emitido pelo App: 8 caracteres do alfabeto sem ambiguidade.
+ * Exclui 0, 1, I e O.
+ */
+export const DISPLAY_CODE_RE = /^[A-HJ-NP-Z2-9]{8}$/;
 
 /**
- * Normalização de apresentação: o balconista digita `ABCD-7K2M`, o contrato
- * viaja como `ABCD7K2M`. Só isso — nenhuma tentativa de adivinhar se o código
- * existe, porque essa resposta é do App.
+ * Contrato de entrada do App:
+ * - aceita XXXXXXXX ou XXXX-XXXX;
+ * - aceita equivalentes minúsculos;
+ * - remove apenas espaço ASCII U+0020;
+ * - rejeita qualquer não-ASCII ANTES de aplicar uppercase;
+ * - não tolera hífen extra, TAB, newline ou outro whitespace.
+ *
+ * O resultado canônico enviado ao Gateway é sempre o código de 8 caracteres
+ * em maiúsculas. O Site não tenta decidir se o código existe.
  */
 export function normalizarDisplayCode(v: unknown): string | null {
   if (typeof v !== "string") return null;
-  const limpo = v.trim().toUpperCase().replace(/[-\s]/g, "");
-  return DISPLAY_CODE_RE.test(limpo) ? limpo : null;
+  if (/[^\x00-\x7F]/.test(v)) return null;
+
+  const semEspacosAscii = v.replace(/ /g, "");
+  let oito: string;
+  if (/^[A-Za-z0-9]{8}$/.test(semEspacosAscii)) {
+    oito = semEspacosAscii;
+  } else if (/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/.test(semEspacosAscii)) {
+    oito = semEspacosAscii.slice(0, 4) + semEspacosAscii.slice(5);
+  } else {
+    return null;
+  }
+
+  const canonico = oito.toUpperCase();
+  return DISPLAY_CODE_RE.test(canonico) ? canonico : null;
 }
 
 export function ehDisplayCode(v: unknown): v is string {

@@ -95,7 +95,7 @@ export async function executarCodigoManual(
     throw new BenefitUsageError("request_denied", 409);
   }
 
-  const appStatus = r.body?.status;
+  const appStatus = r.body?.request_status;
   return {
     ok: true,
     status: "request_created",
