@@ -434,3 +434,72 @@ describe("transporte HTTP assinado", () => {
     ).rejects.toThrow(/sem rota de provisionamento comercial/);
   });
 });
+
+describe("acao de código manual do balcão", () => {
+  const cfg = loadGatewayConfig(envCompleto);
+
+  it("assina a rota lógica canônica do código manual", () => {
+    const r = signGatewayRequest({
+      config: cfg,
+      action: "benefit_usage.create_request_by_code",
+      body: { display_code: "ABCD7K2M" },
+    });
+    expect(r.envelope.action).toBe("benefit_usage.create_request_by_code");
+    expect(r.envelope.gateway_path).toBe("/v1/benefit-usage/code/request");
+    expect(r.envelope.http_method).toBe("POST");
+    // Mesma versão de contrato de apresentação da criação por QR.
+    expect(r.envelope.presentation_contract_version).toBe(1);
+    expect(r.envelope.gateway_path).not.toContain("/functions/");
+    expect(r.url).toBe(`${BASE}/v1/benefit-usage/code/request`);
+  });
+
+  it("open_token continua SEM versão de apresentação", () => {
+    const r = signGatewayRequest({
+      config: cfg,
+      action: "benefit_usage.open_token",
+      body: {},
+    });
+    expect(r.envelope.presentation_contract_version).toBeUndefined();
+  });
+
+  it("body_sha256 cobre exatamente os bytes transmitidos", () => {
+    const r = signGatewayRequest({
+      config: cfg,
+      action: "benefit_usage.create_request_by_code",
+      body: { display_code: "ABCD7K2M", n: 1 },
+    });
+    expect(r.envelope.body_sha256).toBe(
+      createHash("sha256").update(Buffer.from(r.bodyText, "utf8")).digest("hex")
+    );
+    // Um byte diferente muda o hash.
+    const outro = signGatewayRequest({
+      config: cfg,
+      action: "benefit_usage.create_request_by_code",
+      body: { display_code: "ABCD7K2N", n: 1 },
+    });
+    expect(outro.envelope.body_sha256).not.toBe(r.envelope.body_sha256);
+  });
+
+  it("a assinatura Ed25519 verifica e o JTI é gerado", () => {
+    const r = signGatewayRequest({
+      config: cfg,
+      action: "benefit_usage.create_request_by_code",
+      body: { display_code: "ABCD7K2M" },
+      correlationId: "77777777-0000-4000-8000-000000000000",
+    });
+    const [h, p, sig] = r.jws.split(".");
+    expect(
+      verificar(
+        null,
+        Buffer.from(`${h}.${p}`, "ascii"),
+        par.publicKey,
+        Buffer.from(sig, "base64url")
+      )
+    ).toBe(true);
+    expect(r.envelope.jti).toMatch(UUID_RE);
+    // A correlação injetada é preservada no envelope assinado.
+    expect(r.envelope.request_correlation_id).toBe(
+      "77777777-0000-4000-8000-000000000000"
+    );
+  });
+});

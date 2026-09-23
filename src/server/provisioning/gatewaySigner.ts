@@ -58,6 +58,9 @@ export const GATEWAY_LIFETIME_SECONDS = 60;
 export const GATEWAY_ACTIONS = {
   "benefit_usage.open_token": "/v1/benefit-usage/token/open",
   "benefit_usage.create_request": "/v1/benefit-usage/request",
+  // Código manual digitado no balcão. O App continua sendo a autoridade sobre
+  // o código: o Site não resolve, não expira e não consome nada.
+  "benefit_usage.create_request_by_code": "/v1/benefit-usage/code/request",
 } as const;
 
 export type GatewayAction = keyof typeof GATEWAY_ACTIONS;
@@ -294,7 +297,10 @@ export function signGatewayRequest(params: {
     gateway_path: gatewayPath,
     body_sha256: bodySha256,
   };
-  if (action === "benefit_usage.create_request") {
+  // As duas criações de solicitação carregam a versão do contrato de
+  // apresentação; `open_token` não, e continua não carregando.
+  if (action === "benefit_usage.create_request"
+      || action === "benefit_usage.create_request_by_code") {
     envelope.presentation_contract_version = PRESENTATION_CONTRACT_VERSION;
   }
 

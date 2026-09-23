@@ -176,3 +176,75 @@ export function montarCreateRequestBody(
     snapshot_branch_state_code: autoridade.snapshot_branch_state_code,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Código manual digitado no balcão
+//
+// O App é a autoridade sobre o código: o Site não faz hash, não faz HMAC, não
+// consulta tabela do App, não resolve expiração e não implementa uso único.
+// Ele transporta o código tal como foi digitado e prova QUEM está validando.
+// ---------------------------------------------------------------------------
+
+/** Forma aceita no cliente: 8 alfanuméricos maiúsculos, já normalizados. */
+export const DISPLAY_CODE_RE = /^[A-Z0-9]{8}$/;
+
+/**
+ * Normalização de apresentação: o balconista digita `ABCD-7K2M`, o contrato
+ * viaja como `ABCD7K2M`. Só isso — nenhuma tentativa de adivinhar se o código
+ * existe, porque essa resposta é do App.
+ */
+export function normalizarDisplayCode(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const limpo = v.trim().toUpperCase().replace(/[-\s]/g, "");
+  return DISPLAY_CODE_RE.test(limpo) ? limpo : null;
+}
+
+export function ehDisplayCode(v: unknown): v is string {
+  return typeof v === "string" && DISPLAY_CODE_RE.test(v);
+}
+
+export type CreateRequestByCodeBody = {
+  display_code: string;
+  request_correlation_id: string;
+  partner_network_bridge_id: string;
+  partner_branch_bridge_id: string;
+  validator_bridge_id: string;
+  validator_role: ValidatorRole;
+  physical_photo_id_checked: true;
+  snapshot_presentation_version: 1;
+  snapshot_partner_display_name: string;
+  snapshot_branch_display_name: string;
+  snapshot_branch_location_label: string;
+  snapshot_branch_city_name: string;
+  snapshot_branch_state_code: string;
+};
+
+/**
+ * Corpo do código manual. Identidade e apresentação saem TODAS da autoridade
+ * derivada no servidor; do navegador vem apenas o código.
+ *
+ * Note o que NÃO existe aqui: `public_lookup_id` e `raw_token_secret` são do
+ * fluxo de QR e não têm significado neste. Misturar os dois seria converter
+ * um código de balcão em portador de token, que é outra coisa.
+ */
+export function montarCreateRequestByCodeBody(
+  displayCode: string,
+  requestCorrelationId: string,
+  autoridade: BenefitUsageAuthority
+): CreateRequestByCodeBody {
+  return {
+    display_code: displayCode,
+    request_correlation_id: requestCorrelationId,
+    partner_network_bridge_id: autoridade.partner_network_bridge_id,
+    partner_branch_bridge_id: autoridade.partner_branch_bridge_id,
+    validator_bridge_id: autoridade.validator_bridge_id,
+    validator_role: autoridade.validator_role,
+    physical_photo_id_checked: true,
+    snapshot_presentation_version: 1,
+    snapshot_partner_display_name: autoridade.snapshot_partner_display_name,
+    snapshot_branch_display_name: autoridade.snapshot_branch_display_name,
+    snapshot_branch_location_label: autoridade.snapshot_branch_location_label,
+    snapshot_branch_city_name: autoridade.snapshot_branch_city_name,
+    snapshot_branch_state_code: autoridade.snapshot_branch_state_code,
+  };
+}

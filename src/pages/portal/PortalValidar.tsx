@@ -1,25 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Header from "../../components/Header";
 import { PortalTopo } from "./portalUi";
 import {
   obterVinculosParceiro,
   obterContextoValidador,
-  prepararValidacaoBeneficio,
   type ContextoValidador,
-  type ResultadoPreparacao,
 } from "../../services/partnerApplicationService";
+import { enviarUsoDeBeneficioPorCodigo } from "../../services/benefitUsageService";
+import { normalizarDisplayCode } from "../../server/benefitUsage/benefitUsageContract";
 
 /**
- * /portal/validar?qt=... — validação de benefício, LADO SITE.
+ * /portal/validar — CÓDIGO MANUAL do balcão.
  *
- * O Site prova QUEM valida, EM QUE unidade e por QUAL rede, e encaminha ao
- * gateway do App. O desfecho do benefício é autoridade do App: enquanto o
- * repositório do App não estiver disponível, a tela informa de forma
- * explícita que o encaminhamento não conclui a validação
- * (BLOCKED_APP_REPOSITORY). Nada aqui afirma que o benefício foi usado.
+ * O Site prova QUEM valida, EM QUE unidade e por QUAL rede, e encaminha o
+ * código ao gateway do App. O desfecho é autoridade do App: aqui nada afirma
+ * que o benefício foi validado ou consumido.
  *
- * O parâmetro qt é preservado através do login pelo PortalGuard.
+ * O CÓDIGO NÃO VIVE NA URL. O antigo preenchimento por parâmetro de busca
+ * saiu — a asserção que cobre isto varre o próprio texto deste arquivo, então
+ * nem em comentário o nome daquele parâmetro aparece. Um código de benefício
+ * no histórico do navegador sobrevive ao atendimento, aparece em captura de
+ * tela e vaza por Referer. Ele é digitado, usado e descartado.
+ *
+ * O QR continua em /beneficios/validar/:publicLookupId e não se cruza com
+ * este caminho: lá o portador é `public_lookup_id` + segredo; aqui é um
+ * `display_code` digitado.
  */
 type Estado =
   | { fase: "carregando" }
@@ -29,14 +35,22 @@ type Estado =
   | { fase: "pronto"; ctx: Extract<ContextoValidador, { tipo: "elegivel" }>; companyId: string };
 
 export default function PortalValidar() {
-  const [params] = useSearchParams();
-  const qt = (params.get("qt") ?? "").trim();
-
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [unidade, setUnidade] = useState("");
-  const [token, setToken] = useState(qt);
+  const [codigo, setCodigo] = useState("");
+  const [documentoConferido, setDocumentoConferido] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<ResultadoPreparacao | null>(null);
+  const [falha, setFalha] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState<{ correlationId: string } | null>(null);
+
+  // Canônico para o backend: 8 alfanuméricos, sem hífen. A exibição usa
+  // XXXX-XXXX só para facilitar a leitura em voz alta no balcão.
+  const canonico = normalizarDisplayCode(codigo);
+  const exibicao = codigo
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8)
+    .replace(/^(.{4})(.+)$/, "$1-$2");
 
   const carregar = useCallback(async () => {
     setEstado({ fase: "carregando" });
@@ -58,12 +72,23 @@ export default function PortalValidar() {
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (estado.fase !== "pronto" || !unidade || !token.trim()) return;
+    if (estado.fase !== "pronto" || !unidade || !canonico
+        || !documentoConferido || enviando) return;
     setEnviando(true);
-    setResultado(
-      await prepararValidacaoBeneficio(estado.companyId, unidade, token.trim())
-    );
+    setFalha(null);
+    const r = await enviarUsoDeBeneficioPorCodigo({
+      displayCode: canonico,
+      unitId: unidade,
+      physicalPhotoIdChecked: true,
+    });
     setEnviando(false);
+    if (r.tipo === "ok") {
+      setSucesso({ correlationId: r.correlationId });
+      // O código some da memória da tela assim que a solicitação é criada.
+      setCodigo("");
+    } else {
+      setFalha(r.codigo);
+    }
   };
 
   return (
@@ -133,59 +158,74 @@ export default function PortalValidar() {
             <label className="block text-sm">
               <span className="font-semibold">Código do benefício</span>
               <input
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                className="mt-1 w-full rounded-xl border-2 border-borda px-3 py-2 font-mono"
-                placeholder="Código apresentado pelo usuário"
+                value={exibicao}
+                onChange={(e) => setCodigo(e.target.value)}
+                inputMode="text"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={9}
+                className="mt-1 w-full rounded-xl border-2 border-borda px-3 py-2 font-mono tracking-widest"
+                placeholder="XXXX-XXXX"
+                aria-label="Código do benefício"
               />
+              <span className="mt-1 block text-xs text-tinta/50">
+                Oito caracteres, como o usuário lê no aplicativo.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={documentoConferido}
+                onChange={(e) => setDocumentoConferido(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-semibold">
+                  Confirmo que conferi o documento com foto
+                </span>
+                <span className="mt-1 block text-tinta/70">
+                  O benefício é pessoal. Sem essa conferência, a solicitação não
+                  é enviada.
+                </span>
+              </span>
             </label>
 
             <button
               type="submit"
-              disabled={enviando || !token.trim()}
+              disabled={enviando || !canonico || !documentoConferido || !unidade}
               className="btn-primary w-full disabled:opacity-50"
             >
-              {enviando ? "Encaminhando..." : "Encaminhar validação"}
+              {enviando ? "Enviando..." : "Enviar solicitação"}
             </button>
 
-            {resultado?.tipo === "negado" && (
+            {falha && (
               <div role="alert" className="rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
-                Validação negada para esta unidade.
+                {falha === "not_authorized" || falha === "not_company_owner"
+                  ? "Você não está autorizado a validar nesta unidade."
+                  : falha === "invalid_display_code"
+                    ? "Código incompleto. Confira os oito caracteres com o usuário."
+                    : falha === "request_denied"
+                      ? "O aplicativo recusou esta solicitação. Nada foi consumido."
+                      : "Não foi possível concluir. Nenhum benefício foi consumido."}
               </div>
             )}
-            {resultado?.tipo === "erro" && (
-              <div role="alert" className="rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
-                Não foi possível encaminhar. Nenhuma validação foi registrada como
-                concluída.
-              </div>
-            )}
-            {resultado?.tipo === "encaminhado" && (
+
+            {sucesso && (
               <div className="rounded-xl bg-amarelo/25 p-4 text-sm">
-                <p className="font-semibold">Encaminhado — ainda NÃO concluído.</p>
+                <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
                 <p className="mt-2 text-tinta/70">
-                  O Site confirmou seu papel, sua unidade e sua rede, e registrou a
-                  tentativa. A conclusão depende do aplicativo BDFlow, que valida o
-                  benefício e pede a confirmação do usuário.
+                  O usuário precisa confirmar ou recusar no aplicativo BDFlow. O
+                  benefício só é consumido depois dessa confirmação.
                 </p>
-                {resultado.appGateway === "BLOCKED_APP_REPOSITORY" && (
-                  <p className="mt-2 text-tinta/70">
-                    A integração com o aplicativo ainda não está ativa nesta
-                    instalação: nenhum benefício foi consumido.
-                  </p>
-                )}
+                <p className="mt-2 text-xs text-tinta/50">
+                  Referência: <span className="font-mono">{sucesso.correlationId}</span>
+                </p>
               </div>
             )}
           </form>
         )}
 
-        {qt && estado.fase !== "pronto" && (
-          <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-borda bg-white px-4 py-3 text-sm">
-            <p className="text-xs font-bold uppercase tracking-widest text-tinta/40">
-              Código recebido
-            </p>
-            <p className="mt-1 break-all font-mono font-semibold">{qt}</p>
-          </div>
-        )}
       </main>
     </>
   );

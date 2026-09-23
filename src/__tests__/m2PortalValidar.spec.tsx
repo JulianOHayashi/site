@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 /**
@@ -8,8 +8,13 @@ import { MemoryRouter } from "react-router-dom";
  * Provas centrais:
  *   1. sem autorização de validador, nenhum formulário é oferecido;
  *   2. erro NUNCA vira permissão nem "validado";
- *   3. encaminhar NÃO afirma que o benefício foi validado ou consumido —
- *      o desfecho é do App (BLOCKED_APP_REPOSITORY).
+ *   3. enviar NÃO afirma que o benefício foi validado ou consumido — o
+ *      desfecho é do App, e só o usuário confirma lá.
+ *
+ * A tela migrou do caminho legado (`prepare_benefit_validation`) para o
+ * código manual do balcão, que vai ao gateway do App. As asserções sobre a
+ * RPC legada e sobre BLOCKED_APP_REPOSITORY saíram com ela; as de
+ * AUTORIZAÇÃO ficaram todas.
  */
 const rpcMock = vi.fn();
 
@@ -54,16 +59,47 @@ const comVinculo = {
 
 beforeEach(() => {
   rpcMock.mockReset();
-  localStorage.clear();
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      ok: true,
+      status: "request_created",
+      request_correlation_id: "corr-1",
+      app_status: "awaiting_user_confirmation",
+    }),
+  });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
-function montar(qt = "") {
+const fetchMock = vi.fn();
+
+function montar() {
   return render(
-    <MemoryRouter initialEntries={[qt ? `/portal/validar?qt=${qt}` : "/portal/validar"]}>
+    <MemoryRouter initialEntries={["/portal/validar"]}>
       <PortalValidar />
     </MemoryRouter>
   );
+}
+
+const elegivel = {
+  get_my_partner_context: comVinculo,
+  get_my_validator_context: {
+    data: { ok: true, eligible: true, role: "partner_owner", units: [UNIDADE] },
+    error: null,
+  },
+};
+
+/** Preenche código e confirmação do documento, o mínimo para submeter. */
+async function preencher(codigo = "ABCD-7K2M") {
+  const campo = await screen.findByLabelText(/Código do benefício/i);
+  fireEvent.change(campo, { target: { value: codigo } });
+  fireEvent.click(screen.getByRole("checkbox"));
+  return campo as HTMLInputElement;
 }
 
 describe("R12 — autorização de validador na tela", () => {
@@ -119,87 +155,124 @@ describe("R12 — autorização de validador na tela", () => {
     );
   });
 
-  it("preserva o código qt recebido do QR", async () => {
-    responder({
-      get_my_partner_context: comVinculo,
-      get_my_validator_context: {
-        data: { ok: true, eligible: true, role: "partner_manager", units: [UNIDADE] },
-        error: null,
-      },
-    });
-    montar("ABC123");
-    await waitFor(() => expect(screen.getByText(/gestor autorizado/i)).toBeDefined());
-    expect(screen.getByDisplayValue("ABC123")).toBeDefined();
+  it("o campo de código aparece e formata como XXXX-XXXX", async () => {
+    responder(elegivel);
+    montar();
+    const campo = (await screen.findByLabelText(
+      /Código do benefício/i
+    )) as HTMLInputElement;
+    fireEvent.change(campo, { target: { value: "abcd7k2m" } });
+    expect(campo.value).toBe("ABCD-7K2M");
+    // Lixo e excesso são descartados na exibição.
+    fireEvent.change(campo, { target: { value: "ab!cd 7k2m zzz" } });
+    expect(campo.value).toBe("ABCD-7K2M");
+  });
+
+  it("NAO ha preenchimento por parametro de URL", async () => {
+    responder(elegivel);
+    render(
+      <MemoryRouter initialEntries={["/portal/validar?qt=ABCD7K2M"]}>
+        <PortalValidar />
+      </MemoryRouter>
+    );
+    const campo = (await screen.findByLabelText(
+      /Código do benefício/i
+    )) as HTMLInputElement;
+    // Um código de benefício não sobrevive no histórico do navegador.
+    expect(campo.value).toBe("");
+    expect(screen.queryByText("ABCD7K2M")).toBeNull();
+  });
+
+  it("a unidade selecionada e preservada e enviada", async () => {
+    responder(elegivel);
+    montar();
+    await preencher();
+    fireEvent.click(screen.getByRole("button", { name: /Enviar solicitação/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const corpo = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(corpo.unit_id).toBe("u1");
   });
 });
 
-describe("R12 — encaminhar não é validar", () => {
-  it("resposta de encaminhamento declara que NAO concluiu", async () => {
-    responder({
-      get_my_partner_context: comVinculo,
-      get_my_validator_context: {
-        data: { ok: true, eligible: true, role: "partner_owner", units: [UNIDADE] },
-        error: null,
-      },
-      prepare_benefit_validation: {
-        data: {
-          ok: true,
-          allowed: true,
-          attempt_id: "a1",
-          app_gateway: "BLOCKED_APP_REPOSITORY",
-        },
-        error: null,
-      },
-    });
-    const { container } = montar("TOKEN1");
-    await waitFor(() => expect(screen.getByText(/responsável autorizado/i)).toBeDefined());
-    (container.querySelector("form") as HTMLFormElement).requestSubmit();
+describe("R12 — enviar não é validar", () => {
+  it("sem conferencia do documento o botao fica desabilitado", async () => {
+    responder(elegivel);
+    montar();
+    const campo = await screen.findByLabelText(/Código do benefício/i);
+    fireEvent.change(campo, { target: { value: "ABCD7K2M" } });
+    const botao = screen.getByRole("button", { name: /Enviar solicitação/i });
+    expect((botao as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect((botao as HTMLButtonElement).disabled).toBe(false);
+  });
 
-    await waitFor(() =>
-      expect(screen.getByText(/ainda NÃO concluído/i)).toBeDefined()
+  it("codigo incompleto mantem o envio bloqueado", async () => {
+    responder(elegivel);
+    montar();
+    const campo = await screen.findByLabelText(/Código do benefício/i);
+    fireEvent.change(campo, { target: { value: "ABC" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(
+      (screen.getByRole("button", { name: /Enviar solicitação/i }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("submete ao endpoint do Site, com o codigo canonico e nada de autoridade", async () => {
+    responder(elegivel);
+    montar();
+    await preencher();
+    fireEvent.click(screen.getByRole("button", { name: /Enviar solicitação/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/benefit-usage/code/request");
+    const corpo = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(Object.keys(corpo).sort()).toEqual(
+      ["display_code", "unit_id", "physical_photo_id_checked"].sort()
     );
-    expect(screen.getByText(/nenhum benefício foi consumido/i)).toBeDefined();
-    // Em nenhum momento a tela afirma sucesso de validação.
+    expect(corpo.display_code).toBe("ABCD7K2M");
+    expect(corpo.physical_photo_id_checked).toBe(true);
+  });
+
+  it("sucesso diz SOLICITACAO ENVIADA, nunca benefício validado", async () => {
+    responder(elegivel);
+    montar();
+    await preencher();
+    fireEvent.click(screen.getByRole("button", { name: /Enviar solicitação/i }));
+
+    await screen.findByText(/Solicitação enviada ao aplicativo/i);
+    expect(
+      screen.getByText(/confirmar ou recusar no aplicativo BDFlow/i)
+    ).toBeDefined();
+    expect(screen.getByText(/só é consumido depois dessa confirmação/i)).toBeDefined();
+    // As três afirmações proibidas neste momento.
     expect(screen.queryByText(/benefício validado/i)).toBeNull();
+    expect(screen.queryByText(/benefício consumido/i)).toBeNull();
     expect(screen.queryByText(/validação concluída/i)).toBeNull();
   });
 
-  it("negativa do backend aparece como negada", async () => {
-    responder({
-      get_my_partner_context: comVinculo,
-      get_my_validator_context: {
-        data: { ok: true, eligible: true, role: "partner_manager", units: [UNIDADE] },
-        error: null,
-      },
-      prepare_benefit_validation: {
-        data: { ok: true, allowed: false, reason: "validation_denied" },
-        error: null,
-      },
+  it("falha do gateway NUNCA vira sucesso", async () => {
+    responder(elegivel);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, code: "request_denied" }),
     });
-    const { container } = montar("TOKEN2");
-    await waitFor(() => expect(screen.getByText(/gestor autorizado/i)).toBeDefined());
-    (container.querySelector("form") as HTMLFormElement).requestSubmit();
-    await waitFor(() =>
-      expect(screen.getByText(/validação negada para esta unidade/i)).toBeDefined()
-    );
+    montar();
+    await preencher();
+    fireEvent.click(screen.getByRole("button", { name: /Enviar solicitação/i }));
+    await screen.findByText(/aplicativo recusou esta solicitação/i);
+    expect(screen.queryByText(/Solicitação enviada ao aplicativo/i)).toBeNull();
   });
 
-  it("erro no encaminhamento NAO afirma conclusão", async () => {
-    responder({
-      get_my_partner_context: comVinculo,
-      get_my_validator_context: {
-        data: { ok: true, eligible: true, role: "partner_owner", units: [UNIDADE] },
-        error: null,
-      },
-      prepare_benefit_validation: { data: null, error: { message: "boom" } },
+  it("nao autorizado aparece como recusa, sem oferecer conclusao", async () => {
+    responder(elegivel);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, code: "not_authorized" }),
     });
-    const { container } = montar("TOKEN3");
-    await waitFor(() => expect(screen.getByText(/responsável autorizado/i)).toBeDefined());
-    (container.querySelector("form") as HTMLFormElement).requestSubmit();
-    await waitFor(() =>
-      expect(
-        screen.getByText(/nenhuma validação foi registrada como concluída/i)
-      ).toBeDefined()
-    );
+    montar();
+    await preencher();
+    fireEvent.click(screen.getByRole("button", { name: /Enviar solicitação/i }));
+    await screen.findByText(/não está autorizado a validar nesta unidade/i);
   });
 });

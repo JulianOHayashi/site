@@ -19,7 +19,11 @@ import {
   type GatewayAction,
   type GatewayConfig,
 } from "../provisioning/gatewaySigner.js";
-import type { CreateRequestBody, OpenTokenBody } from "./benefitUsageContract.js";
+import type {
+  CreateRequestBody,
+  CreateRequestByCodeBody,
+  OpenTokenBody,
+} from "./benefitUsageContract.js";
 
 export type FetchLike = (
   url: string,
@@ -44,7 +48,7 @@ export class BenefitUsageGatewayClient {
 
   private async chamar(
     action: GatewayAction,
-    body: OpenTokenBody | CreateRequestBody,
+    body: OpenTokenBody | CreateRequestBody | CreateRequestByCodeBody,
     correlationId: string
   ): Promise<GatewayCallResult> {
     const req = signGatewayRequest({
@@ -83,6 +87,16 @@ export class BenefitUsageGatewayClient {
   /** POST /v1/benefit-usage/request */
   createRequest(body: CreateRequestBody, correlationId: string) {
     return this.chamar("benefit_usage.create_request", body, correlationId);
+  }
+
+  /**
+   * POST /v1/benefit-usage/code/request — código manual do balcão.
+   *
+   * Usa o MESMO `signGatewayRequest`: continua existindo uma única
+   * implementação Ed25519 no Site.
+   */
+  createRequestByCode(body: CreateRequestByCodeBody, correlationId: string) {
+    return this.chamar("benefit_usage.create_request_by_code", body, correlationId);
   }
 }
 

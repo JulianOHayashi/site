@@ -66,3 +66,65 @@ export async function enviarUsoDeBeneficio(params: {
       typeof corpo.app_status === "string" ? (corpo.app_status as string) : null,
   };
 }
+
+/**
+ * Código manual do balcão. Caminho SEPARADO do QR, de propósito: os dois
+ * provam a mesma autoridade, mas carregam portadores diferentes.
+ *
+ * O navegador envia três coisas e só três: o código digitado, qual unidade e
+ * a confirmação do documento com foto. Pontes, papel, empresa, snapshots e
+ * correlação são derivados no servidor — não há por onde enviá-los.
+ *
+ * O código não é persistido, não entra em URL e não é registrado.
+ */
+export async function enviarUsoDeBeneficioPorCodigo(params: {
+  displayCode: string;
+  unitId: string;
+  physicalPhotoIdChecked: boolean;
+}): Promise<ResultadoUsoBeneficio> {
+  if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable" };
+  if (params.physicalPhotoIdChecked !== true) {
+    return { tipo: "erro", codigo: "photo_id_check_required" };
+  }
+
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return { tipo: "erro", codigo: "not_authenticated" };
+
+  let resposta: Response;
+  try {
+    resposta = await fetch("/api/benefit-usage/code/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        display_code: params.displayCode,
+        unit_id: params.unitId,
+        physical_photo_id_checked: true,
+      }),
+    });
+  } catch {
+    return { tipo: "erro", codigo: "network_error" };
+  }
+
+  let corpo: Record<string, unknown> | null = null;
+  try {
+    corpo = (await resposta.json()) as Record<string, unknown>;
+  } catch {
+    return { tipo: "erro", codigo: "unexpected_error" };
+  }
+
+  if (!resposta.ok || corpo?.ok !== true) {
+    const codigo =
+      typeof corpo?.code === "string" ? corpo.code : "unexpected_error";
+    return { tipo: "erro", codigo };
+  }
+  return {
+    tipo: "ok",
+    correlationId: String(corpo.request_correlation_id ?? ""),
+    appStatus:
+      typeof corpo.app_status === "string" ? (corpo.app_status as string) : null,
+  };
+}

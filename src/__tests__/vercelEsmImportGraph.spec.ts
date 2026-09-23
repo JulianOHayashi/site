@@ -44,6 +44,7 @@ const ENTRADAS = [
   "api/benefit-usage/validate.ts",
   "api/payments/create.ts",
   "api/payments/webhook.ts",
+  "api/benefit-usage/code/request.ts",
 ] as const;
 const ENTRADA = ENTRADAS[0];
 

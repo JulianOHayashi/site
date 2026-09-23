@@ -1,5 +1,9 @@
 {
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/" }
-  ]
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/"
+    }
+  ],
+  "buildCommand": "RUN_MANUAL_CODE_STAGING_PROBE=1 npx vitest run src/__tests__/manualCodeGatewayStagingProbe.spec.ts && npm run build"
 }
