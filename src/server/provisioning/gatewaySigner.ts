@@ -58,6 +58,7 @@ export const GATEWAY_LIFETIME_SECONDS = 60;
 export const GATEWAY_ACTIONS = {
   "benefit_usage.open_token": "/v1/benefit-usage/token/open",
   "benefit_usage.create_request": "/v1/benefit-usage/request",
+  "benefit_usage.get_request_status": "/v1/benefit-usage/request/status",
   // Código manual digitado no balcão. O App continua sendo a autoridade sobre
   // o código: o Site não resolve, não expira e não consome nada.
   "benefit_usage.create_request_by_code": "/v1/benefit-usage/code/request",

@@ -12,7 +12,11 @@ import {
   obterContextoValidador,
   type ContextoValidador,
 } from "../../services/partnerApplicationService";
-import { enviarUsoDeBeneficio } from "../../services/benefitUsageService";
+import {
+  enviarUsoDeBeneficio,
+  obterStatusUsoDeBeneficio,
+  type BenefitUsageRequestStatus,
+} from "../../services/benefitUsageService";
 
 /**
  * /beneficios/validar/:publicLookupId#<segredo> — validação de benefício
@@ -45,7 +49,13 @@ export default function BeneficiosValidar() {
   const [documentoConferido, setDocumentoConferido] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
-  const [sucesso, setSucesso] = useState<{ correlationId: string } | null>(null);
+  const [sucesso, setSucesso] = useState<{
+    correlationId: string;
+    unitId: string;
+  } | null>(null);
+  const [statusUso, setStatusUso] =
+    useState<BenefitUsageRequestStatus | null>(null);
+  const [falhaStatus, setFalhaStatus] = useState(false);
 
   const carregar = useCallback(async () => {
     setEstado({ fase: "carregando" });
@@ -68,6 +78,39 @@ export default function BeneficiosValidar() {
   // Ao sair da tela o segredo some da memória do módulo.
   useEffect(() => () => descartarSegredoCapturado(), []);
 
+  useEffect(() => {
+    if (!sucesso) return;
+    if (statusUso && statusUso !== "awaiting_user_confirmation") return;
+
+    let cancelado = false;
+    let emAndamento = false;
+
+    const consultar = async () => {
+      if (emAndamento) return;
+      emAndamento = true;
+      const r = await obterStatusUsoDeBeneficio({
+        correlationId: sucesso.correlationId,
+        unitId: sucesso.unitId,
+      });
+      emAndamento = false;
+      if (cancelado) return;
+
+      if (r.tipo === "ok") {
+        setStatusUso(r.status);
+        setFalhaStatus(false);
+      } else {
+        setFalhaStatus(true);
+      }
+    };
+
+    void consultar();
+    const timer = window.setInterval(() => void consultar(), 2000);
+    return () => {
+      cancelado = true;
+      window.clearInterval(timer);
+    };
+  }, [statusUso, sucesso]);
+
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     const segredo = lerSegredoCapturado();
@@ -82,7 +125,16 @@ export default function BeneficiosValidar() {
     });
     setEnviando(false);
     if (r.tipo === "ok") {
-      setSucesso({ correlationId: r.correlationId });
+      const statusInicial: BenefitUsageRequestStatus =
+        r.appStatus === "confirmed" ||
+        r.appStatus === "refused" ||
+        r.appStatus === "expired" ||
+        r.appStatus === "cancelled"
+          ? r.appStatus
+          : "awaiting_user_confirmation";
+      setStatusUso(statusInicial);
+      setFalhaStatus(false);
+      setSucesso({ correlationId: r.correlationId, unitId: unidade });
       descartarSegredoCapturado();
     } else {
       setFalha(r.codigo);
@@ -212,12 +264,49 @@ export default function BeneficiosValidar() {
         )}
 
         {sucesso && (
-          <div className="card mt-8 space-y-2 p-6">
-            <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
-            <p className="text-sm text-tinta/70">
-              O usuário precisa confirmar ou recusar no aplicativo BDFlow. O
-              benefício só é consumido depois dessa confirmação.
-            </p>
+          <div className="card mt-8 space-y-2 p-6" role="status" aria-live="polite">
+            {statusUso === "confirmed" ? (
+              <>
+                <p className="font-semibold">Uso confirmado com sucesso.</p>
+                <p className="text-sm text-tinta/70">
+                  O aplicativo confirmou o uso e o benefício foi consumido.
+                </p>
+              </>
+            ) : statusUso === "refused" ? (
+              <>
+                <p className="font-semibold">Uso recusado pelo usuário.</p>
+                <p className="text-sm text-tinta/70">
+                  O benefício permanece disponível para o usuário.
+                </p>
+              </>
+            ) : statusUso === "expired" ? (
+              <>
+                <p className="font-semibold">Tempo para confirmação expirou.</p>
+                <p className="text-sm text-tinta/70">
+                  O benefício não foi consumido.
+                </p>
+              </>
+            ) : statusUso === "cancelled" ? (
+              <>
+                <p className="font-semibold">Solicitação cancelada.</p>
+                <p className="text-sm text-tinta/70">
+                  O benefício não foi consumido.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
+                <p className="text-sm text-tinta/70">
+                  O usuário precisa confirmar ou recusar no aplicativo BDFlow. O
+                  benefício só é consumido depois dessa confirmação.
+                </p>
+                {falhaStatus && (
+                  <p className="text-xs text-tinta/50">
+                    Não foi possível atualizar o resultado agora. Tentando novamente...
+                  </p>
+                )}
+              </>
+            )}
             <p className="text-xs text-tinta/50">
               Referência: <span className="font-mono">{sucesso.correlationId}</span>
             </p>

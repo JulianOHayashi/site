@@ -22,6 +22,7 @@ import {
 import type {
   CreateRequestBody,
   CreateRequestByCodeBody,
+  GetRequestStatusBody,
   OpenTokenBody,
 } from "./benefitUsageContract.js";
 
@@ -48,7 +49,11 @@ export class BenefitUsageGatewayClient {
 
   private async chamar(
     action: GatewayAction,
-    body: OpenTokenBody | CreateRequestBody | CreateRequestByCodeBody,
+    body:
+      | OpenTokenBody
+      | CreateRequestBody
+      | CreateRequestByCodeBody
+      | GetRequestStatusBody,
     correlationId: string
   ): Promise<GatewayCallResult> {
     const req = signGatewayRequest({
@@ -87,6 +92,11 @@ export class BenefitUsageGatewayClient {
   /** POST /v1/benefit-usage/request */
   createRequest(body: CreateRequestBody, correlationId: string) {
     return this.chamar("benefit_usage.create_request", body, correlationId);
+  }
+
+  /** POST /v1/benefit-usage/request/status */
+  getRequestStatus(body: GetRequestStatusBody, correlationId: string) {
+    return this.chamar("benefit_usage.get_request_status", body, correlationId);
   }
 
   /**

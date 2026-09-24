@@ -38,8 +38,10 @@ vi.mock("../lib/supabase", () => {
 });
 
 const enviarMock = vi.fn();
+const statusMock = vi.fn();
 vi.mock("../services/benefitUsageService", () => ({
   enviarUsoDeBeneficio: (...a: unknown[]) => enviarMock(...(a as [])),
+  obterStatusUsoDeBeneficio: (...a: unknown[]) => statusMock(...(a as [])),
 }));
 
 import BeneficiosValidar from "../pages/beneficios/BeneficiosValidar";
@@ -97,6 +99,11 @@ function renderizar() {
 beforeEach(() => {
   rpcMock.mockReset();
   enviarMock.mockReset();
+  statusMock.mockReset();
+  statusMock.mockResolvedValue({
+    tipo: "ok",
+    status: "awaiting_user_confirmation",
+  });
   descartarSegredoCapturado();
   rpcMock.mockImplementation(async (fn: string) => {
     if (fn === "get_my_partner_context") {
@@ -161,6 +168,29 @@ describe("BeneficiosValidar — sucesso sobrevive ao descarte do segredo", () =>
 
     // E o formulario sumiu, entao nem ha botao para clicar de novo.
     expect(screen.queryByRole("button", { name: /Enviar solicitação/i })).toBeNull();
+  });
+
+  it("atualiza a tela quando o App confirma o uso", async () => {
+    capturarSegredoReal();
+    enviarMock.mockResolvedValue({
+      tipo: "ok",
+      correlationId: CORRELACAO,
+      appStatus: "awaiting_user_confirmation",
+    });
+    statusMock.mockResolvedValue({ tipo: "ok", status: "confirmed" });
+
+    renderizar();
+
+    const checkbox = await screen.findByRole("checkbox");
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: /Enviar solicitação/i }));
+
+    await screen.findByText("Uso confirmado com sucesso.");
+    expect(screen.getByText(/benefício foi consumido/i)).toBeTruthy();
+    expect(statusMock).toHaveBeenCalledWith({
+      correlationId: CORRELACAO,
+      unitId: "u-1",
+    });
   });
 
   it("sem segredo e SEM sucesso anterior, a guarda de QR inválido continua valendo", async () => {

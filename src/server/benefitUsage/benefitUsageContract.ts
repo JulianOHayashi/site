@@ -177,6 +177,25 @@ export function montarCreateRequestBody(
   };
 }
 
+export type GetRequestStatusBody = {
+  request_correlation_id: string;
+  partner_network_bridge_id: string;
+  partner_branch_bridge_id: string;
+  validator_bridge_id: string;
+};
+
+export function montarGetRequestStatusBody(
+  requestCorrelationId: string,
+  autoridade: BenefitUsageAuthority
+): GetRequestStatusBody {
+  return {
+    request_correlation_id: requestCorrelationId,
+    partner_network_bridge_id: autoridade.partner_network_bridge_id,
+    partner_branch_bridge_id: autoridade.partner_branch_bridge_id,
+    validator_bridge_id: autoridade.validator_bridge_id,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Código manual digitado no balcão
 //
