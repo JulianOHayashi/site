@@ -263,7 +263,9 @@ describe("R16_MANAGER_INVITE_ACCEPTANCE_UI — desfechos canônicos", () => {
     montar();
     await waitFor(() => expect(screen.getByText(/acesso de gerente ativado/i)).toBeDefined());
     expect(screen.getByText(/acesso financeiro não é concedido automaticamente/i)).toBeDefined();
-    expect(screen.getByRole("link", { name: /ir para o painel/i })).toBeDefined();
+    // Desde 81764b5 o convite aceito leva direto ao Portal BDFlow.
+    const link = screen.getByRole("link", { name: /ir para o portal bdflow/i });
+    expect(link.getAttribute("href")).toBe("/portal/dashboard");
   });
 });
 
