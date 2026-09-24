@@ -4,5 +4,6 @@
       "source": "/((?!api/).*)",
       "destination": "/"
     }
-  ]
+  ],
+  "buildCommand": "npx vitest run src/__tests__/beneficiosValidarSucesso.spec.tsx && npm run build"
 }
