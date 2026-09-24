@@ -5,5 +5,5 @@
       "destination": "/"
     }
   ],
-  "buildCommand": "npm run check:legacy"
+  "buildCommand": "npm run check:legacy && npm run build"
 }
