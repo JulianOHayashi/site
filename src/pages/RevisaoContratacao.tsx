@@ -57,6 +57,7 @@ import {
   type ReservaComercial,
 } from "../services/commercialReservationService";
 import { obterVinculosParceiro } from "../services/partnerApplicationService";
+import { obterDisponibilidadePagamento } from "../services/paymentAvailabilityService";
 import EtapasContratacao from "./comercial/EtapasContratacao";
 
 /**
@@ -83,6 +84,25 @@ export default function RevisaoContratacao() {
   const [reserva, setReserva] = useState<ReservaComercial | null>(null);
   const [reservando, setReservando] = useState(false);
   const [falhaReserva, setFalhaReserva] = useState<string | null>(null);
+  const [disponibilidadePagamento, setDisponibilidadePagamento] = useState<
+    "carregando" | "disponivel" | "indisponivel"
+  >("carregando");
+
+  // O checkout só abre quando o runtime server-side confirma que o provedor
+  // está configurado. Qualquer falha nessa consulta bloqueia (fail-closed).
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      const r = await obterDisponibilidadePagamento();
+      if (!vivo) return;
+      setDisponibilidadePagamento(
+        r.tipo === "disponivel" ? "disponivel" : "indisponivel"
+      );
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   // Só descobrimos se há vínculo de titular; a autorização real é do servidor.
   useEffect(() => {
@@ -118,7 +138,7 @@ export default function RevisaoContratacao() {
   }, []);
 
   const reservar = useCallback(async () => {
-    if (!empresa || reservando) return;
+    if (!empresa || reservando || disponibilidadePagamento !== "disponivel") return;
     setReservando(true);
     setFalhaReserva(null);
     const r = await reservarOportunidade({
@@ -129,7 +149,7 @@ export default function RevisaoContratacao() {
     setReservando(false);
     if (r.tipo === "ok") setReserva(r.reserva);
     else setFalhaReserva(r.codigo);
-  }, [empresa, modo, nicho.code, reservando]);
+  }, [disponibilidadePagamento, empresa, modo, nicho.code, reservando]);
 
   // Condição fundadora: quem revisa publicamente ainda não tem histórico.
   const composicao = useMemo(
@@ -295,7 +315,20 @@ export default function RevisaoContratacao() {
           </section>
         ) : null}
 
-        {reserva ? (
+        {disponibilidadePagamento === "carregando" ? (
+          <p className="mt-6 text-center text-sm text-tinta/60" role="status">
+            Verificando disponibilidade do pagamento...
+          </p>
+        ) : disponibilidadePagamento === "indisponivel" ? (
+          <section className="card mt-6 p-6 text-center" role="alert">
+            <h2 className="text-lg font-bold">Contratação temporariamente indisponível</h2>
+            <p className="mt-2 text-sm text-tinta/70">
+              O processamento de pagamentos está temporariamente indisponível.
+              Para evitar uma reserva ou contrato sem possibilidade de cobrança,
+              novas contratações estão pausadas. Nenhum valor foi cobrado.
+            </p>
+          </section>
+        ) : reserva ? (
           // Contrato e pagamento só aparecem DEPOIS da reserva viva, e todos
           // os valores vêm da resposta do servidor.
           <EtapasContratacao
