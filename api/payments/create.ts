@@ -16,7 +16,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { PaymentError, criarPagamento, type Db } from "../../src/server/payments/paymentCore.js";
-import { createPagarmeClient } from "../../src/server/payments/pagarmeClient.js";
+import { createPagarmeClient, PagarmeConfigError } from "../../src/server/payments/pagarmeClient.js";
 
 type Req = {
   method?: string;
@@ -61,6 +61,10 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   }
 
   try {
+    // Valida a configuração ANTES de abrir qualquer tentativa local no banco.
+    // Assim ausência da chave do provedor não deixa pedido/tentativa pela metade.
+    const provedor = createPagarmeClient(process.env);
+
     const resultado = await criarPagamento(
       { orderId: corpo.order_id, installments: corpo.installments },
       bearer(req.headers),
@@ -74,12 +78,16 @@ export default async function handler(req: Req, res: Res): Promise<void> {
           createClient(url, service, {
             auth: { persistSession: false, autoRefreshToken: false },
           }) as unknown as Db,
-        provedor: () => createPagarmeClient(process.env),
+        provedor: () => provedor,
       }
     );
     res.status(200).json(resultado);
   } catch (e) {
     // Nada do erro original atravessa: esta pilha tocou credencial.
+    if (e instanceof PagarmeConfigError) {
+      res.status(503).json({ ok: false, code: e.code });
+      return;
+    }
     if (e instanceof PaymentError) {
       res.status(e.status).json({ ok: false, code: e.code });
       return;
