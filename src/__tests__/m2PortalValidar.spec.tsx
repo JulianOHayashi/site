@@ -155,17 +155,28 @@ describe("R12 — autorização de validador na tela", () => {
     );
   });
 
-  it("o campo de código aparece e formata como XXXX-XXXX", async () => {
+  it("o campo preserva o texto digitado; só o contrato decide a validade", async () => {
+    // Desde 5bb266f o cliente NÃO limpa nem reformata a entrada: limpar lixo
+    // poderia transformar um valor inválido em código válido antes do servidor.
     responder(elegivel);
     montar();
     const campo = (await screen.findByLabelText(
       /Código do benefício/i
     )) as HTMLInputElement;
+    fireEvent.click(screen.getByRole("checkbox"));
+    const botao = screen.getByRole("button", {
+      name: /Enviar solicitação/i,
+    }) as HTMLButtonElement;
+
     fireEvent.change(campo, { target: { value: "abcd7k2m" } });
-    expect(campo.value).toBe("ABCD-7K2M");
-    // Lixo e excesso são descartados na exibição.
+    expect(campo.value).toBe("abcd7k2m");
+    expect(botao.disabled).toBe(false);
+
+    // Lixo e excesso não são "consertados": o valor fica literal e o envio bloqueado.
     fireEvent.change(campo, { target: { value: "ab!cd 7k2m zzz" } });
-    expect(campo.value).toBe("ABCD-7K2M");
+    expect(campo.value).toBe("ab!cd 7k2m zzz");
+    expect(botao.disabled).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("NAO ha preenchimento por parametro de URL", async () => {
