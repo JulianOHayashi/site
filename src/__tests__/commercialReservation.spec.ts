@@ -162,7 +162,11 @@ describe("a tela de revisão não inventa nem promete", () => {
 
   it("não promete pagamento nem contrato", () => {
     expect(src).toContain("Reserva não é pagamento nem contrato");
-    expect(src).toContain("Nenhum provedor de pagamento está integrado");
+    // Com o Pagar.me integrado (20260917120000), a promessa correta passou a
+    // ser que a reserva não cobra nada; o pagamento só ocorre depois, pelo
+    // fluxo de EtapasContratacao.
+    expect(src).toContain("Nenhum valor foi cobrado.");
+    expect(src).toContain("A reserva não cobra valores.");
     // Sem Pix falso, sem formulário de cartão.
     expect(src).not.toMatch(/QR|qrcode|card_number|numero do cartao|cvv/i);
   });
