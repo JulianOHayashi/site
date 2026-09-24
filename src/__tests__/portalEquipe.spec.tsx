@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const obterVinculosParceiro = vi.fn();
@@ -30,6 +30,8 @@ import PortalEquipe from "../pages/portal/PortalEquipe";
 
 const COMPANY = "11111111-1111-4111-8111-111111111111";
 const UNIT = "22222222-2222-4222-8222-222222222222";
+
+afterEach(() => cleanup());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -161,8 +163,9 @@ describe("PortalEquipe", () => {
 
     await waitFor(() =>
       expect(ownerDefinirStatusManager).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "m-manager" }),
-        "suspend"
+        "m-manager",
+        "suspend",
+        undefined
       )
     );
   });
@@ -200,7 +203,7 @@ describe("PortalEquipe", () => {
 
     await waitFor(() =>
       expect(ownerDefinirVinculoManager).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "m-manager" }),
+        "m-manager",
         UNIT,
         true,
         undefined
