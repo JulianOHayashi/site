@@ -115,30 +115,35 @@ export async function registerTerritorialInterest(params: {
   city: string;
   nicheCode: string;
 }): Promise<{ tipo: "ok"; already: boolean } | { tipo: "erro"; codigo: string }> {
-  if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable" };
-
-  const { data, error } = await supabase.rpc(
-    "register_territorial_waitlist_interest",
-    {
-      p_cnpj: params.cnpj,
-      p_company_name: params.companyName,
-      p_responsible_name: params.responsibleName,
-      p_email: params.email,
-      p_phone: params.phone || null,
-      p_uf: params.uf,
-      p_city: params.city,
-      p_niche_code: params.nicheCode,
+  try {
+    const resposta = await fetch("/api/public/commercial/territorial-interest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cnpj: params.cnpj,
+        company_name: params.companyName,
+        responsible_name: params.responsibleName,
+        email: params.email,
+        phone: params.phone || null,
+        uf: params.uf,
+        city: params.city,
+        niche_code: params.nicheCode,
+      }),
+    });
+    const o = (await resposta.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!o || typeof o !== "object") {
+      return { tipo: "erro", codigo: "rpc_error" };
     }
-  );
-  if (error) return { tipo: "erro", codigo: "rpc_error" };
+    if (!resposta.ok || o.ok !== true) {
+      return {
+        tipo: "erro",
+        codigo: typeof o.reason === "string" ? o.reason : "unexpected_error",
+      };
+    }
 
-  const o = (data ?? {}) as Record<string, unknown>;
-  if (o.ok !== true) {
-    return {
-      tipo: "erro",
-      codigo: typeof o.reason === "string" ? o.reason : "unexpected_error",
-    };
+    // O backend não revela se o CNPJ já estava presente.
+    return { tipo: "ok", already: false };
+  } catch {
+    return { tipo: "erro", codigo: "rpc_error" };
   }
-
-  return { tipo: "ok", already: o.already === true };
 }
