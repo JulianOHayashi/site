@@ -65,6 +65,18 @@ describe("public write hardening", () => {
     expect(restrict).toContain("public.is_site_admin()");
   });
 
+  it("rate-limit ledger has bounded cleanup and remains server-only", () => {
+    const cleanup = readFileSync(
+      resolve(__dirname, "../../supabase/migrations/20260925121900_public_write_rate_limit_cleanup.sql"),
+      "utf8"
+    );
+
+    expect(cleanup).toContain("window_started_at < clock_timestamp() - interval '2 days'");
+    expect(cleanup).toContain("public_write_rate_limits_window_started_at_idx");
+    expect(cleanup).toContain("from public, anon, authenticated");
+    expect(cleanup).toContain("to service_role");
+  });
+
   it("territorial endpoint does not disclose prior membership or waitlist ids", () => {
     const source = readFileSync(
       resolve(__dirname, "../../api/public/commercial/territorial-interest.ts"),
