@@ -9,6 +9,7 @@ import { MemoryRouter } from "react-router-dom";
  * NUNCA vira aceite implícito.
  */
 const rpcMock = vi.fn();
+const fetchMock = vi.fn();
 
 vi.mock("../lib/supabase", () => ({
   supabase: {
@@ -46,8 +47,16 @@ async function preencher() {
   fireEvent.change(screen.getByLabelText(/^cpf/i), { target: { value: "529.982.247-25" } });
 }
 
-beforeEach(() => { rpcMock.mockReset(); localStorage.clear(); });
-afterEach(() => cleanup());
+beforeEach(() => {
+  rpcMock.mockReset();
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+  localStorage.clear();
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  cleanup();
+});
 
 describe("B4 — estados de carregamento e erro", () => {
   it("durante o carregamento, o envio fica bloqueado", async () => {
@@ -89,22 +98,28 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeDefined());
     await preencher();
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
-    await waitFor(() =>
-      expect(rpcMock.mock.calls.filter((c) => c[0] === "create_partner_application").length).toBe(0)
-    );
+    await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
   });
 
   it("exige aceite de TODOS os documentos", async () => {
     rpcMock.mockImplementation(async (nome: string) =>
       nome === "get_partner_application_terms" ? termosOk([DOC_A, DOC_B]) : { data: { ok: true }, error: null }
     );
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        application_id: "app-1",
+        status: "pending_email_verification",
+      }),
+    });
     montar();
     await waitFor(() => expect(screen.getByLabelText(/aceito: declaração/i)).toBeDefined());
     await preencher();
     fireEvent.click(screen.getByLabelText(/aceito: declaração/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
     await waitFor(() => expect(screen.getByText(/aceitar todos os termos/i)).toBeDefined());
-    expect(rpcMock.mock.calls.filter((c) => c[0] === "create_partner_application").length).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("envia SOMENTE os ids aceitos, sem versao nem hash", async () => {
@@ -120,21 +135,24 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     fireEvent.click(screen.getByLabelText(/aceito: autorização/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
 
-    await waitFor(() => {
-      const c = rpcMock.mock.calls.find((x) => x[0] === "create_partner_application");
-      expect(c).toBeDefined();
-      const payload = (c![1] as { p_payload: Record<string, unknown> }).p_payload;
-      expect(payload.acceptances).toEqual([
-        { legal_document_id: "aaaa-1" },
-        { legal_document_id: "bbbb-1" },
-      ]);
-      const bruto = JSON.stringify(payload.acceptances);
-      expect(bruto).not.toContain("version");
-      expect(bruto).not.toContain("content_hash");
-    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/public/partner-application/create");
+    const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(payload.acceptances).toEqual([
+      { legal_document_id: "aaaa-1" },
+      { legal_document_id: "bbbb-1" },
+    ]);
+    const bruto = JSON.stringify(payload.acceptances);
+    expect(bruto).not.toContain("version");
+    expect(bruto).not.toContain("content_hash");
   });
 
   it("acceptance_stale recarrega os termos e DESCARTA o aceite anterior", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: false, reason: "acceptance_stale" }),
+    });
     let rodada = 0;
     rpcMock.mockImplementation(async (nome: string) => {
       if (nome === "get_partner_application_terms") {
@@ -160,6 +178,19 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
   });
 
   it("apos recarregar, um novo envio leva o ID NOVO", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: false, reason: "acceptance_stale" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          application_id: "app-1",
+          status: "pending_email_verification",
+        }),
+      });
     let rodada = 0;
     rpcMock.mockImplementation(async (nome: string) => {
       if (nome === "get_partner_application_terms") {
@@ -181,14 +212,12 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     fireEvent.click(screen.getByLabelText(/aceito: autorização/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
 
-    await waitFor(() => {
-      const chamadas = rpcMock.mock.calls.filter((x) => x[0] === "create_partner_application");
-      const ultima = chamadas[chamadas.length - 1];
-      const payload = (ultima[1] as { p_payload: Record<string, unknown> }).p_payload;
-      expect(payload.acceptances).toEqual([
-        { legal_document_id: "aaaa-2" },
-        { legal_document_id: "bbbb-1" },
-      ]);
-    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(payload.acceptances).toEqual([
+      { legal_document_id: "aaaa-2" },
+      { legal_document_id: "bbbb-1" },
+    ]);
   });
 });
