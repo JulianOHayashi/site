@@ -213,7 +213,7 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 45 migrations", () => {
+  it("exatamente 46 migrations", () => {
     // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada;
     // 20260908120000 endurece o snapshot de provisionamento; 20260909120000
     // acrescenta a RPC de autoridade de uso de beneficio; 20260915120000
@@ -222,7 +222,8 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // de pagamento, endurecimento de revogacao de manager, nicho unico por
     // empresa, contexto do cliente no provedor e interesse futuro) = 41.
     // 20260925121500..20260925121800 adicionam o hardening dos writes públicos.
-    expect(arquivos.length).toBe(45);
+    // 20260925121900 adiciona limpeza limitada do ledger de rate limit.
+    expect(arquivos.length).toBe(46);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {
