@@ -66,6 +66,7 @@ const MENSAGENS: Record<string, string> = {
   not_authorized: "Você não tem permissão para esta ação.",
   not_configured: "Serviço em configuração.",
   upload_failed: "Não foi possível enviar o arquivo. Tente novamente.",
+  rate_limited: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.",
   rpc_error: "Não foi possível concluir. Tente novamente.",
 };
 
@@ -113,11 +114,38 @@ export type DadosSolicitacao = {
   acceptances: { legal_document_id: string }[];
 };
 
-export function criarSolicitacao(dados: DadosSolicitacao) {
-  return chamarRpc<{ application_id: string; status: string }>(
-    "create_partner_application",
-    { p_payload: dados }
-  );
+export async function criarSolicitacao(
+  dados: DadosSolicitacao
+): Promise<ResultadoRpc<{ application_id: string; status: string }>> {
+  try {
+    const resposta = await fetch("/api/public/partner-application/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dados),
+    });
+    const payload = (await resposta.json().catch(() => null)) as
+      | { ok?: boolean; reason?: string; application_id?: string; status?: string }
+      | null;
+
+    if (!payload || typeof payload !== "object") {
+      return { ok: false, motivo: "rpc_error" };
+    }
+    if (!resposta.ok || payload.ok === false) {
+      return { ok: false, motivo: payload.reason ?? "rpc_error" };
+    }
+    if (typeof payload.application_id !== "string" || typeof payload.status !== "string") {
+      return { ok: false, motivo: "rpc_error" };
+    }
+    return {
+      ok: true,
+      dados: {
+        application_id: payload.application_id,
+        status: payload.status,
+      },
+    };
+  } catch {
+    return { ok: false, motivo: "rpc_error" };
+  }
 }
 
 export function confirmarEmail(token: string) {
@@ -144,13 +172,17 @@ export function vincularContaProvisoria(claimToken: string) {
  * exatamente a mesma frase nos dois casos.
  */
 export async function solicitarRecuperacao(cnpj: string, email: string): Promise<{ ok: boolean }> {
-  if (!supabase) return { ok: false };
-  const { error } = await supabase.rpc("request_partner_application_recovery", {
-    p_cnpj: cnpj,
-    p_email: email,
-  });
-  // Mesmo em erro de transporte não revelamos nada além de "não deu".
-  return { ok: !error };
+  try {
+    const resposta = await fetch("/api/public/partner-application/recovery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cnpj, email }),
+    });
+    // Mesmo em erro não revelamos se havia ou não uma solicitação correspondente.
+    return { ok: resposta.ok };
+  } catch {
+    return { ok: false };
+  }
 }
 
 // ---------------------------------------------------------------------------
