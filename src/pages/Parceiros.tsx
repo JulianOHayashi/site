@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 
 /**
@@ -9,6 +9,19 @@ import Header from "../components/Header";
  * Parceiros aprovados entram pelo Portal do Parceiro em /portal/login.
  */
 export default function Parceiros() {
+  const [params] = useSearchParams();
+  const legadoNext = params.get("next");
+
+  // Compatibilidade com links antigos do acesso provisório.
+  if (legadoNext) {
+    return (
+      <Navigate
+        to={`/parceiros/acesso?next=${encodeURIComponent(legadoNext)}`}
+        replace
+      />
+    );
+  }
+
   return (
     <>
       <Header />
