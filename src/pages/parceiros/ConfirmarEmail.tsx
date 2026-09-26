@@ -271,8 +271,11 @@ export default function ConfirmarEmail() {
             <p className="mt-3 text-sm text-tinta/60">
               Se o link de ativação expirar, você pode pedir um novo abaixo.
             </p>
-            <Link to="/parceiros" className="btn-primary mt-6 inline-block">
-              Ir para o login
+            <Link
+              to="/parceiros/acesso?next=%2Fparceiros%2Fsolicitacao"
+              className="btn-primary mt-6 inline-block"
+            >
+              Entrar para acompanhar
             </Link>
             <RecuperarAcesso compacto />
           </div>
