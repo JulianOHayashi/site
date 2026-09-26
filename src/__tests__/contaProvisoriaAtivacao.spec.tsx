@@ -123,14 +123,14 @@ describe("B — signUp NAO devolve sessao", () => {
     signUpMock.mockResolvedValue({ data: { user: { id: "u1" }, session: null }, error: null });
     montar();
     await criarConta();
-    await waitFor(() =>
-      expect(
-        screen.getByRole("link", { name: /entrar para acompanhar/i })
-      ).toHaveAttribute(
-        "href",
+    await waitFor(() => {
+      const link = screen.getByRole("link", {
+        name: /entrar para acompanhar/i,
+      }) as HTMLAnchorElement;
+      expect(link.getAttribute("href")).toBe(
         "/parceiros/acesso?next=%2Fparceiros%2Fsolicitacao"
-      )
-    );
+      );
+    });
     expect(screen.getByText(/reenviar link de acesso/i)).toBeDefined();
   });
 });
