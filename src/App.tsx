@@ -7,6 +7,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminGuard from "./components/AdminGuard";
 import PortalGuard from "./components/PortalGuard";
 import Parceiros from "./pages/Parceiros";
+import ParceirosAcesso from "./pages/ParceirosAcesso";
 import ParceirosPainel from "./pages/ParceirosPainel";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalForgotPassword from "./pages/portal/PortalForgotPassword";
@@ -94,6 +95,7 @@ export default function App() {
           }
         />
         <Route path="/parceiros" element={<Parceiros />} />
+        <Route path="/parceiros/acesso" element={<ParceirosAcesso />} />
         <Route path="/parceiros/painel" element={<ParceirosPainel />} />
         {/* Onboarding Fase 2A: solicitação empresarial pré-Auth. */}
         <Route path="/parceiros/cadastro" element={<ParceirosCadastro />} />
