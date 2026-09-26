@@ -1,149 +1,90 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Header from "../components/Header";
-import { supabase, supabaseConfigurado } from "../lib/supabase";
-import { useAuth } from "../hooks/useAuth";
-import { safeInternalDestination } from "../lib/safeInternalDestination";
 
 /**
- * ÁREA DE PARCEIROS — somente LOGIN (homologação Fase 1).
+ * /parceiros — página pública para empresas interessadas em se tornar parceiras.
  *
- * O cadastro público de empresas está TEMPORARIAMENTE indisponível: não há
- * aba "Cadastrar", campos de empresa/CNPJ, chamada a signUp nem criação de
- * registro no Supabase por esta página. Apenas o login de parceiros
- * existentes (e-mail + senha) permanece ativo.
- * O cadastro público empresarial vive em /parceiros/cadastro (Fase 2A).
- *
- * Destino após o login: se veio um ?next= interno e válido, ele é
- * respeitado — é assim que a conta provisória volta para
- * /parceiros/solicitacao em vez de cair no painel genérico. O valor é
- * controlável pelo usuário, então passa por safeInternalDestination com
- * prefixo restrito a /parceiros.
+ * Não autentica ninguém. A candidatura vive em /parceiros/cadastro.
+ * O acompanhamento provisório vive em /parceiros/acesso.
+ * Parceiros aprovados entram pelo Portal do Parceiro em /portal/login.
  */
 export default function Parceiros() {
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const { session, carregando } = useAuth();
-
-  const destino = safeInternalDestination(params.get("next"), "/parceiros/painel", {
-    requiredPrefix: "/parceiros",
-  });
-
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [erro, setErro] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  // Já logado? Vai direto ao destino solicitado (ou ao painel).
-  useEffect(() => {
-    if (!carregando && session) navigate(destino, { replace: true });
-  }, [carregando, session, navigate, destino]);
-
-  const entrar = async () => {
-    if (!supabase) return;
-    setErro(null);
-    setEnviando(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    });
-    setEnviando(false);
-    if (error) {
-      setErro(
-        error.message.includes("Invalid login")
-          ? "E-mail ou senha incorretos."
-          : "Não foi possível entrar. Tente novamente."
-      );
-      return;
-    }
-    navigate(destino, { replace: true });
-  };
-
-  const enviar = (e: React.FormEvent) => {
-    e.preventDefault();
-    entrar();
-  };
-
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-md px-4 pb-24 pt-14">
-        <h1 className="text-center text-3xl sm:text-4xl">
-          Área de parceiros
-          <span className="mx-auto mt-3 block h-2 w-24 rounded-full bg-ciano" />
-        </h1>
-        <p className="mt-3 text-center text-sm text-tinta/60">
-          Empresas parceiras: entre para acompanhar oportunidades e informações
-          comerciais.
-        </p>
+      <main className="mx-auto max-w-6xl px-4 pb-24 pt-12">
+        <section className="max-w-3xl">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+            Para empresas
+          </p>
+          <h1 className="mt-4 text-4xl leading-[1.05] sm:text-6xl">
+            Torne sua empresa parceira BDFlow.
+          </h1>
+          <p className="mt-5 max-w-2xl text-lg text-tinta/70">
+            Solicite a análise da sua empresa para participar das oportunidades
+            comerciais BDFlow. O cadastro não cria acesso ao Portal do Parceiro
+            imediatamente: primeiro a solicitação passa pela análise prevista.
+          </p>
 
-        {!supabaseConfigurado && (
-          <div className="mt-6 rounded-2xl bg-amarelo/25 p-4 text-center text-sm">
-            Modo demonstração — o login real será ativado quando o Supabase
-            estiver conectado (Auth por e-mail).
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link to="/parceiros/cadastro" className="btn-primary">
+              Solicitar parceria
+            </Link>
+            <Link to="/parceiros/acesso" className="btn-secondary">
+              Acompanhar solicitação
+            </Link>
           </div>
-        )}
+        </section>
 
-        {/* Cadastro público desativado temporariamente. */}
-        <div className="mt-8 rounded-2xl border border-borda bg-white px-4 py-3 text-center text-sm font-semibold text-tinta/60">
-          Entrar
-          <span className="ml-2 rounded-full bg-papel2 px-2 py-0.5 text-xs font-medium text-tinta/50">
-            Cadastro em breve
-          </span>
-        </div>
-
-        {/* formulário — somente login */}
-        <form onSubmit={enviar} className="card mt-4 space-y-4 p-6">
-          <div>
-            <label htmlFor="p-email" className="mb-1.5 block text-sm font-semibold">
-              E-mail
-            </label>
-            <input
-              id="p-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-borda px-4 py-3 outline-none focus:border-ciano"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="p-senha" className="mb-1.5 block text-sm font-semibold">
-              Senha
-            </label>
-            <input
-              id="p-senha"
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              className="w-full rounded-xl border border-borda px-4 py-3 outline-none focus:border-ciano"
-            />
-          </div>
-
-          {erro && (
-            <p className="rounded-xl bg-magenta/10 px-4 py-2.5 text-sm font-medium text-magenta">
-              {erro}
+        <section className="mt-14 grid gap-4 lg:grid-cols-3">
+          <div className="border-t border-borda pt-5">
+            <p className="text-sm font-bold text-magenta">01</p>
+            <h2 className="mt-2 text-xl">Envie a solicitação</h2>
+            <p className="mt-2 text-sm leading-6 text-tinta/65">
+              Informe os dados da empresa, do responsável e aceite os documentos
+              vigentes exigidos para análise.
             </p>
-          )}
+          </div>
 
-          <button
-            type="submit"
-            disabled={!supabaseConfigurado || enviando}
-            className="btn-primary w-full"
-          >
-            {enviando ? "Aguarde..." : "Entrar"}
-          </button>
-        </form>
+          <div className="border-t border-borda pt-5">
+            <p className="text-sm font-bold text-magenta">02</p>
+            <h2 className="mt-2 text-xl">Acompanhe a análise</h2>
+            <p className="mt-2 text-sm leading-6 text-tinta/65">
+              Após confirmar o e-mail, o acesso provisório permite acompanhar o
+              status, responder correções e enviar documentos.
+            </p>
+          </div>
 
-        <p className="mt-6 text-center text-xs text-tinta/40">
-          O cadastro de novas empresas parceiras será disponibilizado em uma
-          próxima etapa.
-        </p>
-        <p className="mt-2 text-center text-sm">
-          <Link to="/" className="font-medium text-ciano hover:underline">
-            ← Voltar ao início
-          </Link>
-        </p>
+          <div className="border-t border-borda pt-5">
+            <p className="text-sm font-bold text-magenta">03</p>
+            <h2 className="mt-2 text-xl">Entre no Portal do Parceiro</h2>
+            <p className="mt-2 text-sm leading-6 text-tinta/65">
+              Depois da aprovação e ativação do vínculo comercial, a operação
+              cotidiana acontece no Portal do Parceiro.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-14 rounded-3xl bg-tinta p-8 text-white sm:p-10">
+          <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-amarelo">
+                Já é parceiro aprovado?
+              </p>
+              <h2 className="mt-3 text-2xl sm:text-3xl">Acesse o Portal do Parceiro.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">
+                O Portal reúne as funções operacionais da parceria, incluindo
+                equipe, solicitações e validação de benefícios.
+              </p>
+            </div>
+            <Link
+              to="/portal/login"
+              className="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-tinta transition hover:bg-amarelo"
+            >
+              Entrar no portal
+            </Link>
+          </div>
+        </section>
       </main>
     </>
   );
