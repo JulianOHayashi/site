@@ -59,6 +59,7 @@ vi.mock("../lib/supabase", () => ({
 
 import SolicitacaoStatus from "../pages/parceiros/SolicitacaoStatus";
 import Parceiros from "../pages/Parceiros";
+import ParceirosAcesso from "../pages/ParceirosAcesso";
 
 function tabela(dados: unknown[]) {
   const encadeado: Record<string, unknown> = {};
@@ -182,45 +183,42 @@ describe("B9 — documentos e versionamento", () => {
 });
 
 describe("B9 — retorno de login da conta provisoria", () => {
-  it("login com next interno volta a /parceiros/solicitacao", async () => {
+  it("acesso provisório com next interno volta a /parceiros/solicitacao", async () => {
     render(
-      <MemoryRouter initialEntries={["/parceiros?next=%2Fparceiros%2Fsolicitacao"]}>
+      <MemoryRouter initialEntries={["/parceiros/acesso?next=%2Fparceiros%2Fsolicitacao"]}>
         <Routes>
-          <Route path="/parceiros" element={<Parceiros />} />
+          <Route path="/parceiros/acesso" element={<ParceirosAcesso />} />
           <Route path="/parceiros/solicitacao" element={<div data-testid="destino">acompanhamento</div>} />
-          <Route path="/parceiros/painel" element={<div data-testid="painel">painel</div>} />
         </Routes>
       </MemoryRouter>
     );
     await waitFor(() => expect(screen.getByTestId("destino")).toBeDefined());
-    expect(screen.queryByTestId("painel")).toBeNull();
   });
 
-  it("next externo e ignorado e cai no painel", async () => {
+  it("next externo no acesso provisório é ignorado e cai no acompanhamento", async () => {
     render(
-      <MemoryRouter initialEntries={["/parceiros?next=" + encodeURIComponent("/\\evil.com")]}>
+      <MemoryRouter initialEntries={["/parceiros/acesso?next=" + encodeURIComponent("/\\evil.com")]}>
         <Routes>
-          <Route path="/parceiros" element={<Parceiros />} />
-          <Route path="/parceiros/painel" element={<div data-testid="painel">painel</div>} />
+          <Route path="/parceiros/acesso" element={<ParceirosAcesso />} />
+          <Route path="/parceiros/solicitacao" element={<div data-testid="destino">acompanhamento</div>} />
           <Route path="*" element={<div data-testid="fora">fora</div>} />
         </Routes>
       </MemoryRouter>
     );
-    await waitFor(() => expect(screen.getByTestId("painel")).toBeDefined());
+    await waitFor(() => expect(screen.getByTestId("destino")).toBeDefined());
     expect(screen.queryByTestId("fora")).toBeNull();
   });
 
-  it("next para fora de /parceiros e ignorado", async () => {
+  it("link legado /parceiros?next= continua chegando ao acesso provisório", async () => {
     render(
-      <MemoryRouter initialEntries={["/parceiros?next=%2Fadmin"]}>
+      <MemoryRouter initialEntries={["/parceiros?next=%2Fparceiros%2Fsolicitacao"]}>
         <Routes>
           <Route path="/parceiros" element={<Parceiros />} />
-          <Route path="/parceiros/painel" element={<div data-testid="painel">painel</div>} />
-          <Route path="/admin" element={<div data-testid="admin">admin</div>} />
+          <Route path="/parceiros/acesso" element={<ParceirosAcesso />} />
+          <Route path="/parceiros/solicitacao" element={<div data-testid="destino">acompanhamento</div>} />
         </Routes>
       </MemoryRouter>
     );
-    await waitFor(() => expect(screen.getByTestId("painel")).toBeDefined());
-    expect(screen.queryByTestId("admin")).toBeNull();
+    await waitFor(() => expect(screen.getByTestId("destino")).toBeDefined());
   });
 });
