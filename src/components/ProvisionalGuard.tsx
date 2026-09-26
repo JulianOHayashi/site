@@ -46,7 +46,7 @@ export default function ProvisionalGuard({ children }: { children: React.ReactNo
       "/parceiros/solicitacao",
       { requiredPrefix: "/parceiros" }
     );
-    return <Navigate to={`/parceiros?next=${encodeURIComponent(destino)}`} replace />;
+    return <Navigate to={`/parceiros/acesso?next=${encodeURIComponent(destino)}`} replace />;
   }
 
   return <>{children}</>;
