@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
+import SiteFooter from "../components/SiteFooter";
 
 /**
  * HOME — Site BDFlow (comercial).
@@ -164,14 +165,23 @@ export default function Home() {
         </Revelar>
       </section>
 
-      {/* REFERÊNCIA OPERACIONAL */}
+      {/* CONHEÇA A BDFLOW — Site comercial e App operacional */}
       <section className="mx-auto max-w-6xl px-4 py-10">
         <Revelar className="rounded-3xl border border-borda bg-papel2 p-8">
-          <h2 className="text-2xl sm:text-3xl">Site e aplicativo</h2>
+          <h2 className="text-2xl sm:text-3xl">Conheça a BDFlow</h2>
           <p className="mt-3 max-w-2xl text-tinta/70">
-            O Site administra a exclusividade comercial. A jornada dos usuários
-            e o ciclo operacional são administrados pelo aplicativo BDFlow.
+            O Site administra a exclusividade comercial e a relação com as
+            empresas parceiras. A jornada dos usuários e o ciclo operacional são
+            administrados pelo aplicativo BDFlow.
           </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link to="/quem-somos" className="btn-secondary">
+              Quem somos
+            </Link>
+            <Link to="/como-funciona" className="btn-secondary">
+              Como funciona
+            </Link>
+          </div>
         </Revelar>
       </section>
 
@@ -200,31 +210,20 @@ export default function Home() {
         </Revelar>
       </section>
 
-      {/* RODAPÉ */}
-      <footer className="mt-10 border-t border-borda">
-        <div className="mx-auto max-w-6xl px-4 py-10">
-          <p className="display text-lg">
-            BD<span className="text-magenta">Flow</span>
-          </p>
-          <p className="mt-2 max-w-md text-sm text-tinta/60">
-            Oportunidades comerciais por região e por nicho. Conteúdo provisório
-            — informações comerciais definitivas serão publicadas nas próximas
-            etapas.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-4 text-sm font-medium">
-            <Link to="/oportunidades" className="text-ciano hover:underline">
-              Oportunidades
-            </Link>
-            <Link to="/parceiros" className="text-ciano hover:underline">
-              Parceiros
-            </Link>
-            <Link to="/portal/login" className="text-ciano hover:underline">
-              Portal
-            </Link>
-          </div>
-          <p className="mt-6 text-xs text-tinta/40">© 2026 BDFlow</p>
-        </div>
-      </footer>
+      {/* ENTRADA INSTITUCIONAL DISCRETA */}
+      <section className="mx-auto max-w-6xl px-4 pb-4 pt-6">
+        <p className="border-t border-borda pt-6 text-sm text-tinta/70">
+          Quer construir a BDFlow com a gente?{" "}
+          <Link
+            to="/trabalhe-conosco"
+            className="font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
+          >
+            Trabalhe conosco
+          </Link>
+        </p>
+      </section>
+
+      <SiteFooter />
     </>
   );
 }
