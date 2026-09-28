@@ -5,6 +5,7 @@ import {
   PaginaInstitucional,
   Secao,
 } from "../../components/institucional/Institucional";
+import RelacaoSiteApp from "../../components/institucional/RelacaoSiteApp";
 import { REGIAO_ATIVA } from "../../content/institucional";
 import { Link } from "react-router-dom";
 
@@ -60,35 +61,7 @@ export default function QuemSomos() {
           </p>
         }
       >
-        <div className="relative grid gap-4 md:grid-cols-2">
-          <div className="rounded-3xl border border-borda bg-white p-7 sm:p-8">
-            <p className="text-sm font-bold text-tinta/70">Este site</p>
-            <h3 className="mt-2 text-2xl">BDFlow para empresas</h3>
-            <p className="mt-3 text-sm leading-6 text-tinta/70">
-              Oportunidades comerciais, exclusividade comercial, cadastro e
-              análise de parceria, contratos, pagamentos e o Portal do Parceiro.
-            </p>
-          </div>
-          <div className="rounded-3xl bg-tinta p-7 text-white sm:p-8">
-            <p className="text-sm font-bold text-amarelo">Aplicativo</p>
-            <h3 className="mt-2 text-2xl">BDFlow App</h3>
-            <p className="mt-3 text-sm leading-6 text-white/80">
-              A jornada operacional dos participantes e o uso dos benefícios
-              oferecidos pelas empresas parceiras.
-            </p>
-          </div>
-          <span
-            aria-hidden
-            className="absolute left-1/2 top-1/2 hidden h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-papel2 bg-ciano md:flex"
-          >
-            <span className="h-2 w-2 rounded-full bg-white" />
-          </span>
-        </div>
-        <p className="mt-6 max-w-2xl text-sm leading-6 text-tinta/70">
-          O ponto de encontro entre os dois é a validação do uso de benefícios:
-          o participante apresenta o App e a empresa parceira registra a
-          solicitação pelo Portal do Parceiro.
-        </p>
+        <RelacaoSiteApp />
       </Secao>
 
       <Secao

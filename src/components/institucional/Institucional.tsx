@@ -59,21 +59,20 @@ export function Abertura({
   children?: ReactNode;
 }) {
   return (
-    <section className="mx-auto max-w-6xl px-4 pb-14 pt-12 sm:pt-20">
+    <section className="relative overflow-hidden">
+      <div aria-hidden className="malha malha-esmaecida absolute inset-0" />
+      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-12 sm:pb-20 sm:pt-20">
       <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
         <div className={aside ? "lg:col-span-7" : "lg:col-span-9"}>
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
-            {rotulo}
-          </p>
-          <h1 className="mt-4 text-4xl leading-[1.05] sm:text-5xl lg:text-6xl break-words">
-            {titulo}
-          </h1>
+          <p className="rotulo text-magenta">{rotulo}</p>
+          <h1 className="display t-hero mt-5 max-w-[18ch] break-words">{titulo}</h1>
           {texto && (
-            <div className="mt-6 max-w-2xl text-lg leading-8 text-tinta/70">{texto}</div>
+            <div className="mt-7 max-w-xl text-lg leading-8 text-tinta/75">{texto}</div>
           )}
-          {children && <div className="mt-8 flex flex-wrap gap-3">{children}</div>}
+          {children && <div className="mt-9 flex flex-wrap gap-3">{children}</div>}
         </div>
         {aside && <div className="lg:col-span-5 lg:pt-10">{aside}</div>}
+      </div>
       </div>
     </section>
   );
@@ -103,13 +102,13 @@ export function Secao({
       aria-labelledby={idTitulo}
       className={fundo === "papel2" ? "bg-papel2" : undefined}
     >
-      <div className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
-        <div className="grid gap-8 border-t border-tinta/15 pt-8 lg:grid-cols-12 lg:gap-12">
+      <div className="faixa">
+        <div className="fio grid gap-8 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-4">
-            <h2 id={idTitulo} className="text-2xl leading-tight sm:text-3xl">
+            <h2 id={idTitulo} className="t-secao">
               {titulo}
             </h2>
-            {intro && <div className="mt-4 text-tinta/65 leading-7">{intro}</div>}
+            {intro && <div className="mt-4 max-w-sm leading-7 text-tinta/70">{intro}</div>}
           </div>
           <div className="lg:col-span-8">{children}</div>
         </div>
@@ -134,16 +133,16 @@ export function Chamada({
 }) {
   return (
     <section className="mx-auto max-w-6xl px-4 pb-20 pt-6">
-      <div className="rounded-3xl bg-tinta px-6 py-12 text-white sm:px-12 sm:py-16">
+      <div className="rounded-[2rem] bg-tinta px-6 py-12 text-white sm:px-12 sm:py-16">
         <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
-            <h2 className="text-3xl leading-tight sm:text-4xl">{titulo}</h2>
-            {texto && <p className="mt-4 max-w-xl text-white/75 leading-7">{texto}</p>}
+            <h2 className="t-secao">{titulo}</h2>
+            {texto && <p className="mt-5 max-w-xl leading-7 text-white/75">{texto}</p>}
           </div>
           <div className="flex flex-wrap gap-3 lg:col-span-5 lg:justify-end">
             <Link
               to={principal.to}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-magenta px-6 py-3 font-semibold text-white transition hover:brightness-90"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-tinta transition hover:bg-amarelo"
             >
               {principal.rotulo}
             </Link>

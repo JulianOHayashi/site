@@ -119,29 +119,34 @@ export default function ComoFunciona() {
         }
       />
 
+      {/* Sequência vertical conectada: o fio liga as etapas em qualquer
+          largura, e o número é o único ornamento. Sem animação e sem hover —
+          tudo é legível de cara. */}
       <section aria-labelledby="etapas-titulo" className="mx-auto max-w-6xl px-4 pb-10">
         <h2 id="etapas-titulo" className="sr-only">
           Etapas
         </h2>
-        <ol className="border-t border-tinta/15">
+        <ol className="relative">
           {ETAPAS.map((e, i) => (
-            <li
-              key={e.titulo}
-              className="grid gap-4 border-b border-tinta/15 py-10 sm:py-14 lg:grid-cols-12 lg:gap-12"
-            >
-              <div className="flex items-baseline gap-4 lg:col-span-4 lg:block">
+            <li key={e.titulo} className="relative pb-12 pl-14 last:pb-0 sm:pl-20">
+              {/* fio de ligação até a próxima etapa */}
+              {i < ETAPAS.length - 1 && (
                 <span
                   aria-hidden
-                  className="display text-5xl leading-none text-magenta sm:text-7xl"
-                >
-                  {i + 1}
-                </span>
-                <h3 className="text-2xl leading-tight sm:text-3xl lg:mt-4">
-                  <span className="sr-only">Etapa {i + 1}: </span>
-                  {e.titulo}
-                </h3>
-              </div>
-              <div className="max-w-2xl text-base leading-7 text-tinta/75 lg:col-span-8">
+                  className="absolute left-[19px] top-12 h-[calc(100%-2.5rem)] w-px bg-tinta/20 sm:left-[27px]"
+                />
+              )}
+              <span
+                aria-hidden
+                className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full border-2 border-tinta bg-papel font-display font-bold text-tinta sm:h-14 sm:w-14 sm:text-xl"
+              >
+                {i + 1}
+              </span>
+              <h3 className="t-secao pt-1 sm:pt-2.5">
+                <span className="sr-only">Etapa {i + 1}: </span>
+                {e.titulo}
+              </h3>
+              <div className="mt-4 max-w-2xl text-base leading-7 text-tinta/75">
                 {e.conteudo}
                 {e.extra && <div className="mt-5">{e.extra}</div>}
               </div>

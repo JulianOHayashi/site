@@ -111,9 +111,9 @@ export default function SiteHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-50 border-b bg-papel/90 backdrop-blur-md transition-shadow ${
+      className={`sticky top-0 z-50 border-b bg-papel/85 backdrop-blur-md transition-shadow ${
         rolou
-          ? "border-borda shadow-[0_4px_24px_rgba(23,18,31,0.08)]"
+          ? "border-borda shadow-[0_1px_20px_rgba(23,18,31,0.07)]"
           : "border-transparent"
       }`}
     >

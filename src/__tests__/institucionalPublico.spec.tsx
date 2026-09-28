@@ -17,6 +17,7 @@ import {
   TOTAL_UNIDADES_REFERENCIA,
 } from "../content/institucional";
 
+
 /**
  * Incremento institucional público: rotas novas, header, footer e Home.
  * Só frontend — nenhuma destas páginas coleta dados.
@@ -31,6 +32,18 @@ const PAGINAS = [
   ["/contato", Contato, /caminho certo/i],
   ["/ajuda", Ajuda, /central de ajuda/i],
 ] as const;
+
+/** jsdom não implementa matchMedia; com reduced-motion o Revelar exibe tudo. */
+function stubReducedMotion() {
+  vi.stubGlobal("matchMedia", (q: string) => ({
+    matches: true,
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+}
+
+afterEach(() => vi.unstubAllGlobals());
 
 function montar(caminho: string, Pagina: () => JSX.Element) {
   return render(
@@ -174,13 +187,7 @@ describe("SiteFooter", () => {
 
 describe("Home", () => {
   it("usa o footer global, liga ao institucional e preserva as 84 unidades", () => {
-    // jsdom não implementa matchMedia; reduced-motion faz o Revelar exibir tudo.
-    vi.stubGlobal("matchMedia", (q: string) => ({
-      matches: true,
-      media: q,
-      addEventListener() {},
-      removeEventListener() {},
-    }));
+    stubReducedMotion();
     const { container } = montar("/", Home);
     expect(container.querySelectorAll("footer")).toHaveLength(1);
     expect(container.textContent).not.toMatch(/conteúdo provisório/i);
@@ -191,6 +198,48 @@ describe("Home", () => {
       expect(hrefs).toContain(destino);
     }
     expect(screen.getByText(/seis nichos · 84 unidades/i)).toBeDefined();
-    vi.unstubAllGlobals();
+  });
+});
+
+describe("fase visual 1", () => {
+  it("a Home apresenta a região ativa e os cinco municípios no hero", () => {
+    stubReducedMotion();
+    montar("/", Home);
+    const hero = screen.getByRole("complementary", { name: /região comercial ativa/i });
+    for (const c of ["Vitória", "Vila Velha", "Serra", "Cariacica", "Viana"]) {
+      expect(within(hero).getByText(c)).toBeDefined();
+    }
+  });
+
+  it("a Home lista os seis nichos com as unidades da formação de referência", () => {
+    stubReducedMotion();
+    const { container } = montar("/", Home);
+    const secao = container.querySelector("#nichos-titulo")!.closest("section")!;
+    for (const n of FORMACAO_REFERENCIA) {
+      expect(within(secao).getByRole("heading", { name: n.nome })).toBeDefined();
+    }
+    // Supermercado é o único com 24; os demais com 12.
+    expect(within(secao).getAllByText("24")).toHaveLength(1);
+    expect(within(secao).getAllByText("12")).toHaveLength(5);
+  });
+
+  it("a relação Site↔App separa os domínios e nomeia o ponto de encontro", () => {
+    montar("/quem-somos", QuemSomos);
+    const comercial = screen.getByRole("region", { name: /trilha comercial/i });
+    const operacional = screen.getByRole("region", { name: /trilha operacional/i });
+    expect(within(comercial).getByText("BDFlow Site")).toBeDefined();
+    expect(within(operacional).getByText("BDFlow App")).toBeDefined();
+    // O Site não pode aparecer na trilha operacional, nem o App na comercial.
+    expect(within(comercial).queryByText("BDFlow App")).toBeNull();
+    expect(within(operacional).queryByText("BDFlow Site")).toBeNull();
+    expect(screen.getByText(/onde as duas se encontram/i)).toBeDefined();
+  });
+
+  it("as etapas de Como funciona ficam numa lista ordenada e anunciam o número", () => {
+    const { container } = montar("/como-funciona", ComoFunciona);
+    const passos = container.querySelectorAll("ol > li");
+    expect(passos).toHaveLength(5);
+    expect(screen.getByRole("heading", { name: /etapa 1: localidade/i })).toBeDefined();
+    expect(screen.getByRole("heading", { name: /etapa 5: site e app/i })).toBeDefined();
   });
 });

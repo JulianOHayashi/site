@@ -37,9 +37,9 @@ const COLUNAS: { titulo: string; links: { rotulo: string; to: string }[] }[] = [
 
 export default function SiteFooter() {
   return (
-    <footer className="mt-10 border-t border-borda bg-papel2/60">
-      <div className="mx-auto max-w-6xl px-4 py-14">
-        <div className="grid gap-10 lg:grid-cols-12">
+    <footer className="mt-12 border-t border-borda bg-papel2/70">
+      <div className="mx-auto max-w-6xl px-4 py-16">
+        <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <Link to="/" className="display inline-block text-2xl" aria-label="BDFlow — início">
               BD<span className="text-magenta">Flow</span>
@@ -56,7 +56,7 @@ export default function SiteFooter() {
           >
             {COLUNAS.map((c) => (
               <div key={c.titulo}>
-                <h2 className="text-sm font-bold text-tinta">{c.titulo}</h2>
+                <h2 className="rotulo text-tinta/60">{c.titulo}</h2>
                 <ul className="mt-3 space-y-1">
                   {c.links.map((l) => (
                     <li key={l.to}>
@@ -72,7 +72,7 @@ export default function SiteFooter() {
               </div>
             ))}
             <div>
-              <h2 className="text-sm font-bold text-tinta">Legal</h2>
+              <h2 className="rotulo text-tinta/60">Legal</h2>
               <p className="mt-3 py-1.5 text-sm leading-6 text-tinta/65">
                 Os documentos legais públicos serão disponibilizados aqui.
               </p>
@@ -80,7 +80,9 @@ export default function SiteFooter() {
           </nav>
         </div>
 
-        <p className="mt-12 border-t border-borda pt-6 text-xs text-tinta/65">© 2026 BDFlow</p>
+        <p className="mt-14 border-t border-borda pt-6 text-xs text-tinta/65">
+          © 2026 BDFlow
+        </p>
       </div>
     </footer>
   );

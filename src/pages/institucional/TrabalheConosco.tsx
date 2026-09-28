@@ -98,10 +98,15 @@ export default function TrabalheConosco() {
         }
       >
         <ul className="divide-y divide-tinta/10 border-y border-tinta/10">
-          {AREAS.map((a) => (
-            <li key={a.nome} className="grid gap-1 py-5 sm:grid-cols-3 sm:gap-6">
-              <h3 className="text-xl">{a.nome}</h3>
-              <p className="text-sm leading-6 text-tinta/70 sm:col-span-2">{a.texto}</p>
+          {AREAS.map((a, i) => (
+            <li key={a.nome} className="grid gap-2 py-6 sm:grid-cols-12 sm:gap-6">
+              <div className="flex items-baseline gap-3 sm:col-span-5">
+                <span aria-hidden className="display text-sm text-tinta/40 tabular-nums">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <h3 className="text-xl leading-snug sm:text-2xl">{a.nome}</h3>
+              </div>
+              <p className="leading-7 text-tinta/70 sm:col-span-7">{a.texto}</p>
             </li>
           ))}
         </ul>
@@ -115,11 +120,14 @@ export default function TrabalheConosco() {
             ))}
           </ul>
         ) : (
-          <div className="rounded-3xl border border-dashed border-tinta/25 p-8">
-            <p className="text-xl font-semibold text-tinta">
+          /* Estado vazio deliberado: a moldura ocupa o mesmo espaço que os
+             cartões de vaga ocuparão, para a página não parecer inacabada. */
+          <div className="flex min-h-[15rem] flex-col justify-center rounded-3xl border border-tinta/15 bg-white p-8 sm:p-12">
+            <p className="rotulo text-tinta/65">Nenhuma vaga publicada</p>
+            <p className="display mt-4 text-2xl leading-snug sm:text-3xl">
               Não há processos seletivos abertos no momento.
             </p>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-tinta/70">
+            <p className="mt-5 max-w-xl leading-7 text-tinta/70">
               As oportunidades serão publicadas aqui quando houver processos
               seletivos abertos, com a descrição da função e a forma de
               participação. Esta página não recebe currículos.
