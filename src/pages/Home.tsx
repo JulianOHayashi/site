@@ -67,11 +67,11 @@ export default function Home() {
       {/* ===================== HERO ===================== */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="malha malha-esmaecida absolute inset-0" />
-        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-12 sm:pb-24 sm:pt-20">
+        <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-12 sm:pb-10 sm:pt-20">
           <div className="grid gap-12 lg:grid-cols-12 lg:gap-10">
             <div className="lg:col-span-7">
               <p className="rotulo text-magenta">Oportunidades comerciais BDFlow</p>
-              <h1 className="display t-hero mt-5 max-w-[16ch]">
+              <h1 className="display t-hero mt-5 max-w-[18ch]">
                 Oportunidades comerciais por região e por nicho.
               </h1>
               <p className="mt-7 max-w-xl text-lg leading-8 text-tinta/75">
@@ -95,7 +95,7 @@ export default function Home() {
             {/* Painel da região ativa: estado do território, não um card decorativo. */}
             <aside
               aria-label="Região comercial ativa"
-              className="lg:col-span-5 lg:pt-16"
+              className="lg:col-span-5 lg:pt-9"
             >
               <div className="rounded-3xl border border-tinta/15 bg-white/80 p-7 backdrop-blur-sm sm:p-8">
                 <div className="flex items-center gap-2.5">

@@ -54,7 +54,7 @@ function Trilha({ t, escuro }: { t: Trilha; escuro: boolean }) {
   const sup = escuro ? "bg-white/5" : "bg-white";
 
   return (
-    <section aria-label={t.atorRotulo} className={`rounded-3xl border ${borda} ${sup} p-6 sm:p-8`}>
+    <section aria-label={t.atorRotulo} className={`rounded-3xl border ${borda} ${sup} px-6 py-6 sm:px-8 sm:py-7`}>
       <p className={`rotulo ${escuro ? "text-white/60" : "text-tinta/60"}`}>{t.atorRotulo}</p>
 
       {/* Ator → Sistema → Domínio. A fileira quebra em vez de estourar: em
@@ -114,7 +114,7 @@ export default function RelacaoSiteApp({ tom = "claro" }: { tom?: "claro" | "esc
       </div>
 
       <div
-        className={`mt-4 rounded-3xl border p-6 sm:p-8 ${
+        className={`mt-4 rounded-3xl border px-6 py-6 sm:px-8 sm:py-7 ${
           escuro ? "border-amarelo/40 bg-amarelo/10" : "border-tinta/15 bg-papel2"
         }`}
       >

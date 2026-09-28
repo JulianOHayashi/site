@@ -48,9 +48,9 @@ h3,
    Usada nos títulos editoriais das páginas públicas: cresce com a viewport
    sem saltos e sem depender de uma cadeia de breakpoints por elemento. */
 .t-hero {
-  font-size: clamp(2.5rem, 1.6rem + 4.2vw, 5rem);
-  line-height: 1.02;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.5rem, 1.75rem + 2.6vw, 3.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.028em;
 }
 .t-secao {
   font-size: clamp(1.75rem, 1.35rem + 1.7vw, 2.75rem);
@@ -68,10 +68,10 @@ h3,
 @layer components {
   /* Faixa padrão: mesma largura e o mesmo respiro vertical em todo o site. */
   .faixa {
-    @apply mx-auto max-w-6xl px-4 py-16 sm:py-24;
+    @apply mx-auto max-w-6xl px-4 py-12 sm:py-16;
   }
   .faixa-densa {
-    @apply mx-auto max-w-6xl px-4 py-10 sm:py-14;
+    @apply mx-auto max-w-6xl px-4 py-8 sm:py-10;
   }
   /* Fio de abertura de seção: separa sem o peso de uma borda de card. */
   .fio {
