@@ -33,6 +33,11 @@ import AceitarConviteManager from "./pages/parceiros/AceitarConviteManager";
 import SolicitacaoStatus from "./pages/parceiros/SolicitacaoStatus";
 import ProvisionalGuard from "./components/ProvisionalGuard";
 import AdminSolicitacoes from "./pages/admin/AdminSolicitacoes";
+import QuemSomos from "./pages/institucional/QuemSomos";
+import ComoFunciona from "./pages/institucional/ComoFunciona";
+import TrabalheConosco from "./pages/institucional/TrabalheConosco";
+import Contato from "./pages/institucional/Contato";
+import Ajuda from "./pages/institucional/Ajuda";
 
 export default function App() {
   return (
@@ -58,6 +63,13 @@ export default function App() {
           }
         />
         <Route path="/em-breve" element={<EmBreve />} />
+
+        {/* Institucional público: só frontend, sem coleta de dados. */}
+        <Route path="/quem-somos" element={<QuemSomos />} />
+        <Route path="/como-funciona" element={<ComoFunciona />} />
+        <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
+        <Route path="/contato" element={<Contato />} />
+        <Route path="/ajuda" element={<Ajuda />} />
 
         {/* Compatibilidade temporária para links da antiga loja. */}
         <Route path="/selecionar-estado" element={<Navigate to="/selecionar-localidade" replace />} />
