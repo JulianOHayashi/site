@@ -23,7 +23,7 @@ const TRILHAS: Trilha[] = [
   {
     atorRotulo: "Trilha comercial",
     ator: "Empresa parceira",
-    sistema: "BDFlow Site",
+    sistema: "SmallFlags Site",
     dominioRotulo: "Domínio comercial",
     dominio: "Relação comercial",
     itens: [
@@ -36,7 +36,7 @@ const TRILHAS: Trilha[] = [
   {
     atorRotulo: "Trilha operacional",
     ator: "Participante",
-    sistema: "BDFlow App",
+    sistema: "SmallFlags App",
     dominioRotulo: "Domínio operacional",
     dominio: "Jornada e benefícios",
     itens: [

@@ -297,7 +297,7 @@ export default function BeneficiosValidar() {
               <>
                 <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
                 <p className="text-sm text-tinta/70">
-                  O usuário precisa confirmar ou recusar no aplicativo BDFlow. O
+                  O usuário precisa confirmar ou recusar no aplicativo SmallFlags. O
                   benefício só é consumido depois dessa confirmação.
                 </p>
                 {falhaStatus && (

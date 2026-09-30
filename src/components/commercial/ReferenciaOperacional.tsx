@@ -2,7 +2,7 @@
  * Referência operacional apresentada ao parceiro.
  *
  * O Site EXPLICA a referência da operação, mas não a administra. A jornada
- * dos usuários e o ciclo operacional pertencem ao aplicativo BDFlow. Nenhuma
+ * dos usuários e o ciclo operacional pertencem ao aplicativo SmallFlags. Nenhuma
  * tela de escala ou participantes é criada aqui.
  */
 export default function ReferenciaOperacional() {
@@ -16,7 +16,7 @@ export default function ReferenciaOperacional() {
     "Demais nichos: referência de 4 dias cada",
     "Seis benefícios por usuário, um por nicho",
     "Liberação progressiva",
-    "Execução administrada pelo aplicativo BDFlow",
+    "Execução administrada pelo aplicativo SmallFlags",
   ];
 
   return (
@@ -34,7 +34,7 @@ export default function ReferenciaOperacional() {
       </ul>
       <p className="mt-4 rounded-xl border border-ciano/40 bg-ciano/5 px-4 py-3 text-sm text-tinta/70">
         O Site administra a exclusividade comercial. A jornada dos usuários e o
-        ciclo operacional são administrados pelo aplicativo BDFlow.
+        ciclo operacional são administrados pelo aplicativo SmallFlags.
       </p>
     </section>
   );

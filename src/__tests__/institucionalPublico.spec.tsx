@@ -27,8 +27,8 @@ afterEach(() => cleanup());
 
 const PAGINAS = [
   ["/quem-somos", QuemSomos, /ecossistema/i],
-  ["/como-funciona", ComoFunciona, /como a bdflow funciona/i],
-  ["/trabalhe-conosco", TrabalheConosco, /construa a bdflow/i],
+  ["/como-funciona", ComoFunciona, /como a smallflags funciona/i],
+  ["/trabalhe-conosco", TrabalheConosco, /construa a smallflags/i],
   ["/contato", Contato, /caminho certo/i],
   ["/ajuda", Ajuda, /central de ajuda/i],
 ] as const;
@@ -172,7 +172,7 @@ describe("SiteFooter", () => {
     expect(hrefs.length).toBeGreaterThan(0);
     for (const href of hrefs) expect(ROTAS.has(href)).toBe(true);
     expect(screen.queryByRole("link", { name: /privacidade|termos/i })).toBeNull();
-    expect(container.textContent).toContain("© 2026 BDFlow");
+    expect(container.textContent).toContain("© 2026 SmallFlags");
     expect(container.textContent).not.toMatch(/conteúdo provisório/i);
   });
 
@@ -191,7 +191,7 @@ describe("Home", () => {
     const { container } = montar("/", Home);
     expect(container.querySelectorAll("footer")).toHaveLength(1);
     expect(container.textContent).not.toMatch(/conteúdo provisório/i);
-    expect(screen.getByRole("heading", { name: /conheça a bdflow/i })).toBeDefined();
+    expect(screen.getByRole("heading", { name: /conheça a smallflags/i })).toBeDefined();
     const main = container.querySelector("footer")!.parentElement!;
     const hrefs = [...main.querySelectorAll("a")].map((a) => a.getAttribute("href"));
     for (const destino of ["/quem-somos", "/como-funciona", "/trabalhe-conosco"]) {
@@ -227,11 +227,11 @@ describe("fase visual 1", () => {
     montar("/quem-somos", QuemSomos);
     const comercial = screen.getByRole("region", { name: /trilha comercial/i });
     const operacional = screen.getByRole("region", { name: /trilha operacional/i });
-    expect(within(comercial).getByText("BDFlow Site")).toBeDefined();
-    expect(within(operacional).getByText("BDFlow App")).toBeDefined();
+    expect(within(comercial).getByText("SmallFlags Site")).toBeDefined();
+    expect(within(operacional).getByText("SmallFlags App")).toBeDefined();
     // O Site não pode aparecer na trilha operacional, nem o App na comercial.
-    expect(within(comercial).queryByText("BDFlow App")).toBeNull();
-    expect(within(operacional).queryByText("BDFlow Site")).toBeNull();
+    expect(within(comercial).queryByText("SmallFlags App")).toBeNull();
+    expect(within(operacional).queryByText("SmallFlags Site")).toBeNull();
     expect(screen.getByText(/onde as duas se encontram/i)).toBeDefined();
   });
 
@@ -241,5 +241,47 @@ describe("fase visual 1", () => {
     expect(passos).toHaveLength(5);
     expect(screen.getByRole("heading", { name: /etapa 1: localidade/i })).toBeDefined();
     expect(screen.getByRole("heading", { name: /etapa 5: site e app/i })).toBeDefined();
+  });
+});
+
+describe("marca pública SmallFlags", () => {
+  /**
+   * A marca pública é SmallFlags. Identificadores técnicos internos (env vars
+   * BDFLOW_*, chaves de storage bdflow_*, campos bdflow*Cents, protocolo do
+   * gateway) continuam com o codinome interno de propósito, e este teste não
+   * os cobre — ele vigia só o que o usuário lê.
+   */
+  const PAGINAS_PUBLICAS = [
+    ["/", Home],
+    ["/quem-somos", QuemSomos],
+    ["/como-funciona", ComoFunciona],
+    ["/trabalhe-conosco", TrabalheConosco],
+    ["/contato", Contato],
+    ["/ajuda", Ajuda],
+  ] as const;
+
+  for (const [caminho, Pagina] of PAGINAS_PUBLICAS) {
+    it(`${caminho} não exibe a marca antiga em texto nem em rótulo acessível`, () => {
+      stubReducedMotion();
+      const { container } = montar(caminho, Pagina);
+      expect(container.textContent).not.toMatch(/bd\s*flow/i);
+      const rotulos = [...container.querySelectorAll("[aria-label]")].map((e) =>
+        e.getAttribute("aria-label")
+      );
+      for (const r of rotulos) expect(r).not.toMatch(/bd\s*flow/i);
+    });
+  }
+
+  it("o wordmark do header e do rodapé diz SmallFlags", () => {
+    const { container } = montar("/", SiteHeader);
+    expect(
+      within(container).getByRole("link", { name: /smallflags — início/i }).textContent
+    ).toBe("SmallFlags");
+    cleanup();
+    const rodape = montar("/", SiteFooter);
+    expect(
+      within(rodape.container).getByRole("link", { name: /smallflags — início/i })
+        .textContent
+    ).toBe("SmallFlags");
   });
 });

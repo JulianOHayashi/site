@@ -9,7 +9,7 @@ import { REGIAO_ATIVA } from "../../content/institucional";
 import type { ReactNode } from "react";
 
 /**
- * /como-funciona — o modelo BDFlow em cinco etapas.
+ * /como-funciona — o modelo SmallFlags em cinco etapas.
  *
  * A numeração é legítima: é uma sequência real (localidade → oportunidade →
  * parceria → exclusividade → Site e App). Não descreve mecânicas operacionais
@@ -98,7 +98,7 @@ const ETAPAS: Etapa[] = [
     conteudo: (
       <p>
         A gestão comercial continua no Site e no Portal do Parceiro. A jornada
-        operacional dos participantes é administrada pelo BDFlow App, onde eles
+        operacional dos participantes é administrada pelo SmallFlags App, onde eles
         também acessam os benefícios oferecidos pelas empresas parceiras.
       </p>
     ),
@@ -110,7 +110,7 @@ export default function ComoFunciona() {
     <PaginaInstitucional titulo="Como funciona">
       <Abertura
         rotulo="Como funciona"
-        titulo="Entenda como a BDFlow funciona."
+        titulo="Entenda como a SmallFlags funciona."
         texto={
           <p>
             Da localidade da sua empresa até a exclusividade comercial, em cinco

@@ -14,7 +14,7 @@ export default function Admin() {
       <Header />
       <main className="mx-auto max-w-4xl px-4 pb-24 pt-12">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
-          Administração BDFlow
+          Administração SmallFlags
         </p>
         <h1 className="mt-3 text-3xl sm:text-4xl">Painel administrativo</h1>
         <p className="mt-4 max-w-2xl text-tinta/70">
@@ -33,7 +33,7 @@ export default function Admin() {
               Ver oportunidades
             </Link>
             <Link to="/portal/dashboard" className="btn-secondary">
-              Abrir Portal BDFlow
+              Abrir Portal SmallFlags
             </Link>
           </div>
         </section>

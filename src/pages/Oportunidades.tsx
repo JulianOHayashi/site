@@ -98,7 +98,7 @@ export default function Oportunidades() {
         {estado.fase === "sem_regiao" && (
           <div className="card mx-auto max-w-lg p-8 text-center">
             <p className="font-semibold">
-              Ainda não há uma região comercial BDFlow ativa para{" "}
+              Ainda não há uma região comercial SmallFlags ativa para{" "}
               {estado.city}/{estado.uf}.
             </p>
             <p className="mt-2 text-sm text-tinta/60">

@@ -48,7 +48,7 @@ export default function PortalForgotPassword() {
       <Header />
       <main className="mx-auto max-w-md px-4 pb-24 pt-14">
         <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-ciano">
-          Portal do parceiro BDFlow
+          Portal do parceiro SmallFlags
         </p>
         <h1 className="mt-3 text-center text-3xl">
           Recuperar senha

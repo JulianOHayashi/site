@@ -211,7 +211,7 @@ export default function PortalValidar() {
               <div className="rounded-xl bg-amarelo/25 p-4 text-sm">
                 <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
                 <p className="mt-2 text-tinta/70">
-                  O usuário precisa confirmar ou recusar no aplicativo BDFlow. O
+                  O usuário precisa confirmar ou recusar no aplicativo SmallFlags. O
                   benefício só é consumido depois dessa confirmação.
                 </p>
                 <p className="mt-2 text-xs text-tinta/50">

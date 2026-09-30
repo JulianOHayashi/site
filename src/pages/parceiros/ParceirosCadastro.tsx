@@ -215,7 +215,7 @@ export default function ParceirosCadastro() {
       <Header />
       <main className="mx-auto max-w-2xl px-4 pb-24 pt-10">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
-          Parceiros BDFlow
+          Parceiros SmallFlags
         </p>
         <h1 className="mt-3 text-3xl sm:text-4xl">
           Solicitação de parceria

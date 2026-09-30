@@ -2,7 +2,7 @@ import { UFS } from "./brazilStates";
 import type { CommercialTerritory } from "../domain/commercial/types";
 
 /**
- * Persistência territorial do domínio comercial BDFlow.
+ * Persistência territorial do domínio comercial SmallFlags.
  *
  * A persistência serve apenas à experiência de navegação; o backend continua
  * sendo a autoridade:

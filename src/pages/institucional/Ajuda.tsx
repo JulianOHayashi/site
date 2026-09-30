@@ -131,7 +131,7 @@ const CATEGORIAS: Categoria[] = [
         pergunta: "Onde ocorre a validação de benefícios?",
         resposta: (
           <>
-            No Portal do Parceiro. O participante apresenta o QR code do BDFlow App, a empresa
+            No Portal do Parceiro. O participante apresenta o QR code do SmallFlags App, a empresa
             parceira registra a solicitação pelo Portal e o participante confirma o uso no
             App.
           </>
@@ -140,15 +140,15 @@ const CATEGORIAS: Categoria[] = [
     ],
   },
   {
-    id: "bdflow",
-    titulo: "BDFlow",
+    id: "smallflags",
+    titulo: "SmallFlags",
     perguntas: [
       {
         pergunta: "Qual é a diferença entre Site e App?",
         resposta: (
           <>
             O Site cuida do lado comercial: oportunidades, exclusividade, parceria, contratos,
-            pagamentos e o Portal do Parceiro. O BDFlow App cuida da jornada operacional dos
+            pagamentos e o Portal do Parceiro. O SmallFlags App cuida da jornada operacional dos
             participantes e do uso dos benefícios. Saiba mais em{" "}
             <L to="/como-funciona">Como funciona</L>.
           </>

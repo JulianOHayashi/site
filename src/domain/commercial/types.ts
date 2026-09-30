@@ -1,5 +1,5 @@
 /**
- * Domínio comercial do Site BDFlow — tipos canônicos (Fase 1).
+ * Domínio comercial do Site SmallFlags — tipos canônicos (Fase 1).
  *
  * Regras:
  * - status e código de nicho usam unions literais (nunca string genérica);

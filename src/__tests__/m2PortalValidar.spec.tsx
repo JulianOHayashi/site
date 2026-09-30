@@ -253,7 +253,7 @@ describe("R12 — enviar não é validar", () => {
 
     await screen.findByText(/Solicitação enviada ao aplicativo/i);
     expect(
-      screen.getByText(/confirmar ou recusar no aplicativo BDFlow/i)
+      screen.getByText(/confirmar ou recusar no aplicativo SmallFlags/i)
     ).toBeDefined();
     expect(screen.getByText(/só é consumido depois dessa confirmação/i)).toBeDefined();
     // As três afirmações proibidas neste momento.

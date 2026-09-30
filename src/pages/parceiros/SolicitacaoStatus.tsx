@@ -334,7 +334,7 @@ function Documentos({
       <h2 className="text-lg font-bold">Documentos</h2>
       <p className="mt-2 text-sm text-tinta/70">
         Os arquivos ficam em armazenamento privado, acessíveis apenas a você e
-        à análise autorizada da BDFlow.
+        à análise autorizada da SmallFlags.
       </p>
 
       {erro ? (

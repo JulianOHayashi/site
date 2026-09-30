@@ -148,7 +148,7 @@ export default function EtapasContratacao(props: {
         <h3 className="font-bold">Contrato-quadro pendente</h3>
         <p className="mt-2 text-sm text-tinta/70">
           Sua empresa ainda não possui contrato-quadro assinado e registrado.
-          Ele é exigido antes de qualquer pedido. Fale com a BDFlow para
+          Ele é exigido antes de qualquer pedido. Fale com a SmallFlags para
           concluir essa etapa. Nenhum valor foi cobrado.
         </p>
       </div>
@@ -190,7 +190,7 @@ export default function EtapasContratacao(props: {
         {p.status === "late_unreconciled" && (
           // Nem "falhou" nem "contratado": conferência manual.
           <p className="text-sm text-tinta/70">
-            Recebemos uma confirmação do provedor após o prazo. A BDFlow vai
+            Recebemos uma confirmação do provedor após o prazo. A SmallFlags vai
             conferir manualmente e entrar em contato. A exclusividade não foi
             contratada automaticamente.
           </p>
@@ -295,7 +295,7 @@ export default function EtapasContratacao(props: {
             </label>
           ))}
           {/* O total exibido é SEMPRE o contratual: o parcelamento divide,
-              nunca acrescenta. O custo do provedor é da BDFlow. */}
+              nunca acrescenta. O custo do provedor é da SmallFlags. */}
           <p className="text-sm font-semibold">Total: {BRL(amountCents)}</p>
         </fieldset>
       )}

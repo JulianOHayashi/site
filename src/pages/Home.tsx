@@ -7,9 +7,9 @@ import RelacaoSiteApp from "../components/institucional/RelacaoSiteApp";
 import { FORMACAO_REFERENCIA, REGIAO_ATIVA } from "../content/institucional";
 
 /**
- * HOME — Site BDFlow (comercial).
+ * HOME — Site SmallFlags (comercial).
  *
- * Primeira dobra responde três perguntas: o que é a BDFlow, qual oportunidade
+ * Primeira dobra responde três perguntas: o que é a SmallFlags, qual oportunidade
  * existe aqui e o que a empresa faz em seguida. Depois: região ativa, os seis
  * nichos, a formação de referência, a relação Site ↔ App e as entradas de
  * parceiro.
@@ -70,7 +70,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-12 sm:pb-10 sm:pt-20">
           <div className="grid gap-12 lg:grid-cols-12 lg:gap-10">
             <div className="lg:col-span-7">
-              <p className="rotulo text-magenta">Oportunidades comerciais BDFlow</p>
+              <p className="rotulo text-magenta">Oportunidades comerciais SmallFlags</p>
               <h1 className="display t-hero mt-5 max-w-[18ch]">
                 Oportunidades comerciais por região e por nicho.
               </h1>
@@ -205,12 +205,12 @@ export default function Home() {
         </Revelar>
       </section>
 
-      {/* ===================== CONHEÇA A BDFLOW: SITE ↔ APP ===================== */}
+      {/* ===================== CONHEÇA A SMALLFLAGS: SITE ↔ APP ===================== */}
       <section aria-labelledby="conheca-titulo" className="faixa">
         <div className="fio grid gap-8 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-4">
             <h2 id="conheca-titulo" className="t-secao">
-              Conheça a BDFlow
+              Conheça a SmallFlags
             </h2>
             <p className="mt-4 max-w-sm leading-7 text-tinta/70">
               Dois ambientes com responsabilidades separadas. O Site cuida da relação
@@ -240,7 +240,7 @@ export default function Home() {
           <div className="grid gap-px overflow-hidden rounded-3xl border border-borda bg-borda md:grid-cols-2">
             <div className="flex flex-col bg-white p-8 sm:p-10">
               <p className="rotulo text-tinta/60">Ainda não é parceira</p>
-              <h3 className="mt-3 text-2xl leading-snug">Conheça a parceria BDFlow</h3>
+              <h3 className="mt-3 text-2xl leading-snug">Conheça a parceria SmallFlags</h3>
               <p className="mt-3 flex-1 leading-7 text-tinta/70">
                 Entenda o modelo comercial, os requisitos e envie a solicitação da sua
                 empresa.
@@ -267,7 +267,7 @@ export default function Home() {
       {/* ===================== ENTRADA INSTITUCIONAL DISCRETA ===================== */}
       <section className="mx-auto max-w-6xl px-4 pb-6">
         <p className="border-t border-borda pt-8 text-sm leading-6 text-tinta/70">
-          Quer construir a BDFlow com a gente?{" "}
+          Quer construir a SmallFlags com a gente?{" "}
           <Link
             to="/trabalhe-conosco"
             className="font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"

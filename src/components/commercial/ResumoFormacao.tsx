@@ -27,11 +27,11 @@ export default function ResumoFormacao() {
       valor: formatarCentavos(f.economicValueCents),
     },
     {
-      rotulo: `Pool destinado aos ${f.participantTarget} usuários BDFlow`,
+      rotulo: `Pool destinado aos ${f.participantTarget} usuários SmallFlags`,
       valor: formatarCentavos(f.userPoolCents),
     },
     {
-      rotulo: "BDFlow + operação + investimentos",
+      rotulo: "SmallFlags + operação + investimentos",
       valor: formatarCentavos(f.bdflowOpsInvestmentCents),
     },
     {

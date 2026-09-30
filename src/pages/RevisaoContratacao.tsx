@@ -29,7 +29,7 @@ import {
  * O QUE O NAVEGADOR PODE E NÃO PODE
  * Pode escolher: a forma de disponibilização dos benefícios.
  * Não pode escolher, e não há caminho para isso: fidelidade, versão da
- * tabela, preço unitário, valor econômico, pool, parcela BDFlow, forma de
+ * tabela, preço unitário, valor econômico, pool, parcela SmallFlags, forma de
  * pagamento ou valor da cobrança. Os números abaixo são REFERÊNCIA pública da
  * tabela vigente; a proposta vinculante é sempre a que o servidor calcula.
  *
@@ -168,7 +168,7 @@ export default function RevisaoContratacao() {
         <h1 className="text-3xl">Revisão da contratação</h1>
         <p className="mt-2 text-sm text-tinta/60">
           Referência pública da tabela vigente. A proposta vinculante é emitida
-          pela BDFlow após a análise do cadastro.
+          pela SmallFlags após a análise do cadastro.
         </p>
 
         <section className="card mt-6 p-6" aria-labelledby="nicho-titulo">
@@ -185,11 +185,11 @@ export default function RevisaoContratacao() {
               valor={formatarCentavos(composicao.economicValueCents)}
             />
             <Linha
-              rotulo={`Pool destinado aos usuários BDFlow (${composicao.displayPoolPercent})`}
+              rotulo={`Pool destinado aos usuários SmallFlags (${composicao.displayPoolPercent})`}
               valor={formatarCentavos(composicao.userPoolCents)}
             />
             <Linha
-              rotulo="BDFlow + operação + investimentos"
+              rotulo="SmallFlags + operação + investimentos"
               valor={formatarCentavos(composicao.bdflowOpsInvestmentCents)}
             />
           </dl>
@@ -268,7 +268,7 @@ export default function RevisaoContratacao() {
               valor={formatarCentavos(funding.userPoolCents)}
             />
             <Linha
-              rotulo="BDFlow + operação + investimentos"
+              rotulo="SmallFlags + operação + investimentos"
               valor={formatarCentavos(funding.bdflowOpsInvestmentCents)}
             />
             <Linha
@@ -281,7 +281,7 @@ export default function RevisaoContratacao() {
           <p className="mt-3 text-xs text-tinta/60">
             {modo === "cash"
               ? "O aporte em dinheiro é economicamente destinado aos usuários elegíveis que cumprirem os requisitos operacionais. A liberação de cada benefício é determinada pelas regras operacionais do App."
-              : "O valor do pool é cumprido pela empresa em benefícios diretos, sob as regras operacionais. À BDFlow é devida apenas a parcela de BDFlow, operação e investimentos."}
+              : "O valor do pool é cumprido pela empresa em benefícios diretos, sob as regras operacionais. À SmallFlags é devida apenas a parcela de SmallFlags, operação e investimentos."}
           </p>
         </section>
 

@@ -85,7 +85,7 @@ export function PortalTopo({
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-ciano">
-          Portal do parceiro BDFlow
+          Portal do parceiro SmallFlags
         </p>
         <h1 className="mt-1 text-3xl sm:text-4xl">{titulo}</h1>
       </div>

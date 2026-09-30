@@ -46,7 +46,7 @@ export default function Contato() {
     <PaginaInstitucional titulo="Contato">
       <Abertura
         rotulo="Contato"
-        titulo="Fale com a BDFlow pelo caminho certo."
+        titulo="Fale com a SmallFlags pelo caminho certo."
         texto={
           <p>
             Para a maioria dos assuntos, o jeito mais rápido é seguir a jornada

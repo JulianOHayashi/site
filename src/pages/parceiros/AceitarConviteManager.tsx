@@ -226,7 +226,7 @@ export default function AceitarConviteManager() {
               empresa; acesso financeiro não é concedido automaticamente.
             </p>
             <Link to="/portal/dashboard" className="btn-primary mt-6 inline-block">
-              Ir para o Portal BDFlow
+              Ir para o Portal SmallFlags
             </Link>
           </div>
         ) : null}

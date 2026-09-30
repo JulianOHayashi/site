@@ -102,7 +102,7 @@ export function renderizar(
       const link = montarLink(siteBaseUrl, "confirmarEmail", { token });
       const linkHtml = escaparHtml(link);
       return {
-        subject: "Confirme seu e-mail — BDFlow",
+        subject: "Confirme seu e-mail — SmallFlags",
         texto: [
           "Recebemos sua solicitação de parceria.",
           "",
@@ -124,7 +124,7 @@ export function renderizar(
       const link = montarLink(siteBaseUrl, "confirmarEmail", { claim: token });
       const linkHtml = escaparHtml(link);
       return {
-        subject: "Crie seu acesso — BDFlow",
+        subject: "Crie seu acesso — SmallFlags",
         texto: [
           "Seu e-mail foi confirmado.",
           "",
@@ -148,7 +148,7 @@ export function renderizar(
       // Nome da empresa é dinâmico e vai para HTML: precisa de escape.
       const empresa = exigirTexto(dados, "company_name", 300);
       return {
-        subject: "Convite para gerenciar — BDFlow",
+        subject: "Convite para gerenciar — SmallFlags",
         texto: [
           `Você foi convidado para gerenciar uma unidade de ${empresa}.`,
           "",

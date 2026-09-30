@@ -12,9 +12,9 @@ import { Link } from "react-router-dom";
 /**
  * /quem-somos — página institucional.
  *
- * Explica a BDFlow sem afirmações corporativas não sustentadas: nada de
+ * Explica a SmallFlags sem afirmações corporativas não sustentadas: nada de
  * números de clientes, prêmios, funcionários ou "valores oficiais".
- * Distingue o Site (domínio comercial) do App BDFlow (jornada operacional
+ * Distingue o Site (domínio comercial) do App SmallFlags (jornada operacional
  * do participante) sem expor detalhes internos de integração.
  */
 export default function QuemSomos() {
@@ -25,7 +25,7 @@ export default function QuemSomos() {
         titulo="Empresas, tecnologia e operação conectadas em um único ecossistema."
         texto={
           <p>
-            A BDFlow organiza uma estrutura comercial para empresas parceiras e
+            A SmallFlags organiza uma estrutura comercial para empresas parceiras e
             a conecta a um aplicativo dedicado à experiência dos participantes.
             Cada parte tem sua responsabilidade — e as duas trabalham juntas.
           </p>
@@ -34,7 +34,7 @@ export default function QuemSomos() {
 
       <Secao
         id="o-que-fazemos"
-        titulo="O que a BDFlow faz"
+        titulo="O que a SmallFlags faz"
         intro={
           <p>
             Um modelo em que a relação comercial com as empresas e a jornada dos
@@ -45,7 +45,7 @@ export default function QuemSomos() {
         <p className="max-w-2xl text-lg leading-8 text-tinta/80">
           Empresas parceiras participam de oportunidades comerciais organizadas
           por região e por nicho, dentro de uma exclusividade comercial. Os
-          participantes vivem a experiência BDFlow pelo aplicativo, onde também
+          participantes vivem a experiência SmallFlags pelo aplicativo, onde também
           acessam os benefícios oferecidos pelas empresas parceiras.
         </p>
       </Secao>
