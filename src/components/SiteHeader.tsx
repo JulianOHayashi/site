@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { obterTerritorio } from "../lib/commercialTerritory";
 
 /**
- * Navegação pública BDFlow.
+ * Navegação pública SmallFlags.
  *
  * Arquitetura de entrada:
  * - Para empresas (/parceiros): conteúdo público + início da candidatura.
@@ -118,8 +118,8 @@ export default function SiteHeader() {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
-        <Link to="/" className="display inline-flex min-h-[44px] items-center text-xl" aria-label="BDFlow — início">
-          BD<span className="text-magenta">Flow</span>
+        <Link to="/" className="display inline-flex min-h-[44px] items-center text-xl" aria-label="SmallFlags — início">
+          Small<span className="text-magenta">Flags</span>
         </Link>
 
         <nav className="hidden items-center gap-1 xl:flex" aria-label="Principal">

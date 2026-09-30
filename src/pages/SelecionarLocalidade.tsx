@@ -173,7 +173,7 @@ export default function SelecionarLocalidade() {
             ) : (
               <div className="rounded-3xl bg-papel2 p-6">
                 <p className="font-semibold">
-                  Ainda não há uma região comercial BDFlow ativa para esta cidade.
+                  Ainda não há uma região comercial SmallFlags ativa para esta cidade.
                 </p>
                 <p className="mt-2 text-sm text-tinta/70">
                   Você pode registrar interesse territorial. A inscrição serve

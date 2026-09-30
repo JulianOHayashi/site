@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { REGIAO_ATIVA } from "../content/institucional";
 
 /**
- * Rodapé público global do Site BDFlow.
+ * Rodapé público global do Site SmallFlags.
  *
  * Só aponta para rotas que existem. A coluna Legal fica reservada: enquanto
  * não houver páginas públicas de Privacidade/Termos, ela diz isso em texto em
@@ -10,7 +10,7 @@ import { REGIAO_ATIVA } from "../content/institucional";
  */
 const COLUNAS: { titulo: string; links: { rotulo: string; to: string }[] }[] = [
   {
-    titulo: "BDFlow",
+    titulo: "SmallFlags",
     links: [
       { rotulo: "Quem somos", to: "/quem-somos" },
       { rotulo: "Como funciona", to: "/como-funciona" },
@@ -41,8 +41,8 @@ export default function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-16">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <Link to="/" className="display inline-block text-2xl" aria-label="BDFlow — início">
-              BD<span className="text-magenta">Flow</span>
+            <Link to="/" className="display inline-block text-2xl" aria-label="SmallFlags — início">
+              Small<span className="text-magenta">Flags</span>
             </Link>
             <p className="mt-3 max-w-xs text-sm leading-6 text-tinta/65">
               Oportunidades comerciais por região e por nicho. Região comercial
@@ -81,7 +81,7 @@ export default function SiteFooter() {
         </div>
 
         <p className="mt-14 border-t border-borda pt-6 text-xs text-tinta/65">
-          © 2026 BDFlow
+          © 2026 SmallFlags
         </p>
       </div>
     </footer>

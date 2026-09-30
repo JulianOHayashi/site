@@ -21,7 +21,7 @@ type Empresa = {
 } | null;
 
 const STATUS_EMPRESA: Record<string, string> = {
-  pending: "Aguardando análise da BDFlow",
+  pending: "Aguardando análise da SmallFlags",
   active: "Ativa",
   suspended: "Suspensa",
   archived: "Arquivada",
@@ -92,8 +92,8 @@ export default function PortalDashboard() {
               Cadastre sua empresa parceira
             </h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-tinta/70">
-              Para começar no Portal BDFlow, cadastre a empresa e torne-se o
-              responsável principal. A análise é feita pela BDFlow.
+              Para começar no Portal SmallFlags, cadastre a empresa e torne-se o
+              responsável principal. A análise é feita pela SmallFlags.
             </p>
             <Link to="/portal/cadastro" className="btn-primary mt-5 inline-block">
               Cadastrar empresa parceira

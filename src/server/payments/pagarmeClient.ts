@@ -13,7 +13,7 @@
  *
  * PARCELAMENTO
  * De 1 a 6 parcelas, TODAS com o mesmo total contratual — nenhum acréscimo é
- * aplicado ao parceiro. Isso significa que a BDFlow absorve o custo do
+ * aplicado ao parceiro. Isso significa que a SmallFlags absorve o custo do
  * parcelamento. A política final de taxas/juros está registrada como decisão
  * futura nos handoffs; enquanto ela não existir, preservar o total é a única
  * opção que não inventa uma taxa.
@@ -326,7 +326,7 @@ export class PagarmeClient {
         items: [
           {
             amount: a.amountCents,
-            description: "Exclusividade comercial BDFlow",
+            description: "Exclusividade comercial SmallFlags",
             quantity: 1,
           },
         ],
@@ -359,7 +359,7 @@ export class PagarmeClient {
 
   /**
    * Cartão do fidelizado: checkout HOSPEDADO. Nenhum dado sensível do meio
-   * de pagamento passa pelo servidor da BDFlow. A asserção que cobre isto
+   * de pagamento passa pelo servidor da SmallFlags. A asserção que cobre isto
    * varre o próprio texto deste arquivo, então nem em comentário os nomes
    * desses campos aparecem.
    */
@@ -368,7 +368,7 @@ export class PagarmeClient {
       "/paymentlinks",
       "POST",
       {
-        name: "Exclusividade comercial BDFlow",
+        name: "Exclusividade comercial SmallFlags",
         type: "order",
         // A regra de negócio é UM PAGAMENTO BEM-SUCEDIDO. `max_sessions`
         // limita ORDENS GERADAS, pagas ou não, e por isso não serve: um
@@ -387,7 +387,7 @@ export class PagarmeClient {
           items: [
             {
               amount: a.amountCents,
-              name: "Exclusividade comercial BDFlow",
+              name: "Exclusividade comercial SmallFlags",
               default_quantity: 1,
             },
           ],

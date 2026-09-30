@@ -14,7 +14,7 @@ import SiteFooter from "../SiteFooter";
  * Nada aqui coleta dados, autentica ou consulta o Supabase.
  */
 
-const TITULO_BASE = "BDFlow";
+const TITULO_BASE = "SmallFlags";
 
 /** Casca: header global, <main> com um único h1 vindo da Abertura, footer global. */
 export function PaginaInstitucional({

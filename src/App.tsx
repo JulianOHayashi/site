@@ -121,7 +121,7 @@ export default function App() {
             </ProvisionalGuard>
           }
         />
-        {/* Portal do parceiro BDFlow (Supabase do Site). */}
+        {/* Portal do parceiro SmallFlags (Supabase do Site). */}
         <Route path="/portal" element={<Navigate to="/portal/login" replace />} />
         <Route path="/portal/login" element={<PortalLogin />} />
         <Route path="/portal/recuperar-senha" element={<PortalForgotPassword />} />

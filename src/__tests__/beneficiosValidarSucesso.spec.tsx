@@ -144,7 +144,7 @@ describe("BeneficiosValidar — sucesso sobrevive ao descarte do segredo", () =>
     // UI de sucesso presente...
     await screen.findByText("Solicitação enviada ao aplicativo.");
     expect(
-      screen.getByText(/confirmar ou recusar no aplicativo BDFlow/i)
+      screen.getByText(/confirmar ou recusar no aplicativo SmallFlags/i)
     ).toBeTruthy();
 
     // ...o segredo foi descartado...

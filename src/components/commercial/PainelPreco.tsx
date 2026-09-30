@@ -16,7 +16,7 @@ import {
  * Painel de condições comerciais da vitrine — Comercial V2.
  *
  * O QUE MUDOU EM RELAÇÃO À V1
- * A versão anterior afirmava, sem condição, que o pool "não é pago à BDFlow"
+ * A versão anterior afirmava, sem condição, que o pool "não é pago à SmallFlags"
  * e é sempre honrado na rede do parceiro. Sob a V2 isso deixou de ser
  * universalmente verdadeiro: a empresa escolhe entre cumprir em benefícios
  * diretos ou aportar o pool em dinheiro. O texto passa a ser condicional.
@@ -65,7 +65,7 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
         <h2 className="text-lg font-bold">Condições comerciais</h2>
         <p className="mt-2 text-sm text-tinta/70">
           As condições vigentes não estão disponíveis no momento. Fale com a
-          BDFlow para receber a proposta atualizada.
+          SmallFlags para receber a proposta atualizada.
         </p>
         <Cta />
       </div>
@@ -113,8 +113,8 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
         <p className="text-tinta/70">
           <span className="font-semibold">Benefícios diretos</span> — a empresa
           disponibiliza os benefícios diretamente aos usuários elegíveis,
-          conforme as regras operacionais. Nesse caso, o valor pago à BDFlow é
-          apenas a parcela de BDFlow, operação e investimentos.
+          conforme as regras operacionais. Nesse caso, o valor pago à SmallFlags é
+          apenas a parcela de SmallFlags, operação e investimentos.
         </p>
         <p className="text-tinta/70">
           <span className="font-semibold">Dinheiro real</span> — a empresa
@@ -129,7 +129,7 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
 
       <p className="mt-3 text-xs text-tinta/50">
         Condição fidelizada aplicada a contratos seguintes no mesmo CNPJ,
-        cidade e nicho. A condição é determinada pela BDFlow a partir do
+        cidade e nicho. A condição é determinada pela SmallFlags a partir do
         histórico da empresa, não escolhida na contratação.
       </p>
 
@@ -151,7 +151,7 @@ function Composicao({ titulo, p }: { titulo: string; p: NichePricing }) {
       </div>
       <div className="flex items-center justify-between">
         <span className="text-tinta/70">
-          Pool destinado aos usuários BDFlow
+          Pool destinado aos usuários SmallFlags
           {p.displayPoolPercent ? ` (${p.displayPoolPercent})` : ""}
         </span>
         <span className="font-semibold">
@@ -159,7 +159,7 @@ function Composicao({ titulo, p }: { titulo: string; p: NichePricing }) {
         </span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-tinta/70">BDFlow + operação + investimentos</span>
+        <span className="text-tinta/70">SmallFlags + operação + investimentos</span>
         <span className="font-semibold">
           {formatarCentavos(p.bdflowDueCents)}
         </span>
@@ -192,7 +192,7 @@ function Cta({ nicheCode }: { nicheCode?: string }) {
       <p className="mt-2 text-center text-xs text-tinta/50">
         {nicheCode
           ? "No checkout, o titular autenticado pode reservar a oportunidade por 30 minutos e avançar após o aceite dos termos."
-          : "As condições vigentes não estão disponíveis. Solicite o contato da BDFlow para receber a proposta atualizada."}
+          : "As condições vigentes não estão disponíveis. Solicite o contato da SmallFlags para receber a proposta atualizada."}
       </p>
     </>
   );

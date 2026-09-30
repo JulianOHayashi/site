@@ -97,14 +97,14 @@ export default function PortalLogin() {
       <Header />
       <main className="mx-auto max-w-md px-4 pb-24 pt-14">
         <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-ciano">
-          Portal do parceiro BDFlow
+          Portal do parceiro SmallFlags
         </p>
         <h1 className="mt-3 text-center text-3xl sm:text-4xl">
           Entrar no portal
           <span className="mx-auto mt-3 block h-2 w-24 rounded-full bg-ciano" />
         </h1>
         <p className="mt-3 text-center text-sm text-tinta/60">
-          Acesso para parceiros comerciais BDFlow.
+          Acesso para parceiros comerciais SmallFlags.
         </p>
 
         <form onSubmit={entrar} className="card mt-8 space-y-4 p-6">

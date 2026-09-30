@@ -31,11 +31,11 @@ export default function Parceiros() {
             Para empresas
           </p>
           <h1 className="mt-4 text-4xl leading-[1.05] sm:text-6xl">
-            Torne sua empresa parceira BDFlow.
+            Torne sua empresa parceira SmallFlags.
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-tinta/70">
             Solicite a análise da sua empresa para participar das oportunidades
-            comerciais BDFlow. O cadastro não cria acesso ao Portal do Parceiro
+            comerciais SmallFlags. O cadastro não cria acesso ao Portal do Parceiro
             imediatamente: primeiro a solicitação passa pela análise prevista.
           </p>
 

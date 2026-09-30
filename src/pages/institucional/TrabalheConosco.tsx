@@ -34,7 +34,7 @@ const AREAS = [
   },
   {
     nome: "Operações",
-    texto: "Organização do dia a dia que faz a BDFlow funcionar nas regiões ativas.",
+    texto: "Organização do dia a dia que faz a SmallFlags funcionar nas regiões ativas.",
   },
   {
     nome: "Comercial",
@@ -78,10 +78,10 @@ export default function TrabalheConosco() {
     <PaginaInstitucional titulo="Trabalhe conosco">
       <Abertura
         rotulo="Trabalhe conosco"
-        titulo="Construa a BDFlow com a gente."
+        titulo="Construa a SmallFlags com a gente."
         texto={
           <p>
-            A BDFlow reúne tecnologia, operação comercial e relacionamento com
+            A SmallFlags reúne tecnologia, operação comercial e relacionamento com
             empresas parceiras. Quando houver processos seletivos abertos, eles
             serão publicados nesta página.
           </p>
@@ -93,7 +93,7 @@ export default function TrabalheConosco() {
         titulo="Áreas de atuação"
         intro={
           <p>
-            As frentes em que a BDFlow trabalha. Não indicam vagas abertas.
+            As frentes em que a SmallFlags trabalha. Não indicam vagas abertas.
           </p>
         }
       >
@@ -140,7 +140,7 @@ export default function TrabalheConosco() {
             to="/quem-somos"
             className="font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
           >
-            Conheça a BDFlow
+            Conheça a SmallFlags
           </Link>
         </p>
       </Secao>

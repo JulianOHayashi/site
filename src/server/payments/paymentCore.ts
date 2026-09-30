@@ -18,7 +18,7 @@
  *
  * POLÍTICA DE PARCELAMENTO
  * 1 a 6 parcelas, todas com o MESMO total contratual, juros zero para o
- * comprador. O custo do provedor é despesa operacional da BDFlow e não toca
+ * comprador. O custo do provedor é despesa operacional da SmallFlags e não toca
  * `economic_value_cents`, o instantâneo do pedido nem o contrato aceito.
  * Nenhuma taxa ou MDR aparece neste código.
  */

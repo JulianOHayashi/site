@@ -67,7 +67,7 @@ export default function ParceirosPainel() {
         <div className="card mt-8 p-8">
           <p className="text-tinta/70">
             As oportunidades, contratos, preços e condições de fidelidade serão
-            disponibilizados nas próximas etapas do Site BDFlow.
+            disponibilizados nas próximas etapas do Site SmallFlags.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -75,7 +75,7 @@ export default function ParceirosPainel() {
               Ver oportunidades
             </Link>
             <Link to="/portal/login" className="btn-secondary">
-              Ir para o Portal BDFlow
+              Ir para o Portal SmallFlags
             </Link>
           </div>
         </div>
