@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { renderPortal, SESSAO_FALSA } from "./helpers/portalRender";
 
 const obterVinculosParceiro = vi.fn();
+
+vi.mock("../hooks/usePortalSiteAuth", () => ({
+  usePortalSiteAuth: () => SESSAO_FALSA(),
+}));
 const carregarEquipeOwner = vi.fn();
 const ownerCriarUnidade = vi.fn();
 const ownerConvidarManager = vi.fn();
@@ -74,8 +78,10 @@ beforeEach(() => {
 
 describe("PortalEquipe", () => {
   it("owner cria unidade pela RPC canônica", async () => {
-    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
-    await screen.findByText("Empresa QA");
+    renderPortal(<PortalEquipe />);
+    // Espera o FORMULÁRIO, que só existe depois de a equipe carregar. "Empresa
+    // QA" não serve de sinal: aparece antes, na barra de empresa ativa.
+    await screen.findByLabelText("Nome da unidade");
 
     fireEvent.change(screen.getByLabelText("Nome da unidade"), {
       target: { value: "Filial Serra" },
@@ -99,8 +105,8 @@ describe("PortalEquipe", () => {
   });
 
   it("owner convida manager vinculado à unidade escolhida", async () => {
-    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
-    await screen.findByText("Empresa QA");
+    renderPortal(<PortalEquipe />);
+    await screen.findByLabelText("Nome");
 
     fireEvent.change(screen.getByLabelText("Nome"), {
       target: { value: "Manager QA" },
@@ -157,7 +163,10 @@ describe("PortalEquipe", () => {
       },
     });
 
-    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
+    renderPortal(<PortalEquipe />);
+    // A tela agora separa Unidades / Managers / Convites em abas; os managers
+    // vivem na aba Managers. A RPC exercitada abaixo não mudou.
+    fireEvent.click(await screen.findByRole("tab", { name: /managers/i }));
     await screen.findByText("Manager QA");
     fireEvent.click(screen.getByRole("button", { name: "Suspender" }));
 
@@ -197,7 +206,10 @@ describe("PortalEquipe", () => {
       },
     });
 
-    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
+    renderPortal(<PortalEquipe />);
+    // A tela agora separa Unidades / Managers / Convites em abas; os managers
+    // vivem na aba Managers. A RPC exercitada abaixo não mudou.
+    fireEvent.click(await screen.findByRole("tab", { name: /managers/i }));
     await screen.findByText("Manager QA");
     fireEvent.click(screen.getByRole("checkbox"));
 
@@ -224,10 +236,71 @@ describe("PortalEquipe", () => {
       }],
     });
 
-    render(<MemoryRouter><PortalEquipe /></MemoryRouter>);
+    renderPortal(<PortalEquipe />);
     expect(
       await screen.findByText(/Acesso restrito ao responsável da empresa/i)
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Enviar convite" })).toBeNull();
+  });
+});
+
+describe("PortalEquipe — separação de visões e ação irreversível", () => {
+  function montarComManager() {
+    carregarEquipeOwner.mockResolvedValue({
+      ok: true,
+      dados: {
+        unidades: [{
+          id: UNIT, company_id: COMPANY, name: "Matriz",
+          city: "Vitória", uf: "ES", status: "active",
+        }],
+        convites: [],
+        membros: [{
+          id: "m-manager", role: "partner_manager", status: "active",
+          full_name: "Manager QA", email: "manager@example.com",
+        }],
+        vinculosUnidade: [],
+      },
+    });
+    return renderPortal(<PortalEquipe />);
+  }
+
+  it("abre em Unidades e só mostra uma visão por vez", async () => {
+    montarComManager();
+    const abaUnidades = await screen.findByRole("tab", { name: /unidades/i });
+    expect(abaUnidades.getAttribute("aria-selected")).toBe("true");
+    // Managers está em outra aba: o painel fica hidden até ser escolhida, e
+    // getByRole (que respeita acessibilidade) não o alcança.
+    expect(document.getElementById("painel-managers")!.hidden).toBe(true);
+    expect(screen.queryByRole("button", { name: /^suspender$/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /managers/i }));
+    expect(document.getElementById("painel-managers")!.hidden).toBe(false);
+    expect(document.getElementById("painel-unidades")!.hidden).toBe(true);
+    expect(abaUnidades.getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("traduz o status da unidade em vez de exibir o valor cru", async () => {
+    montarComManager();
+    await screen.findByText("Matriz");
+    const painel = document.getElementById("painel-unidades")!;
+    expect(within(painel).getByText("Ativa")).toBeDefined();
+    expect(within(painel).queryByText("active")).toBeNull();
+  });
+
+  it("revogação definitiva exige confirmação explícita antes de chamar a RPC", async () => {
+    montarComManager();
+    fireEvent.click(await screen.findByRole("tab", { name: /managers/i }));
+    await screen.findByText("Manager QA");
+
+    fireEvent.click(screen.getByRole("button", { name: /revogar acesso definitivamente/i }));
+    // Nada foi chamado ainda: o primeiro clique só abre a confirmação.
+    expect(ownerDefinirStatusManager).not.toHaveBeenCalled();
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo.textContent).toMatch(/não pode ser desfeita/i);
+
+    fireEvent.click(within(dialogo).getByRole("button", { name: /cancelar/i }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(ownerDefinirStatusManager).not.toHaveBeenCalled();
   });
 });

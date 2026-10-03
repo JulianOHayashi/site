@@ -98,8 +98,12 @@ const ETAPAS: Etapa[] = [
     conteudo: (
       <p>
         A gestão comercial continua no Site e no Portal do Parceiro. A jornada
-        operacional dos participantes é administrada pelo SmallFlags App, onde eles
-        também acessam os benefícios oferecidos pelas empresas parceiras.
+        operacional dos divulgadores é administrada pelo SmallFlags App. Cada
+        divulgador é um microempreendedor individual que usa o próprio veículo
+        para divulgação sonora em vias públicas — a SmallFlags não é dona dos
+        veículos nem empregadora. Pelo App, o divulgador também acessa os
+        benefícios oferecidos pelas empresas parceiras, que são resgatados no
+        estabelecimento de cada empresa.
       </p>
     ),
   },

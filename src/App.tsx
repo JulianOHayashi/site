@@ -6,6 +6,7 @@ import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import AdminGuard from "./components/AdminGuard";
 import PortalGuard from "./components/PortalGuard";
+import PortalLayout from "./portal/PortalLayout";
 import Parceiros from "./pages/Parceiros";
 import ParceirosAcesso from "./pages/ParceirosAcesso";
 import PortalLogin from "./pages/portal/PortalLogin";
@@ -126,13 +127,19 @@ export default function App() {
         <Route path="/portal/login" element={<PortalLogin />} />
         <Route path="/portal/recuperar-senha" element={<PortalForgotPassword />} />
         <Route path="/portal/redefinir-senha" element={<PortalResetPassword />} />
-        <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
-        <Route path="/portal/equipe" element={<PortalGuard><PortalEquipe /></PortalGuard>} />
         {/* Cadastro legado neutralizado: redirect seguro, sem RPC legada. */}
         <Route path="/portal/cadastro" element={<Navigate to="/parceiros/cadastro" replace />} />
-        <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
-        <Route path="/beneficios/validar/:publicLookupId" element={<PortalGuard><BeneficiosValidar /></PortalGuard>} />
-        <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
+
+        {/* Telas operacionais: UMA instância do contexto de empresa para todas,
+            preservada ao navegar entre elas. Rotas públicas ficam de fora, para
+            não disparar consulta de sessão em quem só visita o site. */}
+        <Route element={<PortalLayout />}>
+          <Route path="/portal/dashboard" element={<PortalGuard><PortalDashboard /></PortalGuard>} />
+          <Route path="/portal/equipe" element={<PortalGuard><PortalEquipe /></PortalGuard>} />
+          <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
+          <Route path="/beneficios/validar/:publicLookupId" element={<PortalGuard><BeneficiosValidar /></PortalGuard>} />
+          <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
+        </Route>
         {/* Compatibilidade temporária do antigo endereço do painel. */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
         <Route path="*" element={<EmBreve />} />

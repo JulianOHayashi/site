@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { renderPortal } from "./helpers/portalRender";
 
 /**
  * R12 — PortalValidar do lado Site.
@@ -79,11 +79,7 @@ afterEach(() => {
 const fetchMock = vi.fn();
 
 function montar() {
-  return render(
-    <MemoryRouter initialEntries={["/portal/validar"]}>
-      <PortalValidar />
-    </MemoryRouter>
-  );
+  return renderPortal(<PortalValidar />, { rotas: ["/portal/validar"] });
 }
 
 const elegivel = {
@@ -181,11 +177,7 @@ describe("R12 — autorização de validador na tela", () => {
 
   it("NAO ha preenchimento por parametro de URL", async () => {
     responder(elegivel);
-    render(
-      <MemoryRouter initialEntries={["/portal/validar?qt=ABCD7K2M"]}>
-        <PortalValidar />
-      </MemoryRouter>
-    );
+    renderPortal(<PortalValidar />, { rotas: ["/portal/validar?qt=ABCD7K2M"] });
     const campo = (await screen.findByLabelText(
       /Código do benefício/i
     )) as HTMLInputElement;

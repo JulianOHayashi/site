@@ -7,7 +7,19 @@
  * de leitura em qualquer largura.
  *
  * Não é um diagrama genérico: a geometria existe para deixar claro que o Site
- * NÃO administra a jornada operacional do participante.
+ * NÃO administra a jornada operacional do divulgador.
+ *
+ * CUIDADO DE LINGUAGEM — três limites que o texto desta página não pode borrar:
+ *
+ * 1. O divulgador é um MEI independente e usa VEÍCULO PRÓPRIO. A SmallFlags
+ *    não é dona do veículo, não é empregadora e não é transportadora. Nada
+ *    aqui pode sugerir frota, vínculo trabalhista ou subordinação.
+ * 2. Duas coisas distintas: a divulgação sonora acontece em VIA PÚBLICA; o
+ *    resgate de benefício acontece NO ESTABELECIMENTO da empresa parceira.
+ *    Não são a mesma atividade e não devem aparecer na mesma frase como se
+ *    fossem.
+ * 3. Nada de garantia jurídica. A regulamentação de publicidade sonora é
+ *    municipal e varia; o texto descreve o modelo, não promete conformidade.
  */
 
 type Trilha = {
@@ -35,14 +47,14 @@ const TRILHAS: Trilha[] = [
   },
   {
     atorRotulo: "Trilha operacional",
-    ator: "Participante",
+    ator: "Divulgador MEI",
     sistema: "SmallFlags App",
     dominioRotulo: "Domínio operacional",
-    dominio: "Jornada e benefícios",
+    dominio: "Divulgação e benefícios",
     itens: [
-      "Jornada operacional do participante",
+      "Divulgação sonora em via pública, com veículo próprio do MEI",
       "Acesso aos benefícios das empresas parceiras",
-      "Confirmação do uso pelo próprio participante",
+      "Confirmação do uso pelo próprio divulgador",
     ],
   },
 ];
@@ -126,9 +138,11 @@ export default function RelacaoSiteApp({ tom = "claro" }: { tom?: "claro" | "esc
             escuro ? "text-white/85" : "text-tinta/75"
           }`}
         >
-          Na validação do uso de um benefício: o participante apresenta o QR code do App,
-          a empresa parceira registra a solicitação pelo Portal do Parceiro e o participante
-          confirma o uso no próprio App. Fora desse encontro, cada ambiente decide o que é seu.
+          Na validação do uso de um benefício, no estabelecimento da empresa parceira: o
+          divulgador apresenta o QR code do App, a empresa registra a solicitação pelo Portal
+          do Parceiro e o divulgador confirma o uso no próprio App. A divulgação em via
+          pública é outra atividade, e acontece fora deste encontro. Cada ambiente decide o
+          que é seu.
         </p>
       </div>
     </div>

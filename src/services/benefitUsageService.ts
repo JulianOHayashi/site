@@ -31,9 +31,23 @@ function asRequestStatus(v: unknown): BenefitUsageRequestStatus | null {
     : null;
 }
 
+/**
+ * Em que ponto do caminho de execução a falha aconteceu.
+ *
+ * `pre_despacho` é uma afirmação FORTE: nenhuma requisição saiu do navegador,
+ * porque o `return` ocorreu antes do `fetch`. Só este caso autoriza reaproveitar
+ * um QR já consumido.
+ *
+ * `indeterminado` é tudo o mais, inclusive uma resposta de erro do servidor.
+ * Um `fetch` rejeitado pode ter entregue o POST e perdido só a resposta; um
+ * corpo ilegível pode acompanhar um 200; e um erro devolvido pelo servidor não
+ * prova, do lado do cliente, que nada foi criado no App. Na dúvida, fecha.
+ */
+export type FaseFalhaUsoBeneficio = "pre_despacho" | "indeterminado";
+
 export type ResultadoUsoBeneficio =
   | { tipo: "ok"; correlationId: string; appStatus: string | null }
-  | { tipo: "erro"; codigo: string };
+  | { tipo: "erro"; codigo: string; fase: FaseFalhaUsoBeneficio };
 
 export async function enviarUsoDeBeneficio(params: {
   publicLookupId: string;
@@ -41,14 +55,14 @@ export async function enviarUsoDeBeneficio(params: {
   unitId: string;
   physicalPhotoIdChecked: boolean;
 }): Promise<ResultadoUsoBeneficio> {
-  if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable" };
+  if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable", fase: "pre_despacho" };
   if (params.physicalPhotoIdChecked !== true) {
-    return { tipo: "erro", codigo: "photo_id_check_required" };
+    return { tipo: "erro", codigo: "photo_id_check_required", fase: "pre_despacho" };
   }
 
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return { tipo: "erro", codigo: "not_authenticated" };
+  if (!token) return { tipo: "erro", codigo: "not_authenticated", fase: "pre_despacho" };
 
   let resposta: Response;
   try {
@@ -66,19 +80,23 @@ export async function enviarUsoDeBeneficio(params: {
       }),
     });
   } catch {
-    return { tipo: "erro", codigo: "network_error" };
+    // O POST pode ter chegado ao servidor e só a resposta ter se perdido.
+    return { tipo: "erro", codigo: "network_error", fase: "indeterminado" };
   }
 
   let corpo: Record<string, unknown> | null = null;
   try {
     corpo = (await resposta.json()) as Record<string, unknown>;
   } catch {
-    return { tipo: "erro", codigo: "unexpected_error" };
+    // Corpo ilegível pode vir junto de uma requisição bem-sucedida.
+    return { tipo: "erro", codigo: "unexpected_error", fase: "indeterminado" };
   }
 
   if (!resposta.ok || corpo?.ok !== true) {
     const codigo = typeof corpo?.code === "string" ? corpo.code : "unexpected_error";
-    return { tipo: "erro", codigo };
+    // Erro devolvido PELO servidor: do lado do cliente não há como provar que
+    // nada foi criado no App, então não destrava o QR.
+    return { tipo: "erro", codigo, fase: "indeterminado" };
   }
   return {
     tipo: "ok",
@@ -103,14 +121,14 @@ export async function enviarUsoDeBeneficioPorCodigo(params: {
   unitId: string;
   physicalPhotoIdChecked: boolean;
 }): Promise<ResultadoUsoBeneficio> {
-  if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable" };
+  if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable", fase: "pre_despacho" };
   if (params.physicalPhotoIdChecked !== true) {
-    return { tipo: "erro", codigo: "photo_id_check_required" };
+    return { tipo: "erro", codigo: "photo_id_check_required", fase: "pre_despacho" };
   }
 
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return { tipo: "erro", codigo: "not_authenticated" };
+  if (!token) return { tipo: "erro", codigo: "not_authenticated", fase: "pre_despacho" };
 
   let resposta: Response;
   try {
@@ -127,20 +145,22 @@ export async function enviarUsoDeBeneficioPorCodigo(params: {
       }),
     });
   } catch {
-    return { tipo: "erro", codigo: "network_error" };
+    // O POST pode ter chegado ao servidor e só a resposta ter se perdido.
+    return { tipo: "erro", codigo: "network_error", fase: "indeterminado" };
   }
 
   let corpo: Record<string, unknown> | null = null;
   try {
     corpo = (await resposta.json()) as Record<string, unknown>;
   } catch {
-    return { tipo: "erro", codigo: "unexpected_error" };
+    // Corpo ilegível pode vir junto de uma requisição bem-sucedida.
+    return { tipo: "erro", codigo: "unexpected_error", fase: "indeterminado" };
   }
 
   if (!resposta.ok || corpo?.ok !== true) {
     const codigo =
       typeof corpo?.code === "string" ? corpo.code : "unexpected_error";
-    return { tipo: "erro", codigo };
+    return { tipo: "erro", codigo, fase: "indeterminado" };
   }
   return {
     tipo: "ok",

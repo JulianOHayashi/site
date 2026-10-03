@@ -131,9 +131,10 @@ const CATEGORIAS: Categoria[] = [
         pergunta: "Onde ocorre a validação de benefícios?",
         resposta: (
           <>
-            No Portal do Parceiro. O participante apresenta o QR code do SmallFlags App, a empresa
-            parceira registra a solicitação pelo Portal e o participante confirma o uso no
-            App.
+            No estabelecimento da empresa parceira, pelo Portal do Parceiro: o divulgador
+            apresenta o QR code do SmallFlags App, a empresa registra a solicitação pelo
+            Portal e o divulgador confirma o uso no App. A divulgação em via pública é
+            outra atividade e não passa por essa validação.
           </>
         ),
       },
@@ -149,7 +150,7 @@ const CATEGORIAS: Categoria[] = [
           <>
             O Site cuida do lado comercial: oportunidades, exclusividade, parceria, contratos,
             pagamentos e o Portal do Parceiro. O SmallFlags App cuida da jornada operacional dos
-            participantes e do uso dos benefícios. Saiba mais em{" "}
+            divulgadores e do uso dos benefícios. Saiba mais em{" "}
             <L to="/como-funciona">Como funciona</L>.
           </>
         ),

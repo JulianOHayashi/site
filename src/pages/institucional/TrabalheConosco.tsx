@@ -42,7 +42,7 @@ const AREAS = [
   },
   {
     nome: "Atendimento",
-    texto: "Suporte a empresas parceiras e participantes ao longo da jornada.",
+    texto: "Suporte a empresas parceiras e divulgadores ao longo da jornada.",
   },
   {
     nome: "Administrativo",

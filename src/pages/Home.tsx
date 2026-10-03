@@ -214,7 +214,9 @@ export default function Home() {
             </h2>
             <p className="mt-4 max-w-sm leading-7 text-tinta/70">
               Dois ambientes com responsabilidades separadas. O Site cuida da relação
-              comercial; o App cuida da jornada do participante.
+              comercial; o App cuida da jornada do divulgador — o microempreendedor
+              individual que faz divulgação sonora em vias públicas com o próprio
+              veículo.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link to="/quem-somos" className="btn-secondary">
@@ -254,7 +256,7 @@ export default function Home() {
               <h3 className="mt-3 text-2xl leading-snug">Portal do Parceiro</h3>
               <p className="mt-3 flex-1 leading-7 text-tinta/70">
                 Gestão da empresa, equipe e a validação dos benefícios apresentados pelos
-                participantes.
+                divulgadores.
               </p>
               <Link to="/portal/login" className="btn-secondary mt-7 self-start">
                 Ir para o Portal

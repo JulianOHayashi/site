@@ -72,7 +72,7 @@ function resolverParaFonte(deArquivo: string, spec: string): string | null {
   const base = normalize(join(dirname(deArquivo), spec));
   const semJs = base.replace(/\.js$/, "");
   for (const cand of [base, `${semJs}.ts`, `${semJs}.tsx`, `${base}.ts`]) {
-    if (existsSync(resolve(RAIZ, cand))) return cand;
+    if (existsSync(resolve(RAIZ, cand))) return cand.replace(/\\/g, "/");
   }
   return null;
 }
@@ -164,8 +164,8 @@ describe("fronteira ESM do Node na função serverless", () => {
     // que o Vite ja traz, monta o layout de diretorios que a Vercel usa, e
     // pede ao Node para importar o ponto de entrada. Sem deploy, sem rede,
     // sem segredo — o handler nem chega a ser chamado.
-    const esbuild = resolve(RAIZ, "node_modules/.bin/esbuild");
-    if (!existsSync(esbuild)) return; // ambiente sem esbuild: regex ja cobriu
+    const esbuildScript = resolve(RAIZ, "node_modules/esbuild/bin/esbuild");
+    expect(existsSync(esbuildScript), "esbuild deve estar instalado pelo npm ci").toBe(true);
 
     const dir = mkdtempSync(join(tmpdir(), "esm-guard-"));
     for (const m of modulos) {
@@ -174,8 +174,8 @@ describe("fronteira ESM do Node na função serverless", () => {
       // `--loader=ts` sem ponto so vale para stdin; lendo arquivo, o esbuild
       // infere o loader pela extensao.
       const js = execFileSync(
-        esbuild,
-        [resolve(RAIZ, m), "--format=esm", "--platform=node"],
+        process.execPath,
+        [esbuildScript, resolve(RAIZ, m), "--format=esm", "--platform=node"],
         { encoding: "utf8" }
       );
       writeFileSync(destino, js);
@@ -186,7 +186,7 @@ describe("fronteira ESM do Node na função serverless", () => {
     // Imports de PACOTE (@supabase/supabase-js, node:crypto) precisam
     // resolver como resolveriam na Vercel, senao o teste acusaria um
     // ERR_MODULE_NOT_FOUND que nao tem nada a ver com o defeito auditado.
-    symlinkSync(resolve(RAIZ, "node_modules"), join(dir, "node_modules"), "dir");
+    symlinkSync(resolve(RAIZ, "node_modules"), join(dir, "node_modules"), process.platform === "win32" ? "junction" : "dir");
 
     for (const entrada of ENTRADAS) {
       importarComoNode(dir, entrada);

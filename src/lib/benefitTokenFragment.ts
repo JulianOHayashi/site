@@ -29,6 +29,17 @@ const CAMINHO_RE = /^\/beneficios\/validar\/([^/?#]+)\/?$/;
 
 let segredoEmMemoria: string | null = null;
 let locatorEmMemoria: string | null = null;
+/**
+ * Trava de uso único. Assim que um envio COMEÇA, este fragmento não pode mais
+ * ser usado — nem se a empresa mudar no meio e o envio ainda não tiver
+ * respondido. Sem a trava, uma mudança involuntária de empresa abriria a
+ * escolha com o segredo ainda em memória, e a empresa B poderia reenviar o
+ * mesmo QR enquanto a requisição de A seguia em voo.
+ *
+ * Travar não cancela nada: a requisição já despachada pode ter sido
+ * processada. A trava só impede um SEGUNDO envio sob outro contexto.
+ */
+let fragmentoConsumido = false;
 
 export type CapturaFragmento =
   | { tipo: "ignorado" }
@@ -69,6 +80,7 @@ export function capturarFragmento(
   if (r.tipo === "capturado") {
     segredoEmMemoria = r.rawSecret;
     locatorEmMemoria = r.publicLookupId;
+    fragmentoConsumido = false;
   }
   // Fragmento inválido também é apagado: lixo na barra de endereço parece
   // segredo para quem estiver olhando por cima do ombro.
@@ -84,15 +96,43 @@ export function capturarFragmento(
 
 /** Lê o que foi capturado. Não consome: a tela pode remontar. */
 export function lerSegredoCapturado(): string | null {
+  return fragmentoConsumido ? null : segredoEmMemoria;
+}
+
+/**
+ * Marca o fragmento como consumido e devolve o segredo UMA única vez.
+ * Chamada ao iniciar o envio, não ao terminar: entre o início e a resposta é
+ * exatamente a janela em que uma troca de empresa poderia reaproveitá-lo.
+ * A segunda chamada devolve null.
+ */
+export function consumirSegredoParaEnvio(): string | null {
+  if (fragmentoConsumido || segredoEmMemoria === null) return null;
+  fragmentoConsumido = true;
   return segredoEmMemoria;
 }
 
+/** Houve um envio iniciado com este fragmento? */
+export function fragmentoJaEnviado(): boolean {
+  return fragmentoConsumido;
+}
+
+/**
+ * Libera o fragmento depois de uma tentativa que FALHOU sem criar solicitação,
+ * para que a pessoa possa tentar de novo no MESMO contexto. Quem chama precisa
+ * ter verificado que a conta e a empresa continuam as mesmas do início do
+ * envio: se mudaram, o fragmento permanece travado de propósito.
+ */
+export function liberarFragmentoAposFalha(): void {
+  if (segredoEmMemoria !== null) fragmentoConsumido = false;
+}
+
 export function lerLocatorCapturado(): string | null {
-  return locatorEmMemoria;
+  return fragmentoConsumido ? null : locatorEmMemoria;
 }
 
 /** Descarta após a transação — ou ao sair da tela. */
 export function descartarSegredoCapturado(): void {
   segredoEmMemoria = null;
   locatorEmMemoria = null;
+  fragmentoConsumido = false;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { renderPortal } from "./helpers/portalRender";
 
 /**
  * R3 — Contexto POSITIVO de parceiro (M2) e correção do PortalDashboard.
@@ -287,13 +288,9 @@ describe("R3 — PortalDashboard nao consulta tabela obsoleta", () => {
         error: null,
       },
     });
-    render(
-      <MemoryRouter>
-        <PortalDashboard />
-      </MemoryRouter>
-    );
+    renderPortal(<PortalDashboard />);
     await waitFor(() =>
-      expect(screen.getByText("Parceiro Canonico")).toBeDefined()
+      expect(screen.getAllByText("Parceiro Canonico").length).toBeGreaterThan(0)
     );
     // REGRESSÃO: nenhuma consulta direta a tabela foi feita.
     expect(fromMock).not.toHaveBeenCalled();
@@ -305,11 +302,7 @@ describe("R3 — PortalDashboard nao consulta tabela obsoleta", () => {
     responder({
       get_my_partner_context: { data: null, error: { message: "boom" } },
     });
-    render(
-      <MemoryRouter>
-        <PortalDashboard />
-      </MemoryRouter>
-    );
+    renderPortal(<PortalDashboard />);
     await waitFor(() => expect(rpcMock).toHaveBeenCalled());
     expect(fromMock).not.toHaveBeenCalled();
     expect(screen.queryByText("Parceiro Canonico")).toBeNull();

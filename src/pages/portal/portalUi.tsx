@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useEmpresaOpcional } from "../../portal/empresaContexto";
 
 /* =====================================================================
    Utilitários visuais das páginas /portal.
@@ -73,7 +74,16 @@ export function pegar(
   return undefined;
 }
 
-/** Cabeçalho comum das páginas internas do portal */
+/**
+ * Cabeçalho comum das páginas internas do portal.
+ *
+ * "Validar QR" e "Solicitações" dependem de uma empresa. Sem empresa
+ * selecionada (escolhendo, carregando, com erro ou sem vínculo) eles ficam
+ * fora do DOM, para não oferecer um destino que ainda não pode agir. "Início"
+ * (que leva de volta à escolha) e "Sair" permanecem sempre. Isto é só
+ * apresentação: as rotas e o servidor continuam se protegendo sozinhos diante
+ * de uma URL digitada.
+ */
 export function PortalTopo({
   titulo,
   onSair,
@@ -81,6 +91,10 @@ export function PortalTopo({
   titulo: string;
   onSair?: () => void;
 }) {
+  const empresa = useEmpresaOpcional();
+  // Fora da casca do Portal não há contexto para consultar: mantém o
+  // comportamento anterior.
+  const dependenteDeEmpresa = empresa === null || empresa.fase === "pronta";
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -96,18 +110,22 @@ export function PortalTopo({
         >
           Início
         </Link>
-        <Link
-          to="/portal/validar"
-          className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
-        >
-          Validar QR
-        </Link>
-        <Link
-          to="/portal/solicitacoes"
-          className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
-        >
-          Solicitações
-        </Link>
+        {dependenteDeEmpresa && (
+          <>
+            <Link
+              to="/portal/validar"
+              className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+            >
+              Validar QR
+            </Link>
+            <Link
+              to="/portal/solicitacoes"
+              className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+            >
+              Solicitações
+            </Link>
+          </>
+        )}
         {onSair && (
           <button
             onClick={onSair}

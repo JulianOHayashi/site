@@ -1,17 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Header from "../../components/Header";
 import { PortalTopo } from "../portal/portalUi";
 import {
   descartarSegredoCapturado,
   lerSegredoCapturado,
+  consumirSegredoParaEnvio,
+  fragmentoJaEnviado,
+  liberarFragmentoAposFalha,
 } from "../../lib/benefitTokenFragment";
 import { UUID_RE } from "../../server/benefitUsage/benefitUsageContract";
 import {
-  obterVinculosParceiro,
   obterContextoValidador,
   type ContextoValidador,
 } from "../../services/partnerApplicationService";
+import { useEmpresaSelecionada } from "../../portal/empresaContexto";
+import {
+  AvisoOperacaoOutroContexto,
+  EmpresaAtualBarra,
+  EscolhaEmpresa,
+} from "../../portal/EmpresaSeletor";
 import {
   enviarUsoDeBeneficio,
   obterStatusUsoDeBeneficio,
@@ -35,16 +43,21 @@ import {
 type Estado =
   | { fase: "carregando" }
   | { fase: "sem_vinculo" }
+  | { fase: "escolher" }
   | { fase: "inelegivel" }
   | { fase: "erro" }
-  | { fase: "pronto"; ctx: Extract<ContextoValidador, { tipo: "elegivel" }> };
+  | {
+      fase: "pronto";
+      ctx: Extract<ContextoValidador, { tipo: "elegivel" }>;
+      companyId: string;
+    };
 
 export default function BeneficiosValidar() {
   const { publicLookupId = "" } = useParams();
   const locatorValido = useMemo(() => UUID_RE.test(publicLookupId), [publicLookupId]);
   const segredoPresente = lerSegredoCapturado() !== null;
 
-  const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
+  const [estadoBruto, setEstado] = useState<Estado>({ fase: "carregando" });
   const [unidade, setUnidade] = useState("");
   const [documentoConferido, setDocumentoConferido] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -57,23 +70,81 @@ export default function BeneficiosValidar() {
     useState<BenefitUsageRequestStatus | null>(null);
   const [falhaStatus, setFalhaStatus] = useState(false);
 
-  const carregar = useCallback(async () => {
-    setEstado({ fase: "carregando" });
-    const vinculos = await obterVinculosParceiro();
-    if (vinculos.tipo === "erro") return setEstado({ fase: "erro" });
-    const primeiro = vinculos.vinculos[0];
-    if (!primeiro) return setEstado({ fase: "sem_vinculo" });
+  const empresa = useEmpresaSelecionada();
+  const companyAtual = empresa.fase === "pronta" ? empresa.atual.company_id : null;
+  const chaveAtual = empresa.fase === "pronta" ? empresa.chave : null;
 
-    const ctx = await obterContextoValidador(primeiro.company_id);
+  // Unidades e envio de uma empresa que NÃO é a atual do contexto nunca são
+  // renderizados, nem por um render.
+  const estado: Estado =
+    estadoBruto.fase === "pronto" && estadoBruto.companyId !== companyAtual
+      ? { fase: "carregando" }
+      : estadoBruto;
+
+  // Incrementa em TODA transição do contexto: A -> tela de escolha, logout,
+  // revalidação que falha e troca de conta. Senão a resposta de A chegaria
+  // durante a escolha e repovoaria a tela.
+  const versao = useRef(0);
+  const chaveRef = useRef<string | null>(null);
+  chaveRef.current = chaveAtual;
+  const [avisoOutroContexto, setAvisoOutroContexto] = useState(false);
+  // Um envio terminou depois de a empresa ter mudado: o segredo foi descartado
+  // e o resultado não é exibido (ver `enviar`).
+  const [despachadaSemResultado, setDespachadaSemResultado] = useState(false);
+  // Um envio foi despachado e o desfecho NÃO é conhecido por aqui.
+  const [desfechoDesconhecido, setDesfechoDesconhecido] = useState(false);
+
+  const carregar = useCallback(async () => {
+    const minha = ++versao.current;
+    if (empresa.fase === "carregando") return setEstado({ fase: "carregando" });
+    if (empresa.fase === "erro") return setEstado({ fase: "erro" });
+    if (empresa.fase === "sem_vinculo") return setEstado({ fase: "sem_vinculo" });
+    // Chegada por QR com várias empresas e nenhuma escolhida: a escolha vem
+    // ANTES de pedir unidades. O segredo já foi capturado em memória no import
+    // do módulo e continua lá, intocado — escolher empresa não o lê, não o
+    // move e não o descarta.
+    if (empresa.fase === "escolher") return setEstado({ fase: "escolher" });
+    // Se um envio já começou com este QR, a tela não volta a oferecer o
+    // formulário sob outra empresa: o fragmento está travado e a guarda abaixo
+    // explica a situação.
+    if (fragmentoJaEnviado() && !sucesso) return setEstado({ fase: "carregando" });
+
+    setEstado({ fase: "carregando" });
+    const ctx = await obterContextoValidador(empresa.atual.company_id);
+    if (minha !== versao.current) return; // resposta de empresa anterior
     if (ctx.tipo === "erro") return setEstado({ fase: "erro" });
     if (ctx.tipo === "inelegivel") return setEstado({ fase: "inelegivel" });
     setUnidade(ctx.unidades[0]?.unit_id ?? "");
-    setEstado({ fase: "pronto", ctx });
-  }, []);
+    setEstado({ fase: "pronto", ctx, companyId: empresa.atual.company_id });
+  }, [empresa]);
 
   useEffect(() => {
-    if (locatorValido && segredoPresente) void carregar();
-  }, [carregar, locatorValido, segredoPresente]);
+    // `fragmentoJaEnviado()` mantém o efeito ativo depois da trava: sem isto a
+    // tela ficaria presa no contexto da empresa anterior.
+    if (locatorValido && (segredoPresente || fragmentoJaEnviado())) void carregar();
+    // Valores estáveis, não a identidade de `carregar`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locatorValido, segredoPresente, chaveAtual, empresa.fase, empresa.geracao]);
+
+  useEffect(
+    () => () => {
+      versao.current++;
+    },
+    []
+  );
+
+  // Troca de empresa descarta a unidade e o resultado da empresa anterior. O
+  // segredo NÃO é tocado aqui: ele só é descartado ao sair da tela.
+  useEffect(() => {
+    setUnidade("");
+    setDocumentoConferido(false);
+    setFalha(null);
+    setSucesso(null);
+    setStatusUso(null);
+    setFalhaStatus(false);
+    setEnviando(false);
+    setDesfechoDesconhecido(false);
+  }, [chaveAtual, empresa.fase, empresa.geracao]);
 
   // Ao sair da tela o segredo some da memória do módulo.
   useEffect(() => () => descartarSegredoCapturado(), []);
@@ -113,17 +184,51 @@ export default function BeneficiosValidar() {
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const segredo = lerSegredoCapturado();
-    if (!segredo || !unidade || !documentoConferido || enviando) return;
+    if (!unidade || !documentoConferido || enviando) return;
+    // Consome ANTES de despachar: a partir daqui este QR não serve para um
+    // segundo envio, mesmo que a empresa mude enquanto a resposta não chega.
+    const segredo = consumirSegredoParaEnvio();
+    if (!segredo) return;
     setEnviando(true);
     setFalha(null);
-    const r = await enviarUsoDeBeneficio({
-      publicLookupId,
-      rawSecret: segredo,
-      unitId: unidade,
-      physicalPhotoIdChecked: true,
-    });
+    // Operação sensível: bloqueia a troca VOLUNTÁRIA de empresa enquanto durar.
+    // Se mesmo assim a conta ou a empresa mudarem (logout, revalidação), o
+    // resultado NÃO é apresentado nesta tela: seria atribuí-lo à empresa
+    // errada. O servidor/App decide o desfecho e nada aqui o cancela.
+    const origem = chaveRef.current;
+    const fim = empresa.iniciarOperacao();
+    let r: Awaited<ReturnType<typeof enviarUsoDeBeneficio>>;
+    try {
+      r = await enviarUsoDeBeneficio({
+        publicLookupId,
+        rawSecret: segredo,
+        unitId: unidade,
+        physicalPhotoIdChecked: true,
+      });
+    } finally {
+      fim();
+    }
+    if (origem === null || chaveRef.current !== origem) {
+      // O segredo foi entregue ao envio: não fica em memória para reutilização
+      // sob outra empresa.
+      descartarSegredoCapturado();
+      setDespachadaSemResultado(true);
+      setAvisoOutroContexto(true);
+      return;
+    }
     setEnviando(false);
+    if (r.tipo !== "ok") {
+      // SÓ falha PROVADAMENTE anterior ao despacho libera o QR, e só no mesmo
+      // contexto. "Provadamente" aqui significa que o serviço retornou antes
+      // do fetch: sem credencial, sem backend, sem conferência de documento.
+      //
+      // Qualquer outro desfecho fica travado, inclusive `network_error`: um
+      // fetch rejeitado pode ter entregue o POST e perdido só a resposta, e
+      // nesse caso um segundo envio criaria uma nova solicitação no App com
+      // outra correlação. Não se pode depender de o App recusar a duplicata.
+      if (r.fase === "pre_despacho") liberarFragmentoAposFalha();
+      else setDesfechoDesconhecido(true);
+    }
     if (r.tipo === "ok") {
       const statusInicial: BenefitUsageRequestStatus =
         r.appStatus === "confirmed" ||
@@ -147,22 +252,61 @@ export default function BeneficiosValidar() {
   // inválido ou incompleto" logo apos ter criado a solicitação no App, que e
   // a mensagem mais enganosa possível: diz "nenhuma validação foi
   // encaminhada" quando uma foi.
-  if (!sucesso && (!locatorValido || !segredoPresente)) {
+  if (
+    !sucesso &&
+    !enviando &&
+    (!locatorValido || !segredoPresente || fragmentoJaEnviado())
+  ) {
     return (
       <>
         <Header />
         <main className="mx-auto max-w-2xl px-4 pb-24 pt-10">
           <PortalTopo titulo="Validar benefício" />
-          <div role="alert" className="card mt-8 p-6 text-center">
-            <p className="font-semibold">Código de benefício inválido ou incompleto.</p>
-            <p className="mt-2 text-sm text-tinta/70">
-              Peça ao usuário para apresentar o QR novamente no aplicativo.
-              Nenhuma validação foi encaminhada.
-            </p>
-            <Link to="/portal/dashboard" className="btn-secondary mt-4 inline-block">
-              Voltar ao painel
-            </Link>
-          </div>
+          {avisoOutroContexto && (
+            <AvisoOperacaoOutroContexto onFechar={() => setAvisoOutroContexto(false)} />
+          )}
+          {despachadaSemResultado || fragmentoJaEnviado() ? (
+            // Aqui NÃO se pode dizer "nenhuma validação foi encaminhada": um
+            // envio FOI despachado e o desfecho não é mostrado nesta tela.
+            <div role="alert" className="card mt-8 p-6 text-center">
+              <p className="font-semibold">
+                {desfechoDesconhecido
+                  ? "O envio deste QR começou e o resultado não pôde ser confirmado."
+                  : "Este QR já foi enviado nesta sessão."}
+              </p>
+              {desfechoDesconhecido ? (
+                <p className="mt-2 text-sm text-tinta/70">
+                  A tentativa de envio começou, mas esta tela não tem como
+                  determinar se uma solicitação chegou a ser criada ou
+                  processada. Nada foi cancelado por aqui, e o estado do
+                  benefício é desconhecido nesta tela. Por isso este QR não é
+                  reenviado: confira a solicitação anterior antes de pedir um
+                  novo QR ao divulgador.
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-tinta/70">
+                  A solicitação foi despachada e pode ter sido processada pelo
+                  servidor; nada foi cancelado por aqui. Este código não pode ser
+                  reenviado. Confira o resultado no contexto em que o envio começou
+                  ou peça ao divulgador um novo QR no aplicativo.
+                </p>
+              )}
+              <Link to="/portal/dashboard" className="btn-secondary mt-4 inline-block">
+                Voltar ao painel
+              </Link>
+            </div>
+          ) : (
+            <div role="alert" className="card mt-8 p-6 text-center">
+              <p className="font-semibold">Código de benefício inválido ou incompleto.</p>
+              <p className="mt-2 text-sm text-tinta/70">
+                Peça ao usuário para apresentar o QR novamente no aplicativo.
+                Nenhuma validação foi encaminhada.
+              </p>
+              <Link to="/portal/dashboard" className="btn-secondary mt-4 inline-block">
+                Voltar ao painel
+              </Link>
+            </div>
+          )}
         </main>
       </>
     );
@@ -191,6 +335,12 @@ export default function BeneficiosValidar() {
             </button>
           </div>
         )}
+
+        {estado.fase === "escolher" && <EscolhaEmpresa />}
+
+        {/* Sempre presente: sem ela não há como trocar de empresa durante o
+            carregamento, nem quando a empresa atual não é elegível. */}
+        <EmpresaAtualBarra />
 
         {estado.fase === "sem_vinculo" && (
           <div role="alert" className="card mt-8 p-6 text-center">

@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "../../components/Header";
 import { PortalTopo } from "./portalUi";
+import { useEmpresaSelecionada } from "../../portal/empresaContexto";
 import {
-  obterVinculosParceiro,
+  AvisoOperacaoOutroContexto,
+  EmpresaAtualBarra,
+  EscolhaEmpresa,
+} from "../../portal/EmpresaSeletor";
+import {
   obterContextoValidador,
   type ContextoValidador,
 } from "../../services/partnerApplicationService";
@@ -30,12 +35,13 @@ import { normalizarDisplayCode } from "../../server/benefitUsage/benefitUsageCon
 type Estado =
   | { fase: "carregando" }
   | { fase: "sem_vinculo" }
+  | { fase: "escolher" }
   | { fase: "inelegivel" }
   | { fase: "erro" }
   | { fase: "pronto"; ctx: Extract<ContextoValidador, { tipo: "elegivel" }>; companyId: string };
 
 export default function PortalValidar() {
-  const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
+  const [estadoBruto, setEstado] = useState<Estado>({ fase: "carregando" });
   const [unidade, setUnidade] = useState("");
   const [codigo, setCodigo] = useState("");
   const [documentoConferido, setDocumentoConferido] = useState(false);
@@ -48,23 +54,66 @@ export default function PortalValidar() {
   // acidentalmente virarem um código válido antes de chegar ao servidor.
   const canonico = normalizarDisplayCode(codigo);
 
-  const carregar = useCallback(async () => {
-    setEstado({ fase: "carregando" });
-    const vinculos = await obterVinculosParceiro();
-    if (vinculos.tipo === "erro") return setEstado({ fase: "erro" });
-    const primeiro = vinculos.vinculos[0];
-    if (!primeiro) return setEstado({ fase: "sem_vinculo" });
+  const empresa = useEmpresaSelecionada();
+  const companyAtual = empresa.fase === "pronta" ? empresa.atual.company_id : null;
+  const chaveAtual = empresa.fase === "pronta" ? empresa.chave : null;
 
-    const ctx = await obterContextoValidador(primeiro.company_id);
+  // Unidades e ações de uma empresa que NÃO é a atual do contexto nunca são
+  // renderizadas, nem por um render: o estado guardado pode ficar atrás da troca.
+  const estado: Estado =
+    estadoBruto.fase === "pronto" && estadoBruto.companyId !== companyAtual
+      ? { fase: "carregando" }
+      : estadoBruto;
+
+  // Incrementa em TODA transição do contexto (inclusive A -> tela de escolha,
+  // logout e revalidação que falha), para que a resposta de A não repovoe a
+  // tela enquanto a pessoa ainda escolhe a próxima empresa.
+  const versao = useRef(0);
+  const chaveRef = useRef<string | null>(null);
+  chaveRef.current = chaveAtual;
+  const [avisoOutroContexto, setAvisoOutroContexto] = useState(false);
+
+  const carregar = useCallback(async () => {
+    const minha = ++versao.current;
+    if (empresa.fase === "carregando") return setEstado({ fase: "carregando" });
+    if (empresa.fase === "erro") return setEstado({ fase: "erro" });
+    if (empresa.fase === "sem_vinculo") return setEstado({ fase: "sem_vinculo" });
+    if (empresa.fase === "escolher") return setEstado({ fase: "escolher" });
+
+    // EMPRESA é diferente de UNIDADE. A empresa vem do contexto do Portal; as
+    // unidades autorizadas vêm do servidor, para ESTA empresa, e a filial é
+    // escolhida abaixo. Uma empresa com várias filiais não usa o seletor de
+    // empresa — usa o seletor de unidade.
+    setEstado({ fase: "carregando" });
+    const ctx = await obterContextoValidador(empresa.atual.company_id);
+    if (minha !== versao.current) return; // resposta de empresa anterior
     if (ctx.tipo === "erro") return setEstado({ fase: "erro" });
     if (ctx.tipo === "inelegivel") return setEstado({ fase: "inelegivel" });
     setUnidade(ctx.unidades[0]?.unit_id ?? "");
-    setEstado({ fase: "pronto", ctx, companyId: primeiro.company_id });
-  }, []);
+    setEstado({ fase: "pronto", ctx, companyId: empresa.atual.company_id });
+  }, [empresa]);
 
+  // Troca de empresa limpa tudo que era específico da anterior antes de pedir
+  // qualquer coisa nova.
   useEffect(() => {
+    setCodigo("");
+    setUnidade("");
+    setDocumentoConferido(false);
+    setFalha(null);
+    setSucesso(null);
+    setEnviando(false);
     void carregar();
-  }, [carregar]);
+    // Valores estáveis, não a identidade de `carregar`: re-render do contexto
+    // sem troca de empresa não pode apagar o código digitado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveAtual, empresa.fase, empresa.geracao]);
+
+  useEffect(
+    () => () => {
+      versao.current++;
+    },
+    []
+  );
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,11 +121,25 @@ export default function PortalValidar() {
         || !documentoConferido || enviando) return;
     setEnviando(true);
     setFalha(null);
-    const r = await enviarUsoDeBeneficioPorCodigo({
-      displayCode: canonico,
-      unitId: unidade,
-      physicalPhotoIdChecked: true,
-    });
+    // Operação sensível: bloqueia a troca voluntária de empresa enquanto durar
+    // e só apresenta o resultado se conta e empresa forem as mesmas de quando
+    // o envio começou. O servidor/App decide o desfecho; nada aqui o cancela.
+    const origem = chaveRef.current;
+    const fim = empresa.iniciarOperacao();
+    let r: Awaited<ReturnType<typeof enviarUsoDeBeneficioPorCodigo>>;
+    try {
+      r = await enviarUsoDeBeneficioPorCodigo({
+        displayCode: canonico,
+        unitId: unidade,
+        physicalPhotoIdChecked: true,
+      });
+    } finally {
+      fim();
+    }
+    if (origem === null || chaveRef.current !== origem) {
+      setAvisoOutroContexto(true);
+      return;
+    }
     setEnviando(false);
     if (r.tipo === "ok") {
       setSucesso({ correlationId: r.correlationId });
@@ -92,6 +155,9 @@ export default function PortalValidar() {
       <Header />
       <main className="mx-auto max-w-2xl px-4 pb-24 pt-10">
         <PortalTopo titulo="Validar benefício" />
+        {avisoOutroContexto && (
+          <AvisoOperacaoOutroContexto onFechar={() => setAvisoOutroContexto(false)} />
+        )}
 
         {estado.fase === "carregando" && (
           <p className="mt-8 text-sm text-tinta/60" role="status">
@@ -110,6 +176,12 @@ export default function PortalValidar() {
             </button>
           </div>
         )}
+
+        {estado.fase === "escolher" && <EscolhaEmpresa />}
+
+        {/* Sempre presente: sem ela não há como trocar de empresa durante o
+            carregamento, nem quando a empresa atual não é elegível. */}
+        <EmpresaAtualBarra />
 
         {estado.fase === "sem_vinculo" && (
           <div role="alert" className="card mt-8 p-6 text-center">

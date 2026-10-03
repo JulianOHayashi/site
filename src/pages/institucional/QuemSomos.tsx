@@ -15,7 +15,12 @@ import { Link } from "react-router-dom";
  * Explica a SmallFlags sem afirmações corporativas não sustentadas: nada de
  * números de clientes, prêmios, funcionários ou "valores oficiais".
  * Distingue o Site (domínio comercial) do App SmallFlags (jornada operacional
- * do participante) sem expor detalhes internos de integração.
+ * do divulgador) sem expor detalhes internos de integração.
+ *
+ * VOCABULÁRIO: o divulgador é um MEI independente que usa veículo PRÓPRIO
+ * para divulgação sonora em VIA PÚBLICA. A SmallFlags não é dona dos veículos
+ * nem empregadora. O resgate de benefício é outra atividade, e acontece no
+ * estabelecimento da empresa parceira.
  */
 export default function QuemSomos() {
   return (
@@ -26,7 +31,7 @@ export default function QuemSomos() {
         texto={
           <p>
             A SmallFlags organiza uma estrutura comercial para empresas parceiras e
-            a conecta a um aplicativo dedicado à experiência dos participantes.
+            a conecta a um aplicativo dedicado aos divulgadores.
             Cada parte tem sua responsabilidade — e as duas trabalham juntas.
           </p>
         }
@@ -38,15 +43,17 @@ export default function QuemSomos() {
         intro={
           <p>
             Um modelo em que a relação comercial com as empresas e a jornada dos
-            participantes são tratadas por ambientes próprios.
+            divulgadores são tratadas por ambientes próprios.
           </p>
         }
       >
         <p className="max-w-2xl text-lg leading-8 text-tinta/80">
           Empresas parceiras participam de oportunidades comerciais organizadas
-          por região e por nicho, dentro de uma exclusividade comercial. Os
-          participantes vivem a experiência SmallFlags pelo aplicativo, onde também
-          acessam os benefícios oferecidos pelas empresas parceiras.
+          por região e por nicho, dentro de uma exclusividade comercial. Do outro
+          lado, divulgadores — microempreendedores individuais, cada um com seu
+          próprio veículo — fazem divulgação sonora em vias públicas e acompanham
+          tudo pelo aplicativo, onde também acessam os benefícios oferecidos pelas
+          empresas parceiras.
         </p>
       </Secao>
 
@@ -56,7 +63,7 @@ export default function QuemSomos() {
         titulo="Dois ambientes conectados"
         intro={
           <p>
-            O Site não administra a jornada dos participantes, e o App não
+            O Site não administra a jornada dos divulgadores, e o App não
             administra contratos com empresas.
           </p>
         }
@@ -111,7 +118,7 @@ export default function QuemSomos() {
             de a operação estar pronta.
           </Bloco>
           <Bloco titulo="Tecnologia a serviço da relação">
-            A tecnologia existe para aproximar participantes e empresas
+            A tecnologia existe para aproximar divulgadores e empresas
             parceiras, com regras claras para os dois lados.
           </Bloco>
         </div>
