@@ -83,6 +83,21 @@ values ((:'comp_a')::uuid, (:'uid_a')::uuid, 'partner_owner',
        ((:'comp_c')::uuid, (:'uid_x')::uuid, 'partner_owner',
         'Titular Suspenso 210', 'application_promotion', 'suspended');
 
+-- P0-1: a reserva passou a exigir Acordo Mestre ELEGIVEL (vinculo canonico
+-- incluido) ANTES de segurar inventario escasso. As empresas desta suite
+-- precisam, portanto, de Mestre vigente — o que antes nao era pre-requisito
+-- para reservar. A finalidade das assercoes abaixo nao muda: elas provam a
+-- reserva, nao o Acordo.
+select tests.mk_user('admin210@teste.local') as uid_admin210 \gset
+insert into public.site_admins (user_id) values ((:'uid_admin210')::uuid)
+on conflict do nothing;
+begin;
+select tests.impersonate('authenticated', :'uid_admin210');
+select tests.assinar_mestre_qa((:'comp_a')::uuid, 'AM-210A');
+select tests.assinar_mestre_qa((:'comp_b')::uuid, 'AM-210B');
+select tests.assinar_mestre_qa((:'comp_c')::uuid, 'AM-210C');
+commit;
+
 -- ---------------------------------------------------------------------------
 -- 1. O TESTE QUE FALTAVA: titular ativo consegue reservar.
 -- ---------------------------------------------------------------------------
@@ -115,11 +130,14 @@ select tests.check('expiracao = tempo do servidor + 30 minutos',
            from public.commercial_checkout_intents i
           where i.id = ((:'r_ok')::jsonb ->> 'intent_id')::uuid));
 
--- Instantâneo econômico: do servidor, e coerente com a Comercial V2.
-select tests.check('valores monetarios vem do calculo V2 do servidor',
+-- ACTIVE_V14 — reserva é intenção NOVA e resolve pela autoridade vigente.
+-- Nicho comum não fidelizado sob SF-v1.4: 19.999,00 = 11.988,00 de pool +
+-- 8.011,00 de taxa principal. O valor econômico é o mesmo da V2; a repartição
+-- interna é que mudou.
+select tests.check('valores monetarios vem do calculo do servidor na autoridade ativa',
     ((:'r_ok')::jsonb ->> 'economic_value_cents')::bigint = 1999900
-    and ((:'r_ok')::jsonb ->> 'user_pool_cents')::bigint = 1335459
-    and ((:'r_ok')::jsonb ->> 'bdflow_ops_investment_cents')::bigint = 664441
+    and ((:'r_ok')::jsonb ->> 'user_pool_cents')::bigint = 1198800
+    and ((:'r_ok')::jsonb ->> 'bdflow_ops_investment_cents')::bigint = 801100
     and ((:'r_ok')::jsonb ->> 'nominal_quantity')::int = 12
     and ((:'r_ok')::jsonb ->> 'fidelized') = 'false'
     and ((:'r_ok')::jsonb ->> 'payment_method') = 'pix');
@@ -264,8 +282,11 @@ select tests.check('segue existindo UMA unica reserva viva na oportunidade',
     (select count(*) from public.commercial_checkout_intents
       where opportunity_id = :'opp210' and status = 'draft'
         and reserved_until > now()) = 1);
+-- A finalidade é IMUTABILIDADE do instantâneo após o cancelamento: os centavos
+-- gravados na reserva continuam os mesmos que foram gravados, agora os da
+-- autoridade ativa SF-v1.4.
 select tests.check('o instantaneo economico da intencao cancelada NAO mudou',
-    (select economic_value_cents = 1999900 and user_pool_cents = 1335459
+    (select economic_value_cents = 1999900 and user_pool_cents = 1198800
        from public.commercial_checkout_intents
       where id = ((:'r_ok')::jsonb ->> 'intent_id')::uuid));
 

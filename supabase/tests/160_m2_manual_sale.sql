@@ -6,6 +6,10 @@
 
 select tests.reset_results();
 
+-- Fixture jurídica/contratual FICTÍCIA: permite que esta suíte exercite
+-- seu próprio domínio sem promover a minuta real v1.4.
+select tests.preparar_contexto_contratual_v14_qa('160');
+
 select user_id as uid_admin from public.site_admins limit 1 \gset
 select id as uid_intruso from auth.users where email = 'intruso_m2@teste.local' \gset
 
@@ -41,7 +45,9 @@ begin
     v_uid := gen_random_uuid();
     insert into auth.users (id, email) values (v_uid, v_email);
 
-    perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+    -- Escrita pública direta foi revogada: a fixture imita o endpoint server-side.
+    perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+    perform set_config('role', 'service_role', true);
     perform public.create_partner_application(jsonb_build_object(
       'cnpj', v_cnpjs[v_i],
       'legal_name', 'R8 Parceiro ' || v_i || ' LTDA',
@@ -51,10 +57,12 @@ begin
       'representative_full_name', 'Responsavel R8 ' || v_i,
       'representative_cpf', v_cpfs[v_i],
       'representative_email', 'rep' || v_i || '@teste.local',
+      'representative_role_title', 'Socio administrador',
       'acceptances', (select jsonb_agg(jsonb_build_object(
                           'legal_document_id', x ->> 'legal_document_id'))
                         from jsonb_array_elements(
                                public.get_partner_application_terms() -> 'documents') x)));
+    perform set_config('role', 'postgres', true);
 
     select id into v_app from public.partner_applications
      where cnpj = v_cnpjs[v_i] order by created_at desc limit 1;
@@ -88,8 +96,11 @@ begin
     -- Acordo mestre assinado.
     perform set_config('request.jwt.claims',
         json_build_object('role','authenticated','sub',v_admin)::text, true);
-    perform public.admin_register_master_agreement(
-        v_company,'v1', now() - interval '1 day',
+    -- C2 exige que a versao assinada corresponda a um master_agreement
+    -- publicado. O helper publica um documento de QA ficticio e assina
+    -- contra ELE, preservando empresa -> acordo -> documento -> versao/hash.
+    perform tests.assinar_mestre_qa(
+        v_company, 'v1', now() - interval '1 day',
         'Responsavel R8 ' || v_i, 'doc://acordo-r8-' || v_i);
   end loop;
   perform set_config('request.jwt.claims', null, true);
@@ -140,16 +151,24 @@ select public.admin_register_manual_commercial_order(
 select tests.check('venda manual do supermercado registrada',
     ((:'ord_s')::jsonb ->> 'ok') = 'true');
 -- PREÇO DO SERVIDOR: o chamador não enviou valor algum.
+-- ACTIVE_V14 — venda manual é contratação NOVA e por isso resolve pela
+-- autoridade vigente (versão técnica 3 / SF-v1.4). Supermercado não
+-- fidelizado: 29.999,00 econômico = 23.976,00 de pool + 6.023,00 de taxa
+-- principal.
 select tests.check('snapshot economico calculado no servidor (24 unidades)',
-    ((:'ord_s')::jsonb ->> 'economic_value_cents')::bigint = 3558700
-    and ((:'ord_s')::jsonb ->> 'user_pool_cents')::bigint = 2554305
-    and ((:'ord_s')::jsonb ->> 'bdflow_ops_investment_cents')::bigint = 1004395);
--- Modo direct_benefits: nenhum caixa e exigido para o pool; o unico dinheiro
--- devido e o da BDFlow. Nao existe custodia nem repasse.
+    ((:'ord_s')::jsonb ->> 'economic_value_cents')::bigint = 2999900
+    and ((:'ord_s')::jsonb ->> 'user_pool_cents')::bigint = 2397600
+    and ((:'ord_s')::jsonb ->> 'bdflow_ops_investment_cents')::bigint = 602300);
+select tests.check('pedido novo carimba a autoridade ativa v1.4',
+    ((:'ord_s')::jsonb ->> 'pricing_rule_version')::int = 3);
+-- Modo direct_benefits: nenhum caixa e exigido para o pool do usuario; o unico
+-- dinheiro devido e o da SmallFlags. Nao existe custodia nem repasse.
+-- Sob a v1.4 esse devido e taxa principal + parcela de QA:
+-- 602.300 + 12.168 = 614.468.
 select tests.check('direct_benefits nao exige caixa para o pool do usuario',
     ((:'ord_s')::jsonb ->> 'benefit_settlement_mode') = 'direct_benefits'
     and ((:'ord_s')::jsonb ->> 'cash_user_pool_funding_cents')::bigint = 0
-    and ((:'ord_s')::jsonb ->> 'total_monetary_funding_required_cents')::bigint = 1004395);
+    and ((:'ord_s')::jsonb ->> 'total_monetary_funding_required_cents')::bigint = 614468);
 -- Forma de pagamento e DERIVADA da fidelidade no servidor: o chamador nao
 -- enviou nada a respeito.
 select tests.check('forma de pagamento derivada no servidor (nao fidelizado = pix)',
@@ -212,23 +231,31 @@ rollback;
 begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 999) as pg_err \gset
+-- ACTIVE_V14 — o devido à SmallFlags num pedido v1.4 é a remuneração total:
+-- taxa principal 602.300 + parcela de QA 12.168 = 614.468.
 select tests.check('valor diferente do devido e recusado',
     ((:'pg_err')::jsonb ->> 'reason') = 'amount_differs_from_due'
-    and ((:'pg_err')::jsonb ->> 'expected_cents')::bigint = 1004395);
--- O valor ECONÔMICO integral NÃO é o que a BDFlow recebe.
-select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 3558700) as pg_eco \gset
+    and ((:'pg_err')::jsonb ->> 'expected_cents')::bigint = 614468);
+-- O valor ECONÔMICO integral NÃO é o que a SmallFlags recebe.
+select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 2999900) as pg_eco \gset
 select tests.check('confirmar o valor economico integral e recusado',
     ((:'pg_eco')::jsonb ->> 'reason') = 'amount_differs_from_due');
 -- Tampouco o pool contratual.
-select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 2554305) as pg_pool \gset
-select tests.check('confirmar o pool contratual e recusado (BDFlow nao custodia)',
+select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 2397600) as pg_pool \gset
+select tests.check('confirmar o pool contratual e recusado (SmallFlags nao custodia)',
     ((:'pg_pool')::jsonb ->> 'reason') = 'amount_differs_from_due');
+-- E tampouco a taxa principal SOZINHA: a parcela de QA tambem e da SmallFlags,
+-- e paga-la de fora deixaria 12.168 sem cobrir.
+select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 602300) as pg_fee \gset
+select tests.check('confirmar so a taxa principal e recusado (QA tambem e devido)',
+    ((:'pg_fee')::jsonb ->> 'reason') = 'amount_differs_from_due'
+    and ((:'pg_fee')::jsonb ->> 'expected_cents')::bigint = 614468);
 
 select public.admin_confirm_manual_bdflow_payment(
-    (:'order_super')::uuid, 1004395, 'pix-r8-001') as pg_ok \gset
+    (:'order_super')::uuid, 614468, 'pix-r8-001') as pg_ok \gset
 select tests.check('pagamento do valor devido confirmado',
     ((:'pg_ok')::jsonb ->> 'ok') = 'true');
-select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 1004395) as pg_idem \gset
+select public.admin_confirm_manual_bdflow_payment((:'order_super')::uuid, 614468) as pg_idem \gset
 select tests.check('confirmacao repetida e idempotente',
     ((:'pg_idem')::jsonb ->> 'already') = 'true');
 commit;
@@ -250,7 +277,7 @@ declare
                            'womens_footwear','mens_footwear'];
   v_cnpjs  text[] := array['70000137000121','70000274000166','70000411000162',
                            '70000548000117','70000685000151'];
-  v_opp uuid; v_comp uuid; v_ord jsonb;
+  v_opp uuid; v_comp uuid; v_ord jsonb; v_devido bigint;
 begin
   select user_id into v_admin from public.site_admins limit 1;
   select id into v_excl from public.commercial_exclusivities where sequence_number = 2;
@@ -268,9 +295,15 @@ begin
         'Responsavel R8', (now() + interval '30 days')::date,
         case when v_niches[v_i] = 'pharmacy' then 'cash' else 'direct_benefits' end,
         'doc://pedido-' || v_niches[v_i]);
+    -- O valor pago é lido do INSTANTÂNEO IMUTÁVEL do próprio pedido, não de
+    -- constante na fixture: sob a v1.4 o devido à SmallFlags é taxa principal
+    -- + parcela de QA, nos dois modos de liquidação.
+    select coalesce(smallflags_total_remuneration_cents, bdflow_due_cents)
+      into v_devido
+      from public.commercial_exclusivity_orders
+     where id = (v_ord->>'order_id')::uuid;
     perform public.admin_confirm_manual_bdflow_payment(
-        (v_ord->>'order_id')::uuid,
-        (v_ord->>'bdflow_ops_investment_cents')::bigint, 'pix-lote');
+        (v_ord->>'order_id')::uuid, v_devido, 'pix-lote');
   end loop;
   perform set_config('request.jwt.claims', null, true);
 end $$;
@@ -281,29 +314,41 @@ select tests.check('seis pedidos ativos formam a exclusividade',
 select tests.check('seis CNPJs distintos ocupam os seis nichos',
     (select count(distinct company_id) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and status = 'signed') = 6);
-select tests.check('soma economica da formacao = R$ 135.582,00',
+-- ACTIVE_V14 — a formação de referência é contratação nova: 1 supermercado +
+-- 5 nichos comuns, todos fundadores (não fidelizados), sob SF-v1.4.
+-- 29.999,00 + 5 × 19.999,00 = 129.994,00.
+select tests.check('soma economica da formacao = R$ 129.994,00',
     (select sum(economic_value_cents) from public.commercial_exclusivity_orders
-      where exclusivity_id = :'excl2' and status='signed') = 13558200);
-select tests.check('soma dos pools contratuais = R$ 92.316,00',
+      where exclusivity_id = :'excl2' and status='signed') = 12999400);
+select tests.check('soma dos pools contratuais = R$ 83.916,00',
     (select sum(contractual_pool_cents) from public.commercial_exclusivity_orders
-      where exclusivity_id = :'excl2' and status='signed') = 9231600);
-select tests.check('soma do devido a BDFlow = R$ 43.266,00',
+      where exclusivity_id = :'excl2' and status='signed') = 8391600);
+select tests.check('soma do devido a BDFlow = R$ 46.078,00',
     (select sum(bdflow_due_cents) from public.commercial_exclusivity_orders
-      where exclusivity_id = :'excl2' and status='signed') = 4326600);
+      where exclusivity_id = :'excl2' and status='signed') = 4607800);
+select tests.check('toda a formacao de referencia resolveu pela autoridade ativa',
+    (select count(*) from public.commercial_exclusivity_orders
+      where exclusivity_id = :'excl2' and status='signed'
+        and (pricing_rule_version <> 3
+             or contract_economics_version is distinct from 'SF-v1.4')) = 0);
 -- A formacao e MISTA e cada pedido responde pelo proprio modo. Sob
--- direct_benefits nenhum caixa e exigido para o pool; sob cash o caixa e
--- exatamente o pool. Em nenhum dos dois a BDFlow custodia coisa alguma.
+-- direct_benefits nenhum caixa e exigido para o pool do usuario e o dinheiro
+-- devido e a remuneracao da SmallFlags (taxa principal + QA); sob cash o caixa
+-- do pool e exatamente o pool e o total e o valor economico integral. Em
+-- nenhum dos dois a SmallFlags custodia o pool do usuario.
 select tests.check('financiamento de cada pedido coerente com o proprio modo',
     (select count(*) from public.commercial_exclusivity_orders
       where exclusivity_id = :'excl2' and status='signed'
         and not (
           (benefit_settlement_mode = 'direct_benefits'
              and cash_user_pool_funding_cents = 0
-             and total_monetary_funding_required_cents = bdflow_due_cents)
+             and mei_cash_funding_cents = 0
+             and total_monetary_funding_required_cents
+                   = smallflags_total_remuneration_cents)
           or (benefit_settlement_mode = 'cash'
              and cash_user_pool_funding_cents = contractual_pool_cents
-             and total_monetary_funding_required_cents
-                   = bdflow_due_cents + contractual_pool_cents))) = 0);
+             and mei_cash_funding_cents = mei_consideration_cents
+             and total_monetary_funding_required_cents = economic_value_cents))) = 0);
 select tests.check('formacao de referencia e mista: cinco direct_benefits e um cash',
     (select count(*) filter (where benefit_settlement_mode = 'direct_benefits')
        from public.commercial_exclusivity_orders
@@ -322,5 +367,7 @@ select tests.check('todos os seis pagamentos confirmados',
 select tests.check('invariante economico = pool + devido em todos os pedidos',
     (select count(*) from public.commercial_exclusivity_orders
       where economic_value_cents <> contractual_pool_cents + bdflow_due_cents) = 0);
+
+select tests.encerrar_contexto_contratual_v14_qa();
 
 select tests.finish('160_m2_manual_sale');

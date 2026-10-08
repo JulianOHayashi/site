@@ -36,6 +36,9 @@ describe("public write hardening", () => {
       "utf8"
     );
 
+    expect(create).toContain("representative_role_title_required");
+    expect(create).toContain("body.representative_role_title = representativeRoleTitle");
+
     for (const source of [create, recovery, waitlist]) {
       const gate = source.indexOf("await enforceTwoLimits");
       const rpc = source.indexOf(".rpc(");

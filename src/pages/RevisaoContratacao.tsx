@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
-import { formatarCentavos } from "../domain/pricing/contractPricing";
 import {
-  computeCommercialCompositionV2,
-  fundingForSettlementMode,
+  formatarCentavos,
+  type PublicNichePricing,
+} from "../domain/pricing/contractPricing";
+import {
   BENEFIT_SETTLEMENT_MODES,
   type BenefitSettlementMode,
 } from "../domain/pricing/commercialV2";
+import { fetchPublicPricing } from "../services/commercialService";
 
 /**
- * /checkout — superfície de REVISÃO da contratação, Comercial V2.
+ * /checkout — superfície de REVISÃO da contratação vigente.
  *
  * NOME DO ARQUIVO
  * O componente NÃO se chama Checkout.tsx de propósito. Esse caminho pertence
@@ -38,15 +40,6 @@ import {
  * condição fundadora, que é a de quem ainda não tem histórico.
  */
 
-const NICHOS_REFERENCIA = [
-  { code: "supermarket", nome: "Supermercado", quantidade: 24 },
-  { code: "pharmacy", nome: "Farmácia", quantidade: 12 },
-  { code: "womens_clothing", nome: "Roupas femininas", quantidade: 12 },
-  { code: "mens_clothing", nome: "Roupas masculinas", quantidade: 12 },
-  { code: "womens_footwear", nome: "Calçados femininos", quantidade: 12 },
-  { code: "mens_footwear", nome: "Calçados masculinos", quantidade: 12 },
-];
-
 const ROTULO_MODO: Record<BenefitSettlementMode, string> = {
   direct_benefits: "Benefícios diretos",
   cash: "Dinheiro real",
@@ -69,12 +62,15 @@ import EtapasContratacao from "./comercial/EtapasContratacao";
  */
 export default function RevisaoContratacao() {
   const [params] = useSearchParams();
-  // Apenas SELEÇÃO de nicho vem da URL. Nenhum valor monetário é aceito de
-  // query string, e nada aqui lê armazenamento do navegador.
+  // Apenas a SELEÇÃO de nicho vem da URL. Catálogo, quantidade e todos os
+  // valores materiais vêm da autoridade pública do servidor. Um nicho explícito
+  // desconhecido falha fechado — nunca cai silenciosamente em supermercado.
   const nichoParam = params.get("nicho");
-  const nicho =
-    NICHOS_REFERENCIA.find((n) => n.code === nichoParam) ?? NICHOS_REFERENCIA[0];
-
+  const [precos, setPrecos] = useState<
+    | { fase: "carregando" }
+    | { fase: "indisponivel" }
+    | { fase: "ok"; lista: PublicNichePricing[] }
+  >({ fase: "carregando" });
   const [modo, setModo] = useState<BenefitSettlementMode>("direct_benefits");
 
   const [empresa, setEmpresa] = useState<string | null>(null);
@@ -87,6 +83,29 @@ export default function RevisaoContratacao() {
   const [disponibilidadePagamento, setDisponibilidadePagamento] = useState<
     "carregando" | "disponivel" | "indisponivel"
   >("carregando");
+
+  useEffect(() => {
+    let vivo = true;
+    void fetchPublicPricing()
+      .then((lista) => {
+        if (!vivo) return;
+        setPrecos(lista.length > 0 ? { fase: "ok", lista } : { fase: "indisponivel" });
+      })
+      .catch(() => {
+        if (vivo) setPrecos({ fase: "indisponivel" });
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const nicho = useMemo(() => {
+    if (precos.fase !== "ok") return null;
+    if (nichoParam === null) return precos.lista[0] ?? null;
+    return precos.lista.find((item) => item.nicheCode === nichoParam) ?? null;
+  }, [nichoParam, precos]);
+
+  const composicao = nicho?.founding ?? null;
 
   // O checkout só abre quando o runtime server-side confirma que o provedor
   // está configurado. Qualquer falha nessa consulta bloqueia (fail-closed).
@@ -138,28 +157,18 @@ export default function RevisaoContratacao() {
   }, []);
 
   const reservar = useCallback(async () => {
-    if (!empresa || reservando || disponibilidadePagamento !== "disponivel") return;
+    if (!empresa || !nicho || reservando || disponibilidadePagamento !== "disponivel") return;
     setReservando(true);
     setFalhaReserva(null);
     const r = await reservarOportunidade({
       companyId: empresa,
-      nicheCode: nicho.code,
+      nicheCode: nicho.nicheCode,
       benefitSettlementMode: modo,
     });
     setReservando(false);
     if (r.tipo === "ok") setReserva(r.reserva);
     else setFalhaReserva(r.codigo);
-  }, [disponibilidadePagamento, empresa, modo, nicho.code, reservando]);
-
-  // Condição fundadora: quem revisa publicamente ainda não tem histórico.
-  const composicao = useMemo(
-    () => computeCommercialCompositionV2(nicho.code, nicho.quantidade, false),
-    [nicho.code, nicho.quantidade]
-  );
-  const funding = useMemo(
-    () => fundingForSettlementMode(composicao, modo),
-    [composicao, modo]
-  );
+  }, [disponibilidadePagamento, empresa, modo, nicho, reservando]);
 
   return (
     <>
@@ -171,12 +180,26 @@ export default function RevisaoContratacao() {
           pela SmallFlags após a análise do cadastro.
         </p>
 
+        {precos.fase === "carregando" ? (
+          <section className="card mt-6 p-6" role="status">
+            Carregando condições comerciais...
+          </section>
+        ) : precos.fase === "indisponivel" || !nicho || !composicao ? (
+          <section className="card mt-6 p-6" role="alert">
+            <h2 className="text-lg font-bold">Condições comerciais indisponíveis</h2>
+            <p className="mt-2 text-sm text-tinta/70">
+              Não foi possível validar o nicho e a tabela vigente no servidor.
+              Nenhum valor foi estimado localmente e nenhuma contratação foi liberada.
+            </p>
+          </section>
+        ) : (
+          <>
         <section className="card mt-6 p-6" aria-labelledby="nicho-titulo">
           <h2 id="nicho-titulo" className="text-lg font-bold">
-            {nicho.nome}
+            {nicho.displayName}
           </h2>
           <p className="mt-1 text-xs text-tinta/50">
-            Nicho contratado integralmente — {nicho.quantidade} unidades.
+            Nicho contratado integralmente — {nicho.nominalQuantity} unidades.
           </p>
 
           <dl className="mt-4 divide-y divide-tinta/10">
@@ -184,14 +207,44 @@ export default function RevisaoContratacao() {
               rotulo="Valor econômico da contratação"
               valor={formatarCentavos(composicao.economicValueCents)}
             />
-            <Linha
-              rotulo={`Pool destinado aos usuários SmallFlags (${composicao.displayPoolPercent})`}
-              valor={formatarCentavos(composicao.userPoolCents)}
-            />
-            <Linha
-              rotulo="SmallFlags + operação + investimentos"
-              valor={formatarCentavos(composicao.bdflowOpsInvestmentCents)}
-            />
+            {composicao.meiConsiderationCents !== null &&
+            composicao.smallflagsQaCents !== null &&
+            composicao.smallflagsMainFeeCents !== null &&
+            composicao.smallflagsTotalRemunerationCents !== null ? (
+              <>
+                <Linha
+                  rotulo="Contraprestação dos MEIs"
+                  valor={formatarCentavos(composicao.meiConsiderationCents)}
+                />
+                <Linha
+                  rotulo="Parcela de QA da SmallFlags"
+                  valor={formatarCentavos(composicao.smallflagsQaCents)}
+                />
+                <Linha
+                  rotulo="Pool contratual total (MEIs + QA)"
+                  valor={formatarCentavos(composicao.contractualPoolCents)}
+                />
+                <Linha
+                  rotulo="Parcela operacional principal da SmallFlags"
+                  valor={formatarCentavos(composicao.smallflagsMainFeeCents)}
+                />
+                <Linha
+                  rotulo="Remuneração contratual total da SmallFlags"
+                  valor={formatarCentavos(composicao.smallflagsTotalRemunerationCents)}
+                />
+              </>
+            ) : (
+              <>
+                <Linha
+                  rotulo={`Pool contratual total${composicao.displayPoolPercent ? ` (${composicao.displayPoolPercent})` : ""}`}
+                  valor={formatarCentavos(composicao.contractualPoolCents)}
+                />
+                <Linha
+                  rotulo="SmallFlags + operação + investimentos"
+                  valor={formatarCentavos(composicao.bdflowDueCents)}
+                />
+              </>
+            )}
           </dl>
         </section>
 
@@ -230,8 +283,12 @@ export default function RevisaoContratacao() {
                   </span>
                   <span className="mt-1 block font-normal text-tinta/70">
                     {m === "direct_benefits"
-                      ? "A empresa disponibiliza os benefícios diretamente aos usuários elegíveis, conforme as regras operacionais."
-                      : "A empresa aporta em dinheiro o valor do pool destinado aos usuários elegíveis que cumprirem as tarefas e requisitos aplicáveis."}
+                      ? composicao.pricingRuleVersion >= 3
+                        ? "A empresa cumpre diretamente perante os MEIs elegíveis a contraprestação prevista; a remuneração da SmallFlags, inclusive QA, permanece devida em dinheiro."
+                        : "A empresa disponibiliza os benefícios diretamente aos usuários elegíveis, conforme as regras operacionais."
+                      : composicao.pricingRuleVersion >= 3
+                        ? "A empresa aporta em dinheiro a contraprestação dos MEIs elegíveis, além da remuneração contratual da SmallFlags."
+                        : "A empresa aporta em dinheiro o valor do pool destinado aos usuários elegíveis que cumprirem as tarefas e requisitos aplicáveis."}
                   </span>
                 </span>
               </label>
@@ -256,32 +313,55 @@ export default function RevisaoContratacao() {
             <Linha
               rotulo="Forma de pagamento"
               valor={
-                composicao.paymentMethod === "pix" ? "Pix" : "Cartão de crédito"
+                composicao.paymentMethod === "pix"
+                  ? "Pix"
+                  : composicao.paymentMethod === "credit_card"
+                    ? "Cartão de crédito"
+                    : "Definida pelo servidor"
               }
             />
             <Linha
               rotulo={
                 modo === "cash"
-                  ? "Pool em dinheiro para usuários"
-                  : "Pool em benefícios diretos"
+                  ? composicao.pricingRuleVersion >= 3
+                    ? "Contraprestação dos MEIs financiada em dinheiro"
+                    : "Pool em dinheiro para usuários"
+                  : composicao.pricingRuleVersion >= 3
+                    ? "Contraprestação cumprida em benefício direto"
+                    : "Pool em benefícios diretos"
               }
-              valor={formatarCentavos(funding.userPoolCents)}
+              valor={formatarCentavos(composicao.directBenefitDeliverableCents)}
             />
-            <Linha
-              rotulo="SmallFlags + operação + investimentos"
-              valor={formatarCentavos(funding.bdflowOpsInvestmentCents)}
-            />
+            {composicao.smallflagsTotalRemunerationCents !== null ? (
+              <Linha
+                rotulo="Remuneração contratual da SmallFlags"
+                valor={formatarCentavos(composicao.smallflagsTotalRemunerationCents)}
+              />
+            ) : (
+              <Linha
+                rotulo="SmallFlags + operação + investimentos"
+                valor={formatarCentavos(composicao.bdflowDueCents)}
+              />
+            )}
             <Linha
               rotulo="Valor financeiro da cobrança"
-              valor={formatarCentavos(funding.commercialChargeCents)}
+              valor={formatarCentavos(
+                modo === "cash"
+                  ? composicao.fundingCashCents
+                  : composicao.fundingDirectBenefitsCents
+              )}
               destaque
             />
           </dl>
 
           <p className="mt-3 text-xs text-tinta/60">
-            {modo === "cash"
-              ? "O aporte em dinheiro é economicamente destinado aos usuários elegíveis que cumprirem os requisitos operacionais. A liberação de cada benefício é determinada pelas regras operacionais do App."
-              : "O valor do pool é cumprido pela empresa em benefícios diretos, sob as regras operacionais. À SmallFlags é devida apenas a parcela de SmallFlags, operação e investimentos."}
+            {composicao.pricingRuleVersion >= 3
+              ? modo === "cash"
+                ? "A cobrança em dinheiro corresponde ao valor econômico integral. A contraprestação dos MEIs e a remuneração da SmallFlags permanecem contabilmente separadas."
+                : "A contraprestação ordinária dos MEIs é cumprida diretamente pela empresa. A remuneração contratual da SmallFlags, inclusive a parcela de QA, continua devida em dinheiro."
+              : modo === "cash"
+                ? "O aporte em dinheiro corresponde ao pool contratual dos usuários elegíveis; a liberação individual continua sujeita às regras operacionais do App."
+                : "O pool histórico é cumprido pela empresa em benefícios diretos, e a parcela operacional permanece devida à SmallFlags."}
           </p>
         </section>
 
@@ -386,6 +466,8 @@ export default function RevisaoContratacao() {
           >
             Solicitar contratação
           </Link>
+        )}
+          </>
         )}
       </main>
     </>

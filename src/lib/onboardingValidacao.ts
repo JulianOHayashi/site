@@ -79,6 +79,7 @@ export type CamposFormulario = {
   uf: string;
   representative_full_name: string;
   representative_cpf: string;
+  representative_role_title: string;
   representative_email: string;
   representative_phone: string;
 };
@@ -97,6 +98,8 @@ export function validarFormulario(campos: CamposFormulario): ErrosFormulario {
     erros.representative_full_name = "Informe o nome completo do responsável.";
   if (!cpfValido(campos.representative_cpf))
     erros.representative_cpf = "Informe um CPF válido.";
+  if (campos.representative_role_title.trim().length < 2)
+    erros.representative_role_title = "Informe o cargo ou função do responsável.";
   if (campos.representative_email.trim() !== "" && !emailValido(campos.representative_email))
     erros.representative_email = "E-mail do responsável inválido.";
   if (!telefoneValido(campos.representative_phone))

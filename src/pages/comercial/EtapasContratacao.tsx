@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   aceitarTermos,
   avancarParaContrato,
@@ -7,7 +8,9 @@ import {
   ehTerminal,
   finalizarPedido,
   lerEstadoPagamento,
+  obterMestreRegente,
   obterTermosVigentes,
+  type MestreRegente,
   type Pagamento,
   type TermosVigentes,
 } from "../../services/commercialContractService";
@@ -49,11 +52,17 @@ export default function EtapasContratacao(props: {
   const [ocupado, setOcupado] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  // Mestre que rege ESTA empresa, por versão e hash. Não é "o publicado hoje".
+  const [mestre, setMestre] = useState<MestreRegente | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const t = await obterTermosVigentes();
+      const [t, m] = await Promise.all([
+        obterTermosVigentes(),
+        obterMestreRegente(intentId),
+      ]);
+      setMestre(m);
       setFase(t.tipo === "ausentes" ? { f: "sem_termos" } : { f: "termos", termos: t });
     })();
   }, []);
@@ -82,7 +91,8 @@ export default function EtapasContratacao(props: {
   );
 
   const contratarEPagar = async () => {
-    if (!aceito || ocupado) return;
+    // Falha fechada: sem o Mestre regente identificado, não há contratação.
+    if (!aceito || ocupado || mestre?.tipo !== "ok") return;
     setOcupado(true);
     setFalha(null);
 
@@ -97,7 +107,10 @@ export default function EtapasContratacao(props: {
       if (ehFalha(r)) {
         setOcupado(false);
         // Acordo mestre ausente é bloqueio, não erro de formulário.
-        if (r.codigo === "master_agreement_missing") {
+        if (
+          r.codigo === "master_agreement_missing" ||
+          r.codigo === "commercial_instrument_template_unavailable"
+        ) {
           setFase({ f: "bloqueado", codigo: r.codigo });
           return;
         }
@@ -143,13 +156,19 @@ export default function EtapasContratacao(props: {
   }
 
   if (fase.f === "bloqueado") {
+    const instrumentoIndisponivel =
+      fase.codigo === "commercial_instrument_template_unavailable";
     return (
       <div role="alert" className="card mt-6 p-6">
-        <h3 className="font-bold">Contrato-quadro pendente</h3>
+        <h3 className="font-bold">
+          {instrumentoIndisponivel
+            ? "Contratação temporariamente indisponível"
+            : "Contrato-quadro pendente"}
+        </h3>
         <p className="mt-2 text-sm text-tinta/70">
-          Sua empresa ainda não possui contrato-quadro assinado e registrado.
-          Ele é exigido antes de qualquer pedido. Fale com a SmallFlags para
-          concluir essa etapa. Nenhum valor foi cobrado.
+          {instrumentoIndisponivel
+            ? "O instrumento comercial desta contratação ainda não está liberado para assinatura. A contratação foi interrompida antes da criação do pedido e nenhum valor foi cobrado."
+            : "Sua empresa ainda não possui contrato-quadro assinado e registrado. Ele é exigido antes de qualquer pedido. Fale com a SmallFlags para concluir essa etapa. Nenhum valor foi cobrado."}
         </p>
       </div>
     );
@@ -249,10 +268,50 @@ export default function EtapasContratacao(props: {
         <h3 id="termos-titulo" className="text-lg font-bold">
           {t.title}
         </h3>
-        <p className="text-xs font-bold uppercase tracking-widest text-tinta/40">
+        <p className="text-xs font-bold uppercase tracking-widest text-tinta/60">
           Versão {t.version}
         </p>
+        {t.contentHash && (
+          <p className="mt-1 break-all font-mono text-xs text-tinta/60">
+            SHA-256 {t.contentHash}
+          </p>
+        )}
       </div>
+
+      {/* ACORDO MESTRE QUE REGE ESTA EMPRESA.
+          Instrumento DISTINTO destes termos de pedido. O link aponta para a
+          VERSÃO EXATA assinada pela empresa, não para o que estiver publicado
+          hoje: se um Mestre novo for publicado depois, este bloco continua
+          mostrando o que rege o contrato. Sem vínculo verificável, nada é
+          exibido como se fosse aplicável. */}
+      {mestre?.tipo === "ok" ? (
+        <div className="rounded-xl border border-borda p-4 text-sm">
+          <p className="font-semibold">Acordo Mestre que rege esta contratação</p>
+          <p className="mt-1 text-tinta/75">
+            {mestre.title} — versão{" "}
+            <span className="font-semibold text-tinta">{mestre.version}</span>
+            {mestre.status === "archived" && " (versão histórica)"}
+          </p>
+          {mestre.contentHash && (
+            <p className="mt-1 break-all font-mono text-xs text-tinta/70">
+              SHA-256 {mestre.contentHash}
+            </p>
+          )}
+          <Link
+            to={`/legal/acordo-mestre-parceiros?versao=${encodeURIComponent(mestre.version)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block font-semibold underline decoration-ciano decoration-2 underline-offset-4"
+          >
+            Ler esta versão do Acordo Mestre
+          </Link>
+        </div>
+      ) : (
+        <p role="alert" className="rounded-xl border border-amarelo/60 bg-amarelo/15 p-4 text-sm">
+          Não foi possível identificar a versão do Acordo Mestre que rege esta
+          empresa. A contratação não pode ser concluída sem esse vínculo.
+        </p>
+      )}
 
       {t.content ? (
         <div className="max-h-64 overflow-y-auto rounded-xl bg-tinta/5 p-4 text-sm whitespace-pre-wrap">
@@ -302,7 +361,7 @@ export default function EtapasContratacao(props: {
 
       <button
         onClick={contratarEPagar}
-        disabled={!aceito || ocupado}
+        disabled={!aceito || ocupado || mestre?.tipo !== "ok"}
         className="btn-primary w-full disabled:opacity-50"
       >
         {ocupado ? "Processando..." : "Aceitar e ir para o pagamento"}

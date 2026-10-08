@@ -6,7 +6,9 @@ import {
 } from "./commercialResponse";
 import {
   interpretarPrecoPublico,
+  interpretarEconomiaFormacao,
   type PublicNichePricing,
+  type FormationEconomicsServer,
 } from "../domain/pricing/contractPricing";
 
 /**
@@ -88,4 +90,38 @@ export async function fetchPublicPricing(): Promise<PublicNichePricing[]> {
     throw new CommercialError("unexpected_response");
   }
   return lista;
+}
+
+/**
+ * Economia agregada da formação completa — SEMPRE do servidor.
+ *
+ * Antes disto a vitrine calculava a economia V2 no próprio navegador. Quando a
+ * SF-v1.4 passou a ser a autoridade ativa, a página seguiu exibindo os números
+ * da V2: pool de 9.231.600 e R$ 1.099,00 por usuário, contra os 8.391.600 e
+ * R$ 993,93 que o servidor passou a reconhecer. Recalcular preço no navegador
+ * é justamente o que o handoff proíbe, e esta função fecha essa porta.
+ *
+ * Contrato violado vira unexpected_response e a UI omite os valores
+ * (fail-closed), em vez de exibir número inventado.
+ */
+export async function fetchFormationEconomics(): Promise<FormationEconomicsServer> {
+  if (!supabase) {
+    throw new CommercialError("not_configured");
+  }
+  let data: unknown;
+  try {
+    const res = await supabase.rpc("get_public_formation_economics", {});
+    if (res.error) {
+      throw new CommercialError("network_error", res.error.message);
+    }
+    data = res.data;
+  } catch (e) {
+    if (e instanceof CommercialError) throw e;
+    throw new CommercialError("network_error");
+  }
+  const economia = interpretarEconomiaFormacao(data);
+  if (economia === null) {
+    throw new CommercialError("unexpected_response");
+  }
+  return economia;
 }

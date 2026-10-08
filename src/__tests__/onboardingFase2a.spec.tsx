@@ -45,7 +45,7 @@ describe("validação espelhando o backend", () => {
     const erros = validarFormulario({
       cnpj: "", legal_name: "", trade_name: "", contact_email: "", contact_phone: "",
       postal_code: "", street: "", street_number: "", district: "", city: "", uf: "",
-      representative_full_name: "", representative_cpf: "", representative_email: "",
+      representative_full_name: "", representative_cpf: "", representative_role_title: "", representative_email: "",
       representative_phone: "",
     });
     expect(Object.keys(erros).sort()).toEqual(

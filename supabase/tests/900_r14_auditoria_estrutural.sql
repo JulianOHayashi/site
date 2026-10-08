@@ -57,13 +57,13 @@ select tests.check('anon manteve SELECT nas tabelas publicas da vitrine',
 -- ---------------------------------------------------------------------------
 create temporary table esperado_anon_exec (proname text primary key);
 insert into esperado_anon_exec values
-  -- canônicas M1 (fluxo pré-auth, por definição anônimo)
-  ('create_partner_application'),
+  -- M1 que continuam deliberadamente anônimas. Escritas públicas sensíveis
+  -- (`create_partner_application` e recovery) migraram para endpoints
+  -- server-side e tiveram EXECUTE revogado de anon. `is_site_admin` também
+  -- deixou de ser superfície anon no hardening de setembro.
   ('confirm_partner_application_email'),
-  ('request_partner_application_recovery'),
   ('get_partner_application_terms'),
   ('get_current_legal_documents'),
-  ('is_site_admin'),
   -- canônicas da vitrine pública
   ('get_current_commercial_formation'),
   ('resolve_commercial_region'),
@@ -74,7 +74,25 @@ insert into esperado_anon_exec values
   -- INTENCIONAL e declarada na migration 28 (GRANT explicito a anon), pela
   -- mesma razao das duas acima: e a vitrine publica. Nao le identidade, nao
   -- escreve, e nao devolve dado de empresa alguma.
-  ('get_public_formation_economics');
+  ('get_public_formation_economics'),
+  -- Area legal publica: devolve UMA versao exata de documento legal, publicada
+  -- ou arquivada. A exposicao anon e INTENCIONAL e declarada na migration
+  -- 20261005120000 (REVOKE de PUBLIC seguido de GRANT explicito a anon): o Site
+  -- precisa exibir a versao historica exata que um contrato antigo referencia,
+  -- e 'archived' e justamente o estado de uma versao substituida.
+  --
+  -- Esta linha corrige uma OMISSAO na matriz de seguranca, nao relaxa nada. A
+  -- funcao foi reverificada fail-closed em runtime antes de ser declarada:
+  --   - casa por doc_type + version EXATOS, por igualdade; curinga ('%'),
+  --     string vazia, NULL e tentativa de injecao por argumento nao casam nada;
+  --   - status restrito a 'published' ou 'archived'; RASCUNHO nunca aparece,
+  --     nem quando pedido pela versao exata;
+  --   - search_path fixo em pg_catalog;
+  --   - STABLE, LANGUAGE sql, sem caminho de escrita;
+  --   - sem SQL dinamico (a linguagem sql nao permite EXECUTE);
+  --   - LIMIT 1 sobre as duas chaves: nao vaza registro legal alheio, e anon
+  --     continua recusado na leitura direta de legal_documents.
+  ('get_legal_document_version');
 
 create temporary table real_anon_exec as
   select p.proname::text

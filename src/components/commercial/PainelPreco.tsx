@@ -13,20 +13,15 @@ import {
 } from "../../domain/pricing/commercialV2";
 
 /**
- * Painel de condições comerciais da vitrine — Comercial V2.
+ * Painel de condições comerciais da vitrine.
  *
- * O QUE MUDOU EM RELAÇÃO À V1
- * A versão anterior afirmava, sem condição, que o pool "não é pago à SmallFlags"
- * e é sempre honrado na rede do parceiro. Sob a V2 isso deixou de ser
- * universalmente verdadeiro: a empresa escolhe entre cumprir em benefícios
- * diretos ou aportar o pool em dinheiro. O texto passa a ser condicional.
+ * A autoridade material é sempre a RPC. A fórmula bloco + excedentes só é
+ * exibida para versões históricas <= 2, nas quais ela faz parte do próprio
+ * contrato de preço. A SF-v1.4 (versão 3) é uma agenda explícita: nenhum total
+ * vigente é reconstruído no navegador.
  *
- * A composição é exibida em REAIS, não escondida atrás de um total único nem
- * atrás de um percentual. Os percentuais aparecem como aproximação declarada
- * porque os centavos é que são a autoridade.
- *
- * Nenhum valor é calculado aqui: tudo vem da RPC. Se o retorno não for
- * íntegro, nada é exibido — nenhum número é inventado para preencher a tela.
+ * Se o retorno não for íntegro, nada é exibido — nenhum número é inventado para
+ * preencher a tela.
  */
 export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
   const [estado, setEstado] = useState<
@@ -73,7 +68,10 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
   }
 
   const { founding, fidelized, nominalQuantity } = estado.preco;
-  const extras = Math.max(0, nominalQuantity - FOUNDING_BLOCK_UNITS);
+  const usaFormulaHistorica = founding.pricingRuleVersion <= 2;
+  const extras = usaFormulaHistorica
+    ? Math.max(0, nominalQuantity - FOUNDING_BLOCK_UNITS)
+    : 0;
 
   return (
     <div className="card mt-4 p-6">
@@ -83,7 +81,7 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
         versão {founding.pricingRuleVersion}.
       </p>
 
-      {extras > 0 && (
+      {usaFormulaHistorica && extras > 0 && (
         <div className="mt-4 space-y-1 rounded-xl bg-papel2 p-4 text-sm">
           <p className="font-semibold">Formação do valor</p>
           <div className="flex items-center justify-between">
@@ -111,16 +109,14 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
           Como a parcela dos usuários pode ser cumprida
         </p>
         <p className="text-tinta/70">
-          <span className="font-semibold">Benefícios diretos</span> — a empresa
-          disponibiliza os benefícios diretamente aos usuários elegíveis,
-          conforme as regras operacionais. Nesse caso, o valor pago à SmallFlags é
-          apenas a parcela de SmallFlags, operação e investimentos.
+          <span className="font-semibold">Benefícios diretos</span> — {founding.pricingRuleVersion >= 3
+            ? "a empresa cumpre diretamente perante os MEIs elegíveis a contraprestação ordinária. A remuneração da SmallFlags, incluída a parcela de QA, continua devida em dinheiro."
+            : "a empresa disponibiliza o pool histórico diretamente aos usuários elegíveis; a parcela operacional permanece devida à SmallFlags."}
         </p>
         <p className="text-tinta/70">
-          <span className="font-semibold">Dinheiro real</span> — a empresa
-          aporta em dinheiro o valor do pool destinado aos usuários elegíveis
-          que cumprirem as tarefas e requisitos aplicáveis. Nesse caso, a
-          cobrança financeira corresponde ao valor econômico completo.
+          <span className="font-semibold">Dinheiro real</span> — {founding.pricingRuleVersion >= 3
+            ? "a empresa aporta em dinheiro a contraprestação dos participantes elegíveis, além da remuneração contratual da SmallFlags. A cobrança financeira corresponde ao valor econômico completo."
+            : "a empresa aporta em dinheiro o pool histórico dos usuários elegíveis. A cobrança financeira corresponde ao valor econômico completo."}
         </p>
         <p className="text-xs text-tinta/50">
           A escolha é feita pela empresa na etapa de contratação.
@@ -149,21 +145,73 @@ function Composicao({ titulo, p }: { titulo: string; p: NichePricing }) {
           {formatarCentavos(p.economicValueCents)}
         </span>
       </div>
-      <div className="flex items-center justify-between">
-        <span className="text-tinta/70">
-          Pool destinado aos usuários SmallFlags
-          {p.displayPoolPercent ? ` (${p.displayPoolPercent})` : ""}
-        </span>
-        <span className="font-semibold">
-          {formatarCentavos(p.contractualPoolCents)}
-        </span>
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-tinta/70">SmallFlags + operação + investimentos</span>
-        <span className="font-semibold">
-          {formatarCentavos(p.bdflowDueCents)}
-        </span>
-      </div>
+      {/*
+        Sob a SF-v1.4 o pool contratual tem DOIS titulares: a contraprestação
+        dos MEIs e a parcela de QA, que é da SmallFlags. Apresentar o pool
+        inteiro como "destinado aos usuários" seria afirmar que a parcela de QA
+        é dinheiro deles. Quando o servidor manda a decomposição, ela é exibida;
+        sob V1/V2, que não tinham parcela de QA, o pool aparece sem decomposição.
+      */}
+      {p.meiConsiderationCents !== null && p.smallflagsQaCents !== null ? (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-tinta/70">Contraprestação dos MEIs</span>
+            <span className="font-semibold">
+              {formatarCentavos(p.meiConsiderationCents)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-tinta/70">
+              Parcela de QA da SmallFlags (dentro do pool)
+            </span>
+            <span className="font-semibold">
+              {formatarCentavos(p.smallflagsQaCents)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-tinta/70">
+              Pool contratual total
+              {p.displayPoolPercent ? ` (${p.displayPoolPercent})` : ""}
+            </span>
+            <span className="font-semibold">
+              {formatarCentavos(p.contractualPoolCents)}
+            </span>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="text-tinta/70">
+            Pool contratual total
+            {p.displayPoolPercent ? ` (${p.displayPoolPercent})` : ""}
+          </span>
+          <span className="font-semibold">
+            {formatarCentavos(p.contractualPoolCents)}
+          </span>
+        </div>
+      )}
+      {p.smallflagsMainFeeCents !== null && p.smallflagsTotalRemunerationCents !== null ? (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-tinta/70">Parcela operacional principal da SmallFlags</span>
+            <span className="font-semibold">
+              {formatarCentavos(p.smallflagsMainFeeCents)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-tinta/70">Remuneração contratual total da SmallFlags</span>
+            <span className="font-semibold">
+              {formatarCentavos(p.smallflagsTotalRemunerationCents)}
+            </span>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="text-tinta/70">SmallFlags + operação + investimentos</span>
+          <span className="font-semibold">
+            {formatarCentavos(p.bdflowDueCents)}
+          </span>
+        </div>
+      )}
       {p.paymentMethod && (
         <div className="flex items-center justify-between border-t border-tinta/10 pt-2">
           <span className="text-tinta/60">Forma de pagamento</span>

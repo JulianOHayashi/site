@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -58,6 +59,24 @@ function montarRpc(over: Record<string, unknown> = {}) {
     if (fn === "get_current_legal_documents") {
       return { data: over.termos ?? [TERMOS], error: null };
     }
+    // O checkout passou a exigir o Acordo Mestre que rege a EMPRESA, por
+    // versão e hash. Sem ele a tela falha fechada — comportamento verificado
+    // no spec legalMestreVinculo.
+    if (fn === "get_governing_master_for_intent") {
+      return {
+        data:
+          over.mestre ?? {
+            ok: true,
+            legal_document_id: "ld-master-1",
+            version: "QA-STAGING-MASTER-DRAFT-v0.9.8",
+            title: "Acordo Mestre de Parceria Comercial",
+            content_hash: "d".repeat(64),
+            status: "published",
+            signed_at: "2026-10-01T00:00:00Z",
+          },
+        error: null,
+      };
+    }
     if (fn === "advance_checkout_intent_to_contract") {
       return { data: { ok: true, status: "awaiting_contract" }, error: null };
     }
@@ -89,8 +108,12 @@ afterEach(() => {
 });
 
 function montar(fidelizado = false) {
+  // A tela passou a linkar o Acordo Mestre na área legal, então precisa de
+  // contexto de rota. A asserção dos testes não muda.
   return render(
-    <EtapasContratacao intentId={INTENT} amountCents={TOTAL} fidelizado={fidelizado} />
+    <MemoryRouter>
+      <EtapasContratacao intentId={INTENT} amountCents={TOTAL} fidelizado={fidelizado} />
+    </MemoryRouter>
   );
 }
 
@@ -111,6 +134,18 @@ describe("estados bloqueados: falham fechados", () => {
     fireEvent.click(await screen.findByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: /Aceitar e ir para o pagamento/i }));
     await screen.findByText(/Contrato-quadro pendente/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sem instrumento v1.4 assinavel, para antes do pagamento e explica o bloqueio", async () => {
+    montarRpc({
+      finalize: { ok: false, reason: "commercial_instrument_template_unavailable" },
+    });
+    montar();
+    fireEvent.click(await screen.findByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /Aceitar e ir para o pagamento/i }));
+    await screen.findByText(/Contratação temporariamente indisponível/i);
+    expect(screen.getByText(/ainda não está liberado para assinatura/i)).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

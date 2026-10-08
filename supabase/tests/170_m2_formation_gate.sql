@@ -224,9 +224,13 @@ select current_setting('bdflow.comp_com_mgr') as comp_com_mgr \gset
 begin;
 select tests.impersonate('authenticated', :'uid_owner1');
 select public.get_my_company_commercial_summary((:'comp1')::uuid) as sum1 \gset
+-- ACTIVE_V14 — o resumo lê o instantâneo do pedido do próprio parceiro, e esse
+-- pedido é contratação nova sob SF-v1.4: taxa principal do supermercado não
+-- fidelizado = 6.023,00. A finalidade da asserção continua sendo a visibilidade
+-- do financeiro pelo owner e o estado da imagem, não o valor em si.
 select tests.check('owner ve resumo com valores e estado da imagem',
     jsonb_array_length((:'sum1')::jsonb -> 'commercial') = 1
-    and ((:'sum1')::jsonb -> 'commercial' -> 0 ->> 'bdflow_due_cents')::bigint = 1004395
+    and ((:'sum1')::jsonb -> 'commercial' -> 0 ->> 'bdflow_due_cents')::bigint = 602300
     and ((:'sum1')::jsonb -> 'commercial' -> 0 ->> 'has_customization_image') = 'true');
 select tests.check('resumo traz unidades e prontidao',
     jsonb_array_length((:'sum1')::jsonb -> 'units') >= 1

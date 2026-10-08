@@ -10,6 +10,16 @@
 -- Nenhuma asserção aqui foi observada passando. Ler o arquivo não é executá-lo.
 -- Ao rodar contra PostgreSQL 17.6, qualquer RAISE EXCEPTION aborta a
 -- transação e reprova a suíte.
+--
+-- ESCOPO DEPOIS DO P0-3
+-- Esta suíte continua sendo a prova de que o modelo Comercial V2 — razão
+-- exata em centavos inteiros, sem pontos-base inventados — permanece
+-- integralmente legível. Ela JÁ NÃO afirma que a V2 governa contratação
+-- nova: desde o P0-3 a autoridade vigente é a versão técnica 3 (SF-v1.4),
+-- e a prova canônica dessa economia é 240_commercial_pricing_v14.sql.
+-- Por isso toda asserção de centavos V2 aqui pina a versão explicitamente,
+-- com `calculate_niche_contract_pricing(..., 2)`, e os valores históricos
+-- seguem exatamente os mesmos.
 -- ============================================================================
 
 BEGIN;
@@ -18,7 +28,7 @@ BEGIN;
 -- 1. Versionamento da política de precificação
 -- ----------------------------------------------------------------------------
 DO $$
-DECLARE v_ativas integer; v_v1 text; v_v2 text;
+DECLARE v_ativas integer; v_v1 text; v_v2 text; v_v3 text;
 BEGIN
   SELECT count(*) INTO v_ativas
     FROM public.commercial_pricing_rules WHERE status = 'active';
@@ -31,9 +41,18 @@ BEGIN
     RAISE EXCEPTION 'V1 deveria estar superseded, esta %', v_v1;
   END IF;
 
+  -- Depois do P0-3 a V2 deixou de governar contrato novo. Ela NAO foi
+  -- removida nem reescrita: passou a historica, como a V1. A autoridade
+  -- vigente e a versao tecnica 3 (SF-v1.4), e continua havendo exatamente
+  -- uma ativa — verificado acima.
   SELECT status INTO v_v2 FROM public.commercial_pricing_rules WHERE version = 2;
-  IF v_v2 IS DISTINCT FROM 'active' THEN
-    RAISE EXCEPTION 'V2 deveria estar active, esta %', v_v2;
+  IF v_v2 IS DISTINCT FROM 'superseded' THEN
+    RAISE EXCEPTION 'V2 deveria estar superseded (historica), esta %', v_v2;
+  END IF;
+
+  SELECT status INTO v_v3 FROM public.commercial_pricing_rules WHERE version = 3;
+  IF v_v3 IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION 'V3 deveria ser a unica ativa, esta %', v_v3;
   END IF;
 END $$;
 
@@ -81,7 +100,9 @@ END $$;
 DO $$
 DECLARE p jsonb;
 BEGIN
-  p := public.calculate_niche_contract_pricing('supermarket', false);
+  -- HISTORICAL_V2: versao pinada. Estes centavos sao os da V2 e assim devem
+  -- permanecer; a autoridade de contrato novo e provada em 240.
+  p := public.calculate_niche_contract_pricing('supermarket', false, 2);
   IF (p->>'economic_value_cents')::bigint <> 3558700 THEN
     RAISE EXCEPTION 'supermercado economico: esperado 3558700, obtido %',
       p->>'economic_value_cents';
@@ -101,7 +122,7 @@ BEGIN
     RAISE EXCEPTION 'nao fidelizado deve derivar pix, obtido %', p->>'payment_method';
   END IF;
 
-  p := public.calculate_niche_contract_pricing('pharmacy', false);
+  p := public.calculate_niche_contract_pricing('pharmacy', false, 2);
   IF (p->>'economic_value_cents')::bigint <> 1999900
      OR (p->>'contractual_pool_cents')::bigint <> 1335459
      OR (p->>'bdflow_due_cents')::bigint <> 664441 THEN
@@ -115,7 +136,7 @@ END $$;
 DO $$
 DECLARE p jsonb;
 BEGIN
-  p := public.calculate_niche_contract_pricing('supermarket', true);
+  p := public.calculate_niche_contract_pricing('supermarket', true, 2);
   IF (p->>'economic_value_cents')::bigint <> 3117600
      OR (p->>'contractual_pool_cents')::bigint <> 2237699
      OR (p->>'bdflow_due_cents')::bigint <> 879901 THEN
@@ -126,7 +147,7 @@ BEGIN
     RAISE EXCEPTION 'fidelizado deve derivar credit_card';
   END IF;
 
-  p := public.calculate_niche_contract_pricing('pharmacy', true);
+  p := public.calculate_niche_contract_pricing('pharmacy', true, 2);
   IF (p->>'economic_value_cents')::bigint <> 1558800
      OR (p->>'contractual_pool_cents')::bigint <> 1040908
      OR (p->>'bdflow_due_cents')::bigint <> 517892 THEN
@@ -140,7 +161,9 @@ DECLARE n record; f boolean; p jsonb; num bigint; den bigint; cat text;
 BEGIN
   FOR n IN SELECT code FROM public.commercial_niches WHERE is_active LOOP
     FOREACH f IN ARRAY ARRAY[false, true] LOOP
-      p := public.calculate_niche_contract_pricing(n.code, f);
+      -- Versao pinada: a razao exata conferida abaixo e a da V2, lida de
+      -- commercial_pool_share_ratios para pricing_rule_version = 2.
+      p := public.calculate_niche_contract_pricing(n.code, f, 2);
       IF (p->>'economic_value_cents')::bigint
          <> (p->>'contractual_pool_cents')::bigint + (p->>'bdflow_due_cents')::bigint THEN
         RAISE EXCEPTION 'invariante economica violada em % fidelizado=%', n.code, f;
@@ -163,19 +186,28 @@ END $$;
 DO $$
 DECLARE f jsonb;
 BEGIN
+  -- ACTIVE_V14: get_public_formation_economics e a vitrine PUBLICA e por
+  -- definicao fala da autoridade vigente. Depois do P0-3 ela agrega a
+  -- economia congelada v1.4, nao mais a V2.
   f := public.get_public_formation_economics();
-  IF (f->>'economic_value_cents')::bigint <> 13558200
-     OR (f->>'user_pool_cents')::bigint <> 9231600
-     OR (f->>'bdflow_ops_investment_cents')::bigint <> 4326600 THEN
+  IF (f->>'pricing_rule_version')::int <> 3 THEN
+    RAISE EXCEPTION 'vitrine publica deveria agregar a versao ativa 3, obtido %',
+      f->>'pricing_rule_version';
+  END IF;
+  IF (f->>'economic_value_cents')::bigint <> 12999400
+     OR (f->>'user_pool_cents')::bigint <> 8391600
+     OR (f->>'bdflow_ops_investment_cents')::bigint <> 4607800 THEN
     RAISE EXCEPTION 'totais da formacao divergem: % / % / %',
       f->>'economic_value_cents', f->>'user_pool_cents', f->>'bdflow_ops_investment_cents';
   END IF;
   IF (f->>'participant_target')::int <> 84 THEN
     RAISE EXCEPTION 'alvo de participantes deve ser 84';
   END IF;
-  IF (f->>'per_complete_user_base_cents')::bigint <> 109900
+  -- 8.391.600 / 84 participantes = 99.900 em centavos inteiros, sem resto.
+  IF (f->>'per_complete_user_base_cents')::bigint <> 99900
      OR (f->>'pool_remainder_cents')::bigint <> 0 THEN
-    RAISE EXCEPTION 'valor por usuario completo diverge de 109900';
+    RAISE EXCEPTION 'valor por usuario completo diverge de 99900, obtido % (resto %)',
+      f->>'per_complete_user_base_cents', f->>'pool_remainder_cents';
   END IF;
 END $$;
 

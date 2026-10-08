@@ -11,6 +11,10 @@
 \set ON_ERROR_STOP on
 select tests.reset_results();
 
+-- Fixture jurídica/contratual FICTÍCIA: permite que esta suíte exercite
+-- seu próprio domínio sem promover a minuta real v1.4.
+select tests.preparar_contexto_contratual_v14_qa('220');
+
 -- ---------------------------------------------------------------------------
 -- Fixtures
 -- ---------------------------------------------------------------------------
@@ -59,6 +63,21 @@ insert into public.site_partner_companies
 values ((:'app_o220')::uuid,'22020002000185','Empresa Outra 220','o220@teste.local',
         'Viana','ES','active')
 returning id as comp_o220 \gset
+
+-- Fatos materiais canônicos exigidos pelo instrumento v1.4 de QA.
+insert into public.partner_application_representatives
+  (application_id, full_name, cpf, email, role_title, authority_status,
+   is_current, decided_at)
+values ((:'app220')::uuid, 'Titular Canonico 220', '52998224725',
+        'titular220@teste.local', 'Socio administrador', 'approved', true,
+        now() - interval '2 days'),
+       ((:'app_o220')::uuid, 'Titular Outro 220', '11144477735',
+        'outro220@teste.local', 'Socio administrador', 'approved', true,
+        now() - interval '2 days');
+
+insert into public.site_partner_units (company_id, name, city, uf, status)
+values ((:'comp220')::uuid, 'Unidade 220', 'Viana', 'ES', 'active'),
+       ((:'comp_o220')::uuid, 'Unidade Outro 220', 'Viana', 'ES', 'active');
 
 insert into public.site_company_members
   (company_id, auth_user_id, role, full_name, source, status)
@@ -110,7 +129,35 @@ select tests.check('tipo fora da allowlist e recusado',
     ((:'r_tipo')::jsonb ->> 'reason') = 'doc_type_not_allowed');
 commit;
 
--- Antes de existir documento, o aceite falha fechado.
+-- P0-1 PORTAO 1 de 4: sem Acordo Mestre elegivel a empresa nao segura
+-- inventario escasso. Antes do P0-1 a recusa so vinha na finalizacao, depois
+-- de a oportunidade ficar reservada 30 minutos e de existir aceite juridico
+-- que jamais poderia virar pedido.
+begin;
+select tests.impersonate('authenticated', :'uid_t');
+select public.create_commercial_checkout_intent(
+  (:'comp220')::uuid, 'mens_clothing', 'direct_benefits') as r_sem_mestre \gset
+select tests.check('PORTAO 1: sem Mestre elegivel a reserva e recusada',
+    ((:'r_sem_mestre')::jsonb ->> 'ok') = 'false'
+    and ((:'r_sem_mestre')::jsonb ->> 'reason') = 'master_agreement_missing');
+rollback;
+select tests.check('PORTAO 1: nenhuma oportunidade ficou reservada na recusa',
+    (select status = 'available' from public.commercial_opportunities
+      where id = (:'opp220')::uuid));
+
+-- O acordo mestre e registrado por ADMIN, como o MVP definiu, e agora isso
+-- precede a reserva.
+begin;
+select tests.impersonate('authenticated', :'uid_admin');
+select tests.publicar_mestre_qa('AM-v1-teste') as ld220 \gset
+select public.admin_register_master_agreement(
+  (:'comp220')::uuid, 'AM-v1-teste', now() - interval '1 day',
+  'Titular Canonico 220', 'doc://acordo-220') as r_am \gset
+select tests.check('admin registra o acordo mestre externo',
+    ((:'r_am')::jsonb ->> 'ok') = 'true');
+commit;
+
+-- Antes de existir documento de TERMOS, o aceite falha fechado.
 begin;
 select tests.impersonate('authenticated', :'uid_t');
 select public.create_commercial_checkout_intent(
@@ -222,22 +269,19 @@ select tests.check('aceite repetido do mesmo documento e idempotente',
 -- ---------------------------------------------------------------------------
 -- 3. FINALIZAÇÃO — acordo mestre obrigatório
 -- ---------------------------------------------------------------------------
+-- P0-1 PORTAO 4 de 4, AUTORITATIVO: o Mestre estava elegivel na reserva e no
+-- aceite, mas foi revogado antes da finalizacao. O pedido NAO nasce. Prova mais
+-- forte que a antiga (que apenas nunca tinha registrado Mestre nenhum).
 begin;
+update public.commercial_master_agreements
+   set status = 'superseded', superseded_at = now()
+ where company_id = (:'comp220')::uuid and status = 'signed';
 select tests.impersonate('authenticated', :'uid_t');
 select public.finalize_commercial_order_from_intent((:'intent220')::uuid) as r_sem_acordo \gset
-select tests.check('sem acordo mestre vigente o pedido NAO nasce',
-    ((:'r_sem_acordo')::jsonb ->> 'reason') = 'master_agreement_missing');
-commit;
-
--- O acordo mestre e registrado por ADMIN, como o MVP definiu.
-begin;
-select tests.impersonate('authenticated', :'uid_admin');
-select public.admin_register_master_agreement(
-  (:'comp220')::uuid, 'AM-v1-teste', now() - interval '1 day',
-  'Titular Canonico 220', 'doc://acordo-220') as r_am \gset
-select tests.check('admin registra o acordo mestre externo',
-    ((:'r_am')::jsonb ->> 'ok') = 'true');
-commit;
+select tests.check('PORTAO 4: Mestre revogado apos o aceite NAO origina pedido',
+    ((:'r_sem_acordo')::jsonb ->> 'ok') = 'false'
+    and ((:'r_sem_acordo')::jsonb ->> 'reason') = 'master_agreement_missing');
+rollback;
 
 begin;
 select tests.impersonate('authenticated', :'uid_g');
@@ -270,15 +314,25 @@ select tests.check('pedido copia exatamente o instantaneo monetario da intencao'
         and o.bdflow_due_cents = i.bdflow_ops_investment_cents
         and o.cash_user_pool_funding_cents = i.cash_user_pool_funding_cents
         and o.total_monetary_funding_required_cents = i.total_monetary_funding_required_cents
+        and o.contract_economics_version = i.contract_economics_version
+        and o.mei_consideration_cents = i.mei_consideration_cents
+        and o.smallflags_qa_cents = i.smallflags_qa_cents
+        and o.smallflags_main_fee_cents = i.smallflags_main_fee_cents
+        and o.smallflags_total_remuneration_cents = i.smallflags_total_remuneration_cents
+        and o.mei_cash_funding_cents = i.mei_cash_funding_cents
         and o.nominal_quantity = i.nominal_quantity
         and o.pricing_rule_version = i.pricing_rule_version
         and o.fidelized = i.fidelized
         and o.benefit_settlement_mode = i.benefit_settlement_mode
        from public.commercial_exclusivity_orders o, public.commercial_checkout_intents i
       where o.id = :'ord220' and i.id = :'intent220'));
-select tests.check('valores V2 exatos no pedido',
-    (select economic_value_cents = 1999900 and contractual_pool_cents = 1335459
-        and bdflow_due_cents = 664441 and pool_bps is null
+-- ACTIVE_V14 — o pedido é finalizado a partir de uma intenção NOVA, logo sob
+-- SF-v1.4: nicho comum não fidelizado, 19.999,00 = 11.988,00 + 8.011,00.
+-- pool_bps segue NULO: nenhuma das duas autoridades tem ponto-base honesto.
+select tests.check('valores exatos da autoridade ativa no pedido',
+    (select economic_value_cents = 1999900 and contractual_pool_cents = 1198800
+        and bdflow_due_cents = 801100 and pool_bps is null
+        and pricing_rule_version = 3 and contract_economics_version = 'SF-v1.4'
        from public.commercial_exclusivity_orders where id = :'ord220'));
 select tests.check('economico = pool + devido no pedido gravado',
     (select economic_value_cents = contractual_pool_cents + bdflow_due_cents
@@ -416,5 +470,7 @@ select tests.check_raises('snapshot do pedido finalizado e imutavel',
   format($sql$update public.commercial_exclusivity_orders
             set contractual_pool_cents = 1 where id = %L$sql$, :'ord220'),
   'pedido_imutavel');
+
+select tests.encerrar_contexto_contratual_v14_qa();
 
 select tests.finish('220_commercial_order_terms');

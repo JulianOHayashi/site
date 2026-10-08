@@ -38,6 +38,14 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   }
 
   const cnpj = String(body.cnpj ?? "").replace(/\D/g, "");
+  const representativeRoleTitle = String(body.representative_role_title ?? "").trim();
+  if (representativeRoleTitle.length < 2) {
+    res.status(400).json({ ok: false, reason: "representative_role_title_required" });
+    return;
+  }
+  // O backend recebe a forma normalizada. Não há default nem inferência de cargo.
+  body.representative_role_title = representativeRoleTitle;
+
   const gate = await enforceTwoLimits({
     backend,
     headers: req.headers,

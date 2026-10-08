@@ -213,7 +213,7 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 46 migrations", () => {
+  it("exatamente 57 migrations", () => {
     // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada;
     // 20260908120000 endurece o snapshot de provisionamento; 20260909120000
     // acrescenta a RPC de autoridade de uso de beneficio; 20260915120000
@@ -223,7 +223,36 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // empresa, contexto do cliente no provedor e interesse futuro) = 41.
     // 20260925121500..20260925121800 adicionam o hardening dos writes públicos.
     // 20260925121900 adiciona limpeza limitada do ledger de rate limit.
-    expect(arquivos.length).toBe(46);
+    // 20261005120000 acrescenta o doc_type master_agreement e a leitura
+    // pública de versão histórica, para a área legal.
+    // 20261005140000 corrige C1 (allowlist da publicação canônica) e C2
+    // (vínculo verificável entre Mestre assinado e Mestre publicado).
+    // 20261005160000 acrescenta o snapshot imutavel do instrumento comercial
+    // e a decomposicao do pool (MEI versus parcela QA da SmallFlags).
+    // 20261007120000 institui a autoridade economica v1.4 (agenda explicita de
+    // centavos congelados) como unica fonte de contratacao nova.
+    // 20261007130000 alinha o caminho manual a essa autoridade: o devido a
+    // SmallFlags passa a incluir a parcela QA, e o retorno passa a relatar o
+    // que foi gravado em vez do pre-calculo anterior ao trigger.
+    // 20261007140000 trava a linha do Acordo Mestre (FOR UPDATE) nos dois
+    // caminhos que criam pedido, fechando a corrida contra revogacao.
+    // 20261007150000 torna explicita a decomposicao do pool nas superficies
+    // semanticas: a parcela QA e da SmallFlags e nao pode ser apresentada como
+    // dinheiro do usuario/MEI.
+    // 20261007160000 cria o resolvedor UNICO de elegibilidade do Acordo Mestre
+    // e o aplica nos quatro portoes da contratacao nova; o vinculo canonico
+    // passa a ser obrigatorio, sem backfill de linha historica.
+    // 20261007170000 cria a autoridade de modelos de instrumento com ciclo de
+    // vida draft/signable/archived, o serial global SF-NNNN e o construtor do
+    // snapshot individualizado. A minuta v1.4 fica DRAFT: a fonte congelada diz
+    // NAO ASSINAR AINDA, e o caminho de producao falha fechado.
+    // 20261007180000 da fonte canonica aos fatos materiais: valor da
+    // participacao na autoridade de economia, tomador de NFS-e a partir do CNPJ
+    // da contratante, unidade de execucao validada e catalogo de atividade
+    // contratada sem linha aprovada de producao.
+    // 20261007190000 remove p_facts_supplied: o snapshot passa a vir so de
+    // registro persistido e validado, com proveniencia por registro canonico.
+    expect(arquivos.length).toBe(57);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {

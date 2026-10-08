@@ -16,6 +16,14 @@ select auth_user_id as uid_mgr from public.site_company_members
 -- ---------------------------------------------------------------------------
 -- Autorização e validação de entrada
 -- ---------------------------------------------------------------------------
+-- C2: a versao assinada tem de corresponder a um master_agreement publicado.
+-- Publica dois documentos de QA ficticios antes dos registros abaixo.
+begin;
+select tests.impersonate('authenticated', :'uid_admin');
+select tests.publicar_mestre_qa('v1');
+select tests.publicar_mestre_qa('v2');
+commit;
+
 begin;
 select tests.impersonate('authenticated', :'uid_intruso');
 select tests.check_raises('nao-admin nao registra acordo mestre',
@@ -30,10 +38,28 @@ select public.admin_register_master_agreement(
     (:'company1')::uuid,'v1', now() + interval '1 day','Ana','doc://a1') as fut \gset
 select tests.check('assinatura no futuro e recusada',
     ((:'fut')::jsonb ->> 'reason') = 'invalid_signature_date');
+-- MUDANCA INTENCIONAL (C2), aprovada pelo operador: antes, acordo sem
+-- referencia nem hash era recusado com 'invalid_data' porque nada
+-- identificava o documento. Agora a identidade vem do legal_document
+-- vinculado, entao referencia e hash sao DERIVADOS da fonte e o registro
+-- passa a ser valido. A protecao mudou de lugar, e as duas assercoes abaixo
+-- sao mais fortes do que a anterior.
 select public.admin_register_master_agreement(
     (:'company1')::uuid,'v1', now() - interval '1 day','Ana') as sem_ev \gset
-select tests.check('acordo sem referencia nem hash e recusado',
-    ((:'sem_ev')::jsonb ->> 'reason') = 'invalid_data');
+select tests.check('sem referencia explicita, a identidade vem do documento',
+    ((:'sem_ev')::jsonb ->> 'ok') = 'true');
+select tests.check('hash gravado e o do documento publicado',
+    (select a.document_hash = d.content_hash
+       from public.commercial_master_agreements a
+       join public.legal_documents d on d.id = a.legal_document_id
+      where a.company_id = (:'company1')::uuid and a.status = 'signed'));
+
+-- C2, caminho negativo: versao que nao existe como documento publicado.
+select public.admin_register_master_agreement(
+    (:'company1')::uuid,'versao-inexistente-qa', now() - interval '1 day',
+    'Ana','doc://x') as nao_pub \gset
+select tests.check('versao sem documento publicado e recusada',
+    ((:'nao_pub')::jsonb ->> 'reason') = 'master_agreement_version_not_published');
 select public.admin_register_master_agreement(
     (:'company1')::uuid,'v1', now() - interval '1 day','Ana Representante','doc://acordo-1') as ag1 \gset
 select tests.check('acordo mestre registrado', ((:'ag1')::jsonb ->> 'ok') = 'true');

@@ -93,6 +93,9 @@ describe("R5 — parser estrito da vitrine", () => {
     pool_bps: 7000,
     contractual_pool_cents: fid ? 1_091_160 : 1_399_930,
     bdflow_due_cents: fid ? 467_640 : 599_970,
+    direct_benefit_deliverable_cents: fid ? 1_091_160 : 1_399_930,
+    funding_direct_benefits_cents: fid ? 467_640 : 599_970,
+    funding_cash_cents: fid ? 1_558_800 : 1_999_900,
     ...over,
   });
   const resposta = () => ({

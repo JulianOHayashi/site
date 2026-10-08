@@ -131,10 +131,31 @@ select tests.check('payload usa UUID de ponte para rede, filial e validador',
       where (p ->> 'partner_network_bridge_id') is not null
         and jsonb_array_length(p -> 'branches') >= 1
         and jsonb_array_length(p -> 'validators') >= 1) = 6);
+-- ACTIVE_V14 — a formação provisionada é a de referência da suíte 160, agora
+-- sob SF-v1.4: 23.976,00 do supermercado + 5 × 11.988,00 = 83.916,00.
+-- A finalidade da asserção é inalterada: o payload carrega o POOL contratual e
+-- jamais valor individual por usuário.
 select tests.check('payload envia o POOL contratual, nunca valor individual',
     (select sum((p ->> 'contractual_pool_cents')::bigint)
-       from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p) = 9231600
+       from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p) = 8391600
     and (:'pay1')::jsonb::text not like '%assigned_amount%');
+
+-- O App NAO pode receber o pool inteiro como se fosse direito dos MEIs: a
+-- parcela QA esta dentro dele e e da SmallFlags. O payload carrega a
+-- decomposicao explicita ao lado do campo de compatibilidade.
+select tests.check('payload decompoe o pool em contraprestacao do MEI e parcela QA',
+    (select sum((p ->> 'mei_consideration_cents')::bigint)
+       from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p) = 8349012
+    and (select sum((p ->> 'smallflags_qa_cents')::bigint)
+       from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p) = 42588);
+select tests.check('payload: decomposicao fecha o pool em TODO parceiro',
+    (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
+      where (p ->> 'mei_consideration_cents')::bigint
+            + (p ->> 'smallflags_qa_cents')::bigint
+            <> (p ->> 'contractual_pool_cents')::bigint) = 0);
+select tests.check('payload carimba o rotulo legal da economia em todo parceiro',
+    (select count(*) from jsonb_array_elements((:'pay1')::jsonb -> 'partners') p
+      where (p ->> 'contract_economics_version') is distinct from 'SF-v1.4') = 0);
 
 -- NÃO VAZA PII nem financeiro interno.
 select tests.check('payload NAO contem CNPJ de nenhum parceiro',

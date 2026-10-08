@@ -39,6 +39,8 @@ import ComoFunciona from "./pages/institucional/ComoFunciona";
 import TrabalheConosco from "./pages/institucional/TrabalheConosco";
 import Contato from "./pages/institucional/Contato";
 import Ajuda from "./pages/institucional/Ajuda";
+import LegalIndice from "./pages/legal/LegalIndice";
+import LegalAcordoMestre from "./pages/legal/LegalAcordoMestre";
 
 export default function App() {
   return (
@@ -71,6 +73,10 @@ export default function App() {
         <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
         <Route path="/contato" element={<Contato />} />
         <Route path="/ajuda" element={<Ajuda />} />
+
+        {/* Área legal pública: leitura, sem autenticação e sem escrita. */}
+        <Route path="/legal" element={<LegalIndice />} />
+        <Route path="/legal/acordo-mestre-parceiros" element={<LegalAcordoMestre />} />
 
         {/* Compatibilidade temporária para links da antiga loja. */}
         <Route path="/selecionar-estado" element={<Navigate to="/selecionar-localidade" replace />} />

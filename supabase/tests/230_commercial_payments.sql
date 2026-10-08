@@ -8,6 +8,10 @@
 \set ON_ERROR_STOP on
 select tests.reset_results();
 
+-- Fixture jurídica/contratual FICTÍCIA: permite que esta suíte exercite
+-- seu próprio domínio sem promover a minuta real v1.4.
+select tests.preparar_contexto_contratual_v14_qa('230');
+
 select tests.mk_user('admin230@teste.local') as uid_admin \gset
 insert into public.site_admins (user_id) values ((:'uid_admin')::uuid)
 on conflict do nothing;
@@ -67,6 +71,18 @@ insert into public.site_partner_companies
   (source_application_id, cnpj, legal_name, contact_email, city, uf, status)
 values ((:'app230c')::uuid,'23030003000173','Empresa 230C','c230@teste.local','Cariacica','ES','active')
 returning id as comp230c \gset
+
+-- Representantes canônicos: o instrumento de QA não infere cargo/poderes.
+insert into public.partner_application_representatives
+  (application_id, full_name, cpf, email, role_title, authority_status,
+   is_current, decided_at)
+values ((:'app230')::uuid, 'Titular 230', '52998224725', 'titular230@teste.local',
+        'Socio administrador', 'approved', true, now() - interval '2 days'),
+       ((:'app230b')::uuid, 'Titular 230B', '11144477735', 'titular230b@teste.local',
+        'Socio administrador', 'approved', true, now() - interval '2 days'),
+       ((:'app230c')::uuid, 'Titular 230C', '12345678909', 'titular230c@teste.local',
+        'Socio administrador', 'approved', true, now() - interval '2 days');
+
 insert into public.site_company_members
   (company_id, auth_user_id, role, full_name, source, status)
 values ((:'comp230b')::uuid,(:'uid_tb')::uuid,'partner_owner',
@@ -74,12 +90,22 @@ values ((:'comp230b')::uuid,(:'uid_tb')::uuid,'partner_owner',
        ((:'comp230c')::uuid,(:'uid_tc')::uuid,'partner_owner',
         'Titular 230C','application_promotion','active');
 
+-- P0-2: o aceite juridico exige unidade de execucao validada. Uma unidade ativa
+-- por empresa, de modo que o servidor pre-selecione sem ambiguidade.
+insert into public.site_partner_units (company_id, name, city, uf, status)
+values ((:'comp230')::uuid, 'Unidade 230', 'Serra', 'ES', 'active'),
+       ((:'comp230b')::uuid,'Unidade 230B','Serra', 'ES', 'active'),
+       ((:'comp230c')::uuid,'Unidade 230C','Serra', 'ES', 'active');
+
 -- Termos publicados e acordo mestre registrado: pré-requisitos do contrato.
 begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_publish_legal_document(
   'commercial_order_terms','v230','Termos 230',
   'CONTEUDO DE TESTE (nao juridico)','hash-230') as r_pub \gset
+select tests.publicar_mestre_qa('AM-230');
+select tests.publicar_mestre_qa('AM-230B');
+select tests.publicar_mestre_qa('AM-230C');
 select public.admin_register_master_agreement(
   (:'comp230')::uuid,'AM-230', now() - interval '1 day',
   'Titular 230','doc://acordo-230') as r_am \gset
@@ -139,9 +165,18 @@ select ((:'r_op')::jsonb ->> 'payment_id') as pay230 \gset
 select tests.check('nao fidelizado recebe PIX, sem parcelas',
     ((:'r_op')::jsonb ->> 'payment_method') = 'pix'
     and ((:'r_op')::jsonb -> 'installments') = 'null'::jsonb);
+-- ACTIVE_V14 — pedido novo, nicho comum, direct_benefits, sob SF-v1.4.
+-- O valor cobrado é o devido à SmallFlags: taxa principal 801.100 + parcela de
+-- QA 6.084 = 807.184. A parcela de QA fica DENTRO do pool contratual mas é
+-- definitivamente da SmallFlags, e por isso entra na cobrança.
+-- A INVARIANTE central é preservada intacta: o valor da tentativa tem de ser
+-- exatamente igual ao instantâneo imutável do pedido — e é provada aqui nas
+-- duas direções, contra a coluna e contra o número congelado.
 select tests.check('valor vem do instantaneo contratual do pedido',
     (select p.amount_cents = o.total_monetary_funding_required_cents
-        and p.amount_cents = 664441
+        and p.amount_cents = 807184
+        and o.total_monetary_funding_required_cents
+              = o.smallflags_main_fee_cents + o.smallflags_qa_cents
        from public.commercial_payments p, public.commercial_exclusivity_orders o
       where p.id = :'pay230' and o.id = :'ord230'));
 select tests.check('prazo do pagamento = reserved_until da intencao, sem recalculo',
@@ -166,8 +201,11 @@ select tests.check_raises('tentativa viva duplicada e impossivel',
   format($sql$insert into public.commercial_payments
     (commercial_order_id, checkout_intent_id, provider, payment_method,
      amount_cents, status, expires_at, idempotency_key)
-   values (%L,%L,'pagarme','pix',664441,'created', now()+interval '10 minutes','outra-chave')$sql$,
-   :'ord230', :'int230'),
+   values (%L,%L,'pagarme','pix',
+           (select total_monetary_funding_required_cents
+              from public.commercial_exclusivity_orders where id = %L),
+           'created', now()+interval '10 minutes','outra-chave')$sql$,
+   :'ord230', :'int230', :'ord230'),
   'cp_tentativa_viva_idx');
 
 -- ---------------------------------------------------------------------------
@@ -176,7 +214,7 @@ select tests.check_raises('tentativa viva duplicada e impossivel',
 begin;
 select tests.impersonate('authenticated', :'uid_t');
 select tests.check_raises('titular nao confirma pagamento',
-  format($sql$select public.prov_confirm_commercial_payment(%L,'paid',664441,'pix',null)$sql$,
+  format($sql$select public.prov_confirm_commercial_payment(%L,'paid',807184,'pix',null)$sql$,
          :'pay230'),
   'permission denied');
 select tests.check_raises('titular nao escreve na tabela de pagamentos',
@@ -193,12 +231,12 @@ select tests.check('valor divergente NAO paga',
     ((:'r_valor')::jsonb ->> 'reason') = 'amount_mismatch');
 -- Metodo divergente.
 select public.prov_confirm_commercial_payment(
-  (:'pay230')::uuid,'paid',664441,'credit_card',null) as r_metodo \gset
+  (:'pay230')::uuid,'paid',807184,'credit_card',null) as r_metodo \gset
 select tests.check('metodo divergente NAO paga',
     ((:'r_metodo')::jsonb ->> 'reason') = 'method_mismatch');
 -- Status que nao e pago.
 select public.prov_confirm_commercial_payment(
-  (:'pay230')::uuid,'pending',664441,'pix',null) as r_status \gset
+  (:'pay230')::uuid,'pending',807184,'pix',null) as r_status \gset
 select tests.check('status de provedor diferente de pago NAO paga',
     ((:'r_status')::jsonb ->> 'reason') = 'provider_status_not_paid');
 commit;
@@ -220,7 +258,7 @@ select tests.check('identificadores do provedor sao registrados',
     ((:'r_ids')::jsonb ->> 'ok') = 'true'
     and ((:'r_ids')::jsonb ->> 'status') = 'pending');
 select public.prov_confirm_commercial_payment(
-  (:'pay230')::uuid,'paid',664441,'pix','referencia-de-outro-pedido') as r_ref \gset
+  (:'pay230')::uuid,'paid',807184,'pix','referencia-de-outro-pedido') as r_ref \gset
 select tests.check('referencia divergente NAO paga',
     ((:'r_ref')::jsonb ->> 'reason') = 'reference_mismatch');
 commit;
@@ -231,7 +269,7 @@ commit;
 begin;
 select tests.impersonate('service_role', null);
 select public.prov_confirm_commercial_payment(
-  (:'pay230')::uuid,'paid',664441,'pix','bdflow-ref-230') as r_pago \gset
+  (:'pay230')::uuid,'paid',807184,'pix','bdflow-ref-230') as r_pago \gset
 commit;
 select tests.check('conciliacao correta paga',
     ((:'r_pago')::jsonb ->> 'ok') = 'true'
@@ -244,7 +282,10 @@ select tests.check('pedido confirmado com origem PROVEDOR, sem ator humano falso
         and payment_confirmed_source = 'payment_provider'
         and payment_confirmed_by is null
         and payment_confirmed_at is not null
-        and payment_amount_cents = 664441
+        -- O valor carimbado é exatamente o do instantâneo imutável do pedido.
+        -- Esta igualdade é a invariante que NÃO pode ser enfraquecida.
+        and payment_amount_cents = 807184
+        and payment_amount_cents = total_monetary_funding_required_cents
        from public.commercial_exclusivity_orders where id = :'ord230'));
 select tests.check('intencao chega a paid',
     (select status = 'paid' from public.commercial_checkout_intents where id = :'int230'));
@@ -255,7 +296,7 @@ select tests.check('paid_at e tempo do BANCO',
 begin;
 select tests.impersonate('service_role', null);
 select public.prov_confirm_commercial_payment(
-  (:'pay230')::uuid,'paid',664441,'pix','bdflow-ref-230') as r_pago2 \gset
+  (:'pay230')::uuid,'paid',807184,'pix','bdflow-ref-230') as r_pago2 \gset
 select tests.check('confirmacao repetida e idempotente',
     ((:'r_pago2')::jsonb ->> 'already') = 'true');
 commit;
@@ -299,7 +340,7 @@ update public.commercial_opportunities
 begin;
 select tests.impersonate('service_role', null);
 select public.prov_confirm_commercial_payment(
-  (:'pay_late')::uuid,'paid',664441,'pix',null) as r_tardio \gset
+  (:'pay_late')::uuid,'paid',807184,'pix',null) as r_tardio \gset
 commit;
 
 select tests.check('pagamento TARDIO nao contrata oportunidade reatribuida',
@@ -371,8 +412,11 @@ select tests.check('historico contratual NAO foi apagado',
       where id = ((:'r_fe')::jsonb ->> 'order_id')::uuid) = 1
     and (select count(*) from public.commercial_checkout_intents
       where id = :'int_exp') = 1);
+-- A finalidade é IMUTABILIDADE: expirar a tentativa não reprecifica o pedido.
+-- Os centavos são os da autoridade ativa SF-v1.4 para nicho comum não
+-- fidelizado: 19.999,00 econômico, 11.988,00 de pool contratual.
 select tests.check('nenhum centavo do instantaneo mudou na expiracao',
-    (select economic_value_cents = 1999900 and contractual_pool_cents = 1335459
+    (select economic_value_cents = 1999900 and contractual_pool_cents = 1198800
        from public.commercial_exclusivity_orders
       where id = ((:'r_fe')::jsonb ->> 'order_id')::uuid));
 
@@ -395,9 +439,15 @@ select tests.check_raises('sete parcelas sao recusadas pelo banco',
   format($sql$insert into public.commercial_payments
     (commercial_order_id, checkout_intent_id, provider, payment_method,
      amount_cents, installments, status, expires_at, idempotency_key)
-   values (%L,%L,'pagarme','credit_card',664441,7,'created',
-           now()+interval '10 minutes','chave-sete-parcelas')$sql$,
-   :'ord230', :'int230'),
+   -- NON_PRICING_INVARIANT: o que se prova aqui é o CHECK de parcelas. O valor
+   -- é incidental e por isso vem do próprio pedido, sem constante parada.
+   values (%L,%L,'pagarme','credit_card',
+           (select total_monetary_funding_required_cents
+              from public.commercial_exclusivity_orders where id = %L),
+           7,'created', now()+interval '10 minutes','chave-sete-parcelas')$sql$,
+   :'ord230', :'int230', :'ord230'),
   'cp_parcelas_coerentes');
+
+select tests.encerrar_contexto_contratual_v14_qa();
 
 select tests.finish('230_commercial_payments');

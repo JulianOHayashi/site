@@ -45,6 +45,7 @@ const CAMPOS_INICIAIS: CamposFormulario = {
   uf: "ES",
   representative_full_name: "",
   representative_cpf: "",
+  representative_role_title: "",
   representative_email: "",
   representative_phone: "",
 };
@@ -129,6 +130,7 @@ export default function ParceirosCadastro() {
       uf: campos.uf,
       representative_full_name: campos.representative_full_name.trim(),
       representative_cpf: somenteDigitos(campos.representative_cpf),
+      representative_role_title: campos.representative_role_title.trim(),
       representative_email: campos.representative_email.trim().toLowerCase() || undefined,
       representative_phone: somenteDigitos(campos.representative_phone) || undefined,
       // Somente os IDs. Versão e hash não são enviados: não são autoridade.
@@ -273,6 +275,7 @@ export default function ParceirosCadastro() {
             </p>
             {campo("representative_full_name", "Nome completo", { obrigatorio: true })}
             {campo("representative_cpf", "CPF", { placeholder: "000.000.000-00", obrigatorio: true })}
+            {campo("representative_role_title", "Cargo / função do responsável", { obrigatorio: true })}
             {campo("representative_email", "E-mail do responsável", { tipo: "email" })}
             {campo("representative_phone", "Telefone do responsável")}
           </section>

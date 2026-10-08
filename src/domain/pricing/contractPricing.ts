@@ -5,14 +5,9 @@
  * formata o que a RPC devolveu, e permite provar as invariantes localmente.
  * O valor exibido vem sempre de get_public_niche_pricing().
  *
- * Regra vigente: não fidelizado -> primeiras 12 unidades = R$ 19.999,00 e
- * cada unidade acima de 12 = R$ 1.299,00; fidelizado -> toda unidade
- * R$ 1.299,00. Centavos INTEIROS.
- *
- * Os pools de 75%/70% pertencem à V1 e são HISTÓRICOS. A política vigente é
- * a Comercial V2, em src/domain/pricing/commercialV2.ts, que usa razão exata
- * de inteiros. Este módulo continua calculando a V1 para que os pedidos
- * antigos permaneçam legíveis e reproduzíveis.
+ * A regra vigente para contratação nova é recebida da autoridade server-side;
+ * este módulo NÃO reconstrói a SF-v1.4. As fórmulas V1 abaixo existem somente
+ * para leitura/reprodução histórica e testes de compatibilidade.
  */
 
 export type PricingRule = {
@@ -51,8 +46,30 @@ export type NichePricing = {
    * aprovados. Preencher aqui um número plausível seria inventar autoridade.
    */
   poolBps: number | null;
+  /**
+   * Pool contratual INTEIRO. Sob a SF-v1.4 ele inclui a parcela QA da
+   * SmallFlags, portanto NÃO é, por si, dinheiro do usuário/MEI. Quem precisa
+   * do que é efetivamente do MEI usa `meiConsiderationCents`. Mantido com este
+   * nome por compatibilidade com os consumidores existentes.
+   */
   contractualPoolCents: number;
   bdflowDueCents: number;
+  /**
+   * Decomposição explícita da SF-v1.4. `null` sob V1/V2, onde a parcela QA não
+   * existia — fingir mei = pool e qa = 0 ali seria inventar história.
+   */
+  contractEconomicsVersion: string | null;
+  meiConsiderationCents: number | null;
+  smallflagsQaCents: number | null;
+  smallflagsMainFeeCents: number | null;
+  smallflagsTotalRemunerationCents: number | null;
+  /**
+   * Financiamento por modalidade, sempre resolvido pela autoridade do servidor.
+   * A UI apenas exibe estes valores; nunca deriva cobrança de pool/fee local.
+   */
+  directBenefitDeliverableCents: number;
+  fundingDirectBenefitsCents: number;
+  fundingCashCents: number;
   /** Descritores de exibição da V2. Nunca autoridade de cálculo. */
   displayPoolPercent?: string;
   displayBdflowPercent?: string;
@@ -96,6 +113,17 @@ export function computeNichePricing(
     poolBps: bps,
     contractualPoolCents: pool,
     bdflowDueCents: economic - pool,
+    // Este é o cálculo da V1 por pontos-base. A parcela de QA não existia na
+    // V1, então a decomposição é NULL — e não mei = pool, qa = 0, que afirmaria
+    // sobre a V1 um fato que só nasceu na SF-v1.4.
+    contractEconomicsVersion: null,
+    meiConsiderationCents: null,
+    smallflagsQaCents: null,
+    smallflagsMainFeeCents: null,
+    smallflagsTotalRemunerationCents: null,
+    directBenefitDeliverableCents: pool,
+    fundingDirectBenefitsCents: economic - pool,
+    fundingCashCents: economic,
   };
 }
 
@@ -123,8 +151,15 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
   const due = inteiro("bdflow_due_cents");
   const versao = inteiro("pricing_rule_version");
   const qtd = inteiro("nominal_quantity");
+  const entregavel = inteiro("direct_benefit_deliverable_cents");
+  const fundingDirect = inteiro("funding_direct_benefits_cents");
+  const fundingCash = inteiro("funding_cash_cents");
   if (economic === null || pool === null || due === null) return null;
   if (versao === null || qtd === null) return null;
+  // Essas três chaves fazem parte do contrato atual da autoridade. Se o
+  // backend ainda não estiver migrado, a UI falha fechada em vez de recompor.
+  if (entregavel === null || fundingDirect === null || fundingCash === null) return null;
+  if (fundingCash !== economic) return null;
 
   // pool_bps é exigido na V1 e PROIBIDO na V2. Um retorno que traga
   // pontos-base sob a V2 está misturando modelos e falha fechado.
@@ -145,6 +180,36 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
   if (economic !== pool + due) return null;
   if (typeof o.fidelized !== "boolean" || o.fidelized !== esperaFidelizado) return null;
   if (typeof o.niche_code !== "string") return null;
+
+  // Decomposição v1.4. Opcional: só a autoridade ativa a devolve. Quando vem,
+  // as duas parcelas TÊM de somar o pool, e a remuneração da SmallFlags tem de
+  // ser taxa principal + QA. Divergência falha fechado em vez de exibir número
+  // incoerente.
+  const mei = inteiro("mei_consideration_cents");
+  const qa = inteiro("smallflags_qa_cents");
+  const taxa = inteiro("smallflags_main_fee_cents");
+  const remun = inteiro("smallflags_total_remuneration_cents");
+  const econVer = typeof o.contract_economics_version === "string"
+    ? o.contract_economics_version
+    : null;
+  const temDecomposicao = mei !== null && qa !== null;
+  if (versao >= 3 && !temDecomposicao) return null;
+  if (temDecomposicao) {
+    if (mei + qa !== pool) return null;
+    if (taxa === null || remun === null) return null;
+    if (remun !== taxa + qa) return null;
+    if (taxa !== due) return null;
+    if (econVer === null) return null;
+    // Sob SF-v1.4, somente a contraprestação do MEI pode ser cumprida como
+    // benefício. QA continua dinheiro da SmallFlags.
+    if (versao >= 3 && entregavel !== mei) return null;
+    if (versao >= 3 && fundingDirect !== remun) return null;
+  } else {
+    // V1/V2: o pool inteiro era a parcela entregável; o pagamento em benefício
+    // direto correspondia ao devido operacional histórico.
+    if (entregavel !== pool || fundingDirect !== due) return null;
+  }
+
   return {
     pricingRuleVersion: versao,
     nicheCode: o.niche_code,
@@ -155,6 +220,14 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
     poolBps: bps,
     contractualPoolCents: pool,
     bdflowDueCents: due,
+    contractEconomicsVersion: temDecomposicao ? econVer : null,
+    meiConsiderationCents: temDecomposicao ? mei : null,
+    smallflagsQaCents: temDecomposicao ? qa : null,
+    smallflagsMainFeeCents: temDecomposicao ? taxa : null,
+    smallflagsTotalRemunerationCents: temDecomposicao ? remun : null,
+    directBenefitDeliverableCents: entregavel,
+    fundingDirectBenefitsCents: fundingDirect,
+    fundingCashCents: fundingCash,
     displayPoolPercent: typeof o.display_pool_percent === "string" ? o.display_pool_percent : undefined,
     displayBdflowPercent:
       typeof o.display_bdflow_percent === "string" ? o.display_bdflow_percent : undefined,
@@ -190,6 +263,84 @@ export function interpretarPrecoPublico(data: unknown): PublicNichePricing[] | n
     });
   }
   return lista;
+}
+
+/**
+ * Economia agregada da formação completa, COMO O SERVIDOR DIZ.
+ *
+ * O navegador não recalcula isto. Antes desta versão a vitrine computava a
+ * economia V2 localmente e, depois da SF-v1.4 entrar em vigor, passou a exibir
+ * números que o servidor já não reconhecia.
+ */
+export type FormationEconomicsServer = {
+  pricingRuleVersion: number;
+  participantTarget: number;
+  economicValueCents: number;
+  /** Pool INTEIRO. Inclui a parcela QA da SmallFlags; não é dinheiro do MEI. */
+  contractualPoolCents: number;
+  bdflowOpsInvestmentCents: number;
+  /** Decomposição explícita. `null` sob V1/V2. */
+  contractEconomicsVersion: string | null;
+  meiConsiderationCents: number | null;
+  smallflagsQaCents: number | null;
+  /** Por MEI completo, sobre a contraprestação dos MEIs — não sobre o pool. */
+  perCompleteMeiBaseCents: number | null;
+  meiRemainderCents: number | null;
+};
+
+/** Parser ESTRITO: formato inesperado devolve null e a UI omite os valores. */
+export function interpretarEconomiaFormacao(
+  data: unknown
+): FormationEconomicsServer | null {
+  if (!data || typeof data !== "object") return null;
+  const o = data as Record<string, unknown>;
+  if (o.ok !== true) return null;
+  const inteiro = (k: string): number | null => {
+    const v = o[k];
+    const n = typeof v === "string" ? Number(v) : v;
+    if (typeof n !== "number" || !Number.isFinite(n) || !Number.isInteger(n)) return null;
+    return n;
+  };
+  const versao = inteiro("pricing_rule_version");
+  const alvo = inteiro("participant_target");
+  const economico = inteiro("economic_value_cents");
+  const pool = inteiro("user_pool_cents");
+  const devido = inteiro("bdflow_ops_investment_cents");
+  if (versao === null || alvo === null || alvo <= 0) return null;
+  if (economico === null || pool === null || devido === null) return null;
+  // Invariante do contrato: econômico = pool + devido.
+  if (economico !== pool + devido) return null;
+
+  const mei = inteiro("mei_consideration_cents");
+  const qa = inteiro("smallflags_qa_cents");
+  const porMei = inteiro("per_complete_mei_base_cents");
+  const restoMei = inteiro("mei_remainder_cents");
+  const econVer = typeof o.contract_economics_version === "string"
+    ? o.contract_economics_version
+    : null;
+  const temDecomposicao = mei !== null && qa !== null;
+  if (versao >= 3 && !temDecomposicao) return null;
+  if (temDecomposicao) {
+    // As duas parcelas somam o pool, e o valor por MEI deriva da parcela dos
+    // MEIs. Qualquer incoerência falha fechado.
+    if (mei + qa !== pool) return null;
+    if (porMei === null || restoMei === null) return null;
+    if (porMei * alvo + restoMei !== mei) return null;
+    if (econVer === null) return null;
+  }
+
+  return {
+    pricingRuleVersion: versao,
+    participantTarget: alvo,
+    economicValueCents: economico,
+    contractualPoolCents: pool,
+    bdflowOpsInvestmentCents: devido,
+    contractEconomicsVersion: temDecomposicao ? econVer : null,
+    meiConsiderationCents: temDecomposicao ? mei : null,
+    smallflagsQaCents: temDecomposicao ? qa : null,
+    perCompleteMeiBaseCents: temDecomposicao ? porMei : null,
+    meiRemainderCents: temDecomposicao ? restoMei : null,
+  };
 }
 
 /** Centavos inteiros -> BRL, sem aritmética de ponto flutuante. */

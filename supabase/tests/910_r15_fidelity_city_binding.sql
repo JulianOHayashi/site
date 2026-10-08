@@ -9,6 +9,10 @@
 
 select tests.reset_results();
 
+-- Fixture jurídica/contratual FICTÍCIA: permite que esta suíte exercite
+-- seu próprio domínio sem promover a minuta real v1.4.
+select tests.preparar_contexto_contratual_v14_qa('910');
+
 select user_id as uid_admin from public.site_admins limit 1 \gset
 
 -- ---------------------------------------------------------------------------
@@ -60,7 +64,9 @@ begin
     v_uid := gen_random_uuid();
     insert into auth.users (id, email) values (v_uid, v_email);
 
-    perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+    -- Escrita pública direta foi revogada: a fixture imita o endpoint server-side.
+    perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+    perform set_config('role', 'service_role', true);
     perform public.create_partner_application(jsonb_build_object(
       'cnpj', v_cnpjs[v_i],
       'legal_name', 'R15 Parceiro ' || v_i || ' LTDA',
@@ -70,10 +76,12 @@ begin
       'representative_full_name', 'Responsavel R15 ' || v_i,
       'representative_cpf', v_cpfs[v_i],
       'representative_email', 'repr15' || v_i || '@teste.local',
+      'representative_role_title', 'Socio administrador',
       'acceptances', (select jsonb_agg(jsonb_build_object(
                           'legal_document_id', x ->> 'legal_document_id'))
                         from jsonb_array_elements(
                                public.get_partner_application_terms() -> 'documents') x)));
+    perform set_config('role', 'postgres', true);
 
     select id into v_app from public.partner_applications
      where cnpj = v_cnpjs[v_i] order by created_at desc limit 1;
@@ -323,7 +331,7 @@ select ((:'ord_a')::jsonb ->> 'order_id') as order_a \gset
 
 select tests.check('CICLO: o pedido fundador NAO recebe preco fidelizado',
     ((:'ord_a')::jsonb ->> 'fidelized') = 'false'
-    and ((:'ord_a')::jsonb ->> 'economic_value_cents')::bigint = 3558700);
+    and ((:'ord_a')::jsonb ->> 'economic_value_cents')::bigint = 2999900);
 select tests.check('CICLO: pedido nasce signed e oportunidade fica payment_pending',
     (select status from public.commercial_exclusivity_orders where id=:'order_a') = 'signed'
     and (select payment_status from public.commercial_exclusivity_orders where id=:'order_a') = 'pending'
@@ -343,7 +351,7 @@ select public.admin_register_manual_commercial_order(
   'direct_benefits','doc://r15-super-2') as ord_next \gset
 select tests.check('CICLO: pedido futuro do mesmo contexto sai FIDELIZADO',
     ((:'ord_next')::jsonb ->> 'fidelized') = 'true'
-    and ((:'ord_next')::jsonb ->> 'economic_value_cents')::bigint = 3117600);
+    and ((:'ord_next')::jsonb ->> 'economic_value_cents')::bigint = 2817600);
 rollback;
 
 -- Confirmação do pagamento não altera a chave de fidelidade.
@@ -351,7 +359,8 @@ begin;
 select tests.impersonate('authenticated', :'uid_admin');
 select public.admin_confirm_manual_bdflow_payment(
   (:'order_a')::uuid,
-  (select bdflow_due_cents from public.commercial_exclusivity_orders where id=:'order_a')
+  (select coalesce(smallflags_total_remuneration_cents, bdflow_due_cents)
+     from public.commercial_exclusivity_orders where id=:'order_a')
 ) as pay_a \gset
 -- commercial_opportunities nao e legivel pelo papel authenticated comum; a
 -- verificacao de estado sai da impersonacao, sem afastar o efeito da RPC.
@@ -377,7 +386,7 @@ select tests.check('INVARIANTE: fundador cancelado deixa de sustentar fidelidade
 select tests.check('INVARIANTE: pedido futuro volta a preco NAO fidelizado',
     (public.calculate_niche_contract_pricing('supermarket',
        public.is_fidelized_context('71000000000130','ES','Vitória','supermarket'))
-       ->> 'economic_value_cents')::bigint = 3558700);
+       ->> 'economic_value_cents')::bigint = 2999900);
 rollback;
 
 -- O registro de fidelidade aponta para um pedido real (integridade referencial).
@@ -396,5 +405,7 @@ select tests.check('resolvedor de cidade nao e executavel por anon nem authentic
     has_function_privilege('anon','public.m2_resolve_company_fidelity_city(uuid,uuid)','EXECUTE') = false
     and has_function_privilege('authenticated','public.m2_resolve_company_fidelity_city(uuid,uuid)','EXECUTE') = false
     and has_function_privilege('service_role','public.m2_resolve_company_fidelity_city(uuid,uuid)','EXECUTE') = false);
+
+select tests.encerrar_contexto_contratual_v14_qa();
 
 select tests.finish('910_r15_fidelity_city_binding');

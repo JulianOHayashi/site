@@ -10,7 +10,15 @@
 import { supabase } from "../lib/supabase";
 
 export type TermosVigentes =
-  | { tipo: "publicados"; version: string; title: string; content: string | null; contentUrl: string | null }
+  | {
+      tipo: "publicados";
+      version: string;
+      title: string;
+      content: string | null;
+      contentUrl: string | null;
+      /** SHA-256 persistido. Exibido junto da versão antes do aceite. */
+      contentHash: string | null;
+    }
   | { tipo: "ausentes" };
 
 /** Documento vigente pelo resolvedor canônico. O navegador não escolhe id nem hash. */
@@ -28,6 +36,7 @@ export async function obterTermosVigentes(): Promise<TermosVigentes> {
     title: String(d.title ?? ""),
     content: typeof d.content === "string" ? d.content : null,
     contentUrl: typeof d.content_url === "string" ? d.content_url : null,
+    contentHash: typeof d.content_hash === "string" ? d.content_hash : null,
   };
 }
 
@@ -143,4 +152,47 @@ export const ESTADOS_TERMINAIS = [
 
 export function ehTerminal(status: string): boolean {
   return (ESTADOS_TERMINAIS as readonly string[]).includes(status);
+}
+
+/**
+ * Acordo Mestre que rege a empresa DESTA intenção.
+ *
+ * Não é "o Mestre publicado hoje": é o que a empresa assinou, identificado por
+ * versão e hash do documento público correspondente. Quando o vínculo não
+ * existe, devolve o motivo — a tela precisa falhar fechada em vez de exibir o
+ * Mestre corrente como se fosse o aplicável.
+ */
+export type MestreRegente =
+  | {
+      tipo: "ok";
+      legalDocumentId: string;
+      version: string;
+      title: string;
+      contentHash: string | null;
+      status: "published" | "archived";
+      signedAt: string | null;
+    }
+  | { tipo: "indisponivel"; motivo: string };
+
+export async function obterMestreRegente(
+  intentId: string
+): Promise<MestreRegente> {
+  if (!supabase) return { tipo: "indisponivel", motivo: "sem_conexao" };
+  const { data, error } = await supabase.rpc("get_governing_master_for_intent", {
+    p_intent_id: intentId,
+  });
+  if (error) return { tipo: "indisponivel", motivo: "erro_consulta" };
+  const d = (data ?? {}) as Record<string, unknown>;
+  if (d.ok !== true) {
+    return { tipo: "indisponivel", motivo: String(d.reason ?? "desconhecido") };
+  }
+  return {
+    tipo: "ok",
+    legalDocumentId: String(d.legal_document_id ?? ""),
+    version: String(d.version ?? ""),
+    title: String(d.title ?? ""),
+    contentHash: typeof d.content_hash === "string" ? d.content_hash : null,
+    status: d.status === "archived" ? "archived" : "published",
+    signedAt: typeof d.signed_at === "string" ? d.signed_at : null,
+  };
 }

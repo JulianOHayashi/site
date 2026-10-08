@@ -24,10 +24,11 @@ select t, 'v1-teste', 'Doc ' || t, 'CONTEUDO DE TESTE (nao juridico) ' || t,
                     'privacy_notice','provisional_account_terms']) as t;
 
 -- ---------------------------------------------------------------------------
--- Fluxo canônico: solicitação PRÉ-AUTH (sem sessão)
+-- Fluxo canônico: solicitação PRÉ-AUTH (sem sessão do usuário). A escrita pública
+-- direta foi revogada; o endpoint server-side chama a RPC como service_role.
 -- ---------------------------------------------------------------------------
 begin;
-select tests.impersonate('anon', null);
+select tests.impersonate('service_role', null);
 select public.create_partner_application(jsonb_build_object(
     'cnpj', '11222333000181',
     'legal_name', 'Parceiro Canonico LTDA',
@@ -38,6 +39,7 @@ select public.create_partner_application(jsonb_build_object(
     'representative_full_name', 'Ana Representante',
     'representative_cpf', '52998224725',
     'representative_email', 'ana@parceiro.local',
+    'representative_role_title', 'Socio administrador',
     'acceptances', (select jsonb_agg(jsonb_build_object(
                         'legal_document_id', x ->> 'legal_document_id'))
                       from jsonb_array_elements(
@@ -253,7 +255,10 @@ begin
     insert into auth.users (id, email) values (v_user, 'titular2_m2@teste.local');
   end if;
 
-  perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+  -- O navegador nao executa mais esta RPC. A fixture imita o endpoint público
+  -- server-side: sem usuario final, mas sob o papel service_role.
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform set_config('role', 'service_role', true);
   perform public.create_partner_application(jsonb_build_object(
       'cnpj', '19131243000197',
       'legal_name', 'Segundo Parceiro LTDA',
@@ -262,10 +267,13 @@ begin
       'representative_full_name', 'Beto Representante',
       'representative_cpf', '11144477735',
       'representative_email', 'beto@parceiro.local',
+      'representative_role_title', 'Socio administrador',
       'acceptances', (select jsonb_agg(jsonb_build_object(
                           'legal_document_id', x ->> 'legal_document_id'))
                         from jsonb_array_elements(
                                public.get_partner_application_terms() -> 'documents') x)));
+  -- Volta ao papel de sessão para preparar o restante da fixture diretamente.
+  perform set_config('role', 'postgres', true);
   select id into v_app from public.partner_applications where cnpj = '19131243000197';
 
   v_tok := public.m1_emitir_token(v_app, 'email_verification', 'titular2_m2@teste.local', interval '24 hours');
