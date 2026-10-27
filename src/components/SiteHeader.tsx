@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { obterTerritorio } from "../lib/commercialTerritory";
+import { supabase } from "../lib/supabase";
 
 /**
  * Navegação pública SmallFlags.
@@ -36,9 +37,12 @@ function ehAtual(caminho: string, to: string) {
 
 export default function SiteHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [rolou, setRolou] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const [institucionalAberto, setInstitucionalAberto] = useState(false);
+  const [autenticado, setAutenticado] = useState(false);
+  const [saindo, setSaindo] = useState(false);
 
   const grupoRef = useRef<HTMLDivElement>(null);
   const botaoGrupoRef = useRef<HTMLButtonElement>(null);
@@ -69,6 +73,38 @@ export default function SiteHeader() {
     window.addEventListener("scroll", aoRolar, { passive: true });
     return () => window.removeEventListener("scroll", aoRolar);
   }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAutenticado(false);
+      return;
+    }
+
+    let ativo = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (ativo) setAutenticado(Boolean(data.session));
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_evento, sessao) => {
+      if (ativo) setAutenticado(Boolean(sessao));
+    });
+
+    return () => {
+      ativo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const sair = async () => {
+    if (!supabase || saindo) return;
+    setSaindo(true);
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    setSaindo(false);
+    if (error) return;
+    setAutenticado(false);
+    navigate("/portal/login", { replace: true });
+  };
 
   useEffect(() => {
     setMenuAberto(false);
@@ -208,12 +244,23 @@ export default function SiteHeader() {
             </Link>
           )}
 
-          <Link
-            to="/portal/login"
-            className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta"
-          >
-            Entrar
-          </Link>
+          {autenticado ? (
+            <button
+              type="button"
+              onClick={() => void sair()}
+              disabled={saindo}
+              className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta disabled:opacity-60"
+            >
+              {saindo ? "Saindo..." : "Sair"}
+            </button>
+          ) : (
+            <Link
+              to="/portal/login"
+              className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta"
+            >
+              Entrar
+            </Link>
+          )}
 
           <Link
             to="/parceiros/cadastro"
@@ -303,12 +350,23 @@ export default function SiteHeader() {
           )}
 
           <div className="mt-4 grid gap-2">
-            <Link
-              to="/portal/login"
-              className="block rounded-xl border border-borda py-3 text-center font-semibold text-tinta"
-            >
-              Entrar
-            </Link>
+            {autenticado ? (
+              <button
+                type="button"
+                onClick={() => void sair()}
+                disabled={saindo}
+                className="block w-full rounded-xl border border-borda py-3 text-center font-semibold text-tinta disabled:opacity-60"
+              >
+                {saindo ? "Saindo..." : "Sair"}
+              </button>
+            ) : (
+              <Link
+                to="/portal/login"
+                className="block rounded-xl border border-borda py-3 text-center font-semibold text-tinta"
+              >
+                Entrar
+              </Link>
+            )}
             <Link
               to="/parceiros/cadastro"
               className="block rounded-xl bg-tinta py-3 text-center font-bold text-white transition hover:bg-magenta"
