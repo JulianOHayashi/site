@@ -75,7 +75,7 @@ export default function SiteHeader() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) {
+    if (!supabase?.auth) {
       setAutenticado(false);
       return;
     }
@@ -97,7 +97,7 @@ export default function SiteHeader() {
   }, []);
 
   const sair = async () => {
-    if (!supabase || saindo) return;
+    if (!supabase?.auth || saindo) return;
     setSaindo(true);
     const { error } = await supabase.auth.signOut({ scope: "local" });
     setSaindo(false);
