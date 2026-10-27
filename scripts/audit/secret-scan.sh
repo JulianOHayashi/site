@@ -16,6 +16,15 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 BASE="${BDFLOW_M1_BASE:-5cf545001367565ff26973eb33f10b6414f9067c}"
 
+# FAIL-CLOSED: sem a base historica no clone, o diff da serie (etapa 2) sairia
+# vazio e o scanner terminaria em PASS sem ter varrido nada. Em clone raso,
+# busque o historico antes (ex.: fetch-depth: 0 na CI). Sem fetch automatico
+# e sem base alternativa: a ausencia e falha, nao fallback.
+if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+  echo "SECRET_SCAN=FAIL (base historica indisponivel no clone; diff da serie nao pode ser verificado)"
+  exit 1
+fi
+
 # rótulo|regex
 PADROES=(
   'JWT (service_role/anon)|eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.'
