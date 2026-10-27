@@ -50,7 +50,7 @@ describe("validação espelhando o backend", () => {
     });
     expect(Object.keys(erros).sort()).toEqual(
       ["city", "cnpj", "contact_email", "legal_name", "representative_cpf",
-       "representative_full_name", "uf"].sort()
+       "representative_full_name", "representative_role_title", "uf"].sort()
     );
   });
 });

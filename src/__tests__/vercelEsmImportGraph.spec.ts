@@ -165,18 +165,31 @@ describe("fronteira ESM do Node na função serverless", () => {
     // que o Vite ja traz, monta o layout de diretorios que a Vercel usa, e
     // pede ao Node para importar o ponto de entrada. Sem deploy, sem rede,
     // sem segredo — o handler nem chega a ser chamado.
-    const esbuildScript = resolve(RAIZ, "node_modules/esbuild/bin/esbuild");
-    expect(existsSync(esbuildScript), "esbuild deve estar instalado pelo npm ci").toBe(true);
+    //
+    // PORTABILIDADE: `node_modules/esbuild/bin/esbuild` NAO serve. No Linux,
+    // a instalacao do esbuild substitui esse arquivo pelo binario nativo
+    // (ELF), e `node <binario>` falha com SyntaxError — o teste quebrava em
+    // Linux/CI sem relacao com o defeito auditado. Usa-se a API JavaScript do
+    // pacote (`lib/main.js`), que existe em toda plataforma, num processo Node
+    // separado (fora do ambiente jsdom do Vitest). A transpilacao continua
+    // arquivo a arquivo, sem bundle, exatamente como antes.
+    const esbuildApi = resolve(RAIZ, "node_modules/esbuild/lib/main.js");
+    expect(existsSync(esbuildApi), "esbuild deve estar instalado pelo npm ci").toBe(true);
+    const transpilar =
+      `const e = require(${JSON.stringify(esbuildApi)});` +
+      `const r = e.buildSync({ entryPoints: [process.argv[1]], format: "esm", platform: "node", write: false });` +
+      `process.stdout.write(r.outputFiles[0].text);`;
 
     const dir = mkdtempSync(join(tmpdir(), "esm-guard-"));
     for (const m of modulos) {
       const destino = join(dir, m.replace(/\.tsx?$/, ".js"));
       mkdirSync(dirname(destino), { recursive: true });
-      // `--loader=ts` sem ponto so vale para stdin; lendo arquivo, o esbuild
-      // infere o loader pela extensao.
+      // Lendo arquivo (entryPoints), o esbuild infere o loader pela extensao.
+      // Sem `bundle`: cada modulo e emitido isolado e seus imports relativos
+      // ficam como estao — e isso que o Node precisa resolver de verdade.
       const js = execFileSync(
         process.execPath,
-        [esbuildScript, resolve(RAIZ, m), "--format=esm", "--platform=node"],
+        ["-e", transpilar, resolve(RAIZ, m)],
         { encoding: "utf8" }
       );
       writeFileSync(destino, js);

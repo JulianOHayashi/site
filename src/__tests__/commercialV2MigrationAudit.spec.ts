@@ -213,7 +213,7 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 57 migrations", () => {
+  it("exatamente 60 migrations", () => {
     // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada;
     // 20260908120000 endurece o snapshot de provisionamento; 20260909120000
     // acrescenta a RPC de autoridade de uso de beneficio; 20260915120000
@@ -252,7 +252,12 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // contratada sem linha aprovada de producao.
     // 20261007190000 remove p_facts_supplied: o snapshot passa a vir so de
     // registro persistido e validado, com proveniencia por registro canonico.
-    expect(arquivos.length).toBe(57);
+    // 20261008120000 institui assinabilidade e emissao do instrumento: sem
+    // modelo signable aprovado, a contratacao eletronica falha fechada.
+    // 20261008130000 condiciona o financiamento publico ao modo de liquidacao.
+    // 20261008140000 retira SELECT direto de anon/authenticated em
+    // legal_documents; leitura publica so por RPC autorizada. Total = 60.
+    expect(arquivos.length).toBe(60);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {

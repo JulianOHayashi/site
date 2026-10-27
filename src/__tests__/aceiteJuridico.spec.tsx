@@ -45,6 +45,9 @@ async function preencher() {
   fireEvent.change(screen.getByLabelText(/^cidade/i), { target: { value: "Vila Velha" } });
   fireEvent.change(screen.getByLabelText(/nome completo/i), { target: { value: "Maria Souza" } });
   fireEvent.change(screen.getByLabelText(/^cpf/i), { target: { value: "529.982.247-25" } });
+  fireEvent.change(screen.getByLabelText(/cargo \/ função do responsável/i), {
+    target: { value: "Sócia-administradora" },
+  });
 }
 
 beforeEach(() => {
