@@ -1,0 +1,64 @@
+name: Import exact SmallFlags candidate
+
+on:
+  push:
+    branches:
+      - automation/import-smallflags-candidate-20261027
+
+permissions:
+  contents: write
+
+jobs:
+  import-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Decode and verify exact delta bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          B64=".github/import/SMALLFLAGS_SITE_CANDIDATE_DELTA_0c8b65f.bundle.b64"
+          BUNDLE="/tmp/SMALLFLAGS_SITE_CANDIDATE_DELTA_0c8b65f.bundle"
+          EXPECTED_BUNDLE_SHA="29f776a1a18130b2020bc75b68c2361c6ca7234552f36c05f7454ef14d2b7a29"
+          EXPECTED_BASE="d2802af2a8daffc2294534dafb3ed01b1c1744d9"
+          EXPECTED_HEAD="0c8b65fd77ecb4c94350eabc94a893b0ef9fdfe7"
+          BRANCH="candidate/site-production-readiness-20261026"
+
+          base64 --decode "$B64" > "$BUNDLE"
+          printf '%s  %s\n' "$EXPECTED_BUNDLE_SHA" "$BUNDLE" | sha256sum -c -
+          git cat-file -e "${EXPECTED_BASE}^{commit}"
+          git bundle verify "$BUNDLE"
+
+          bundle_head="$(git bundle list-heads "$BUNDLE" "refs/heads/$BRANCH" | awk '{print $1}')"
+          test "$bundle_head" = "$EXPECTED_HEAD"
+
+          git fetch "$BUNDLE" "refs/heads/$BRANCH:refs/remotes/bundle/$BRANCH"
+          test "$(git rev-parse "refs/remotes/bundle/$BRANCH")" = "$EXPECTED_HEAD"
+
+      - name: Publish exact candidate without force
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="0c8b65fd77ecb4c94350eabc94a893b0ef9fdfe7"
+          BRANCH="candidate/site-production-readiness-20261026"
+
+          existing="$(git ls-remote --heads origin "refs/heads/$BRANCH" | awk '{print $1}')"
+          if [ -n "$existing" ]; then
+            if [ "$existing" = "$EXPECTED_HEAD" ]; then
+              echo "Candidate branch already exists at expected SHA."
+              exit 0
+            fi
+            echo "Refusing to overwrite divergent candidate branch: $existing" >&2
+            exit 1
+          fi
+
+          git push origin "$EXPECTED_HEAD:refs/heads/$BRANCH"
+
+          remote_head="$(git ls-remote --heads origin "refs/heads/$BRANCH" | awk '{print $1}')"
+          test "$remote_head" = "$EXPECTED_HEAD"
+          echo "RESULT=PASS_EXACT_CANDIDATE_PUSHED"
+          echo "REMOTE_HEAD=$remote_head"
