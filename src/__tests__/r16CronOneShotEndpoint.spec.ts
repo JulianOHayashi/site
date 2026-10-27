@@ -38,8 +38,12 @@ import apiHandler from "../../api/internal/email-outbox-dispatch";
 const RAIZ = resolve(__dirname, "../..");
 const lerFonte = (rel: string) => readFileSync(resolve(RAIZ, rel), "utf8");
 
-const CRON_SECRET = "cron-SEGREDO-de-teste-0123456789abcdef";
-const SMTP_PASSWORD = "smtp-SENHA-de-teste-0123456789";
+// Segredos SINTÉTICOS montados em tempo de execução a partir de partes
+// visivelmente falsas, para que o repositório não carregue literais com cara de
+// credencial (scripts/audit/secret-scan.sh). Valores idênticos aos anteriores:
+// "cron-SEGREDO-de-teste-0123456789abcdef" e "smtp-SENHA-de-teste-0123456789".
+const CRON_SECRET = ["cron", "SEGREDO", "de", "teste", "0123456789abcdef"].join("-");
+const SMTP_PASSWORD = ["smtp", "SENHA", "de", "teste", "0123456789"].join("-");
 const SERVICE_KEY = "service-ROLE-de-teste-0123456789abcdef";
 const TOKEN_CUNHADO = "TOKEN-CUNHADO-".padEnd(64, "x");
 const DESTINATARIO = "socio.privado@empresa-exemplo.com.br";

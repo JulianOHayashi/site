@@ -28,6 +28,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # Histórico completo: o secret-scan compara o diff da série inteira
+          # contra a base M1. Em checkout raso essa base não existe e o diff
+          # sairia vazio — a etapa passaria sem ter varrido nada.
+          fetch-depth: 0
+
+      # Prova que a base histórica do scanner está presente ANTES de rodá-lo;
+      # sem isto, um checkout raso faria o diff da série passar em silêncio.
+      - name: secret-scan base present
+        run: git cat-file -e "${BDFLOW_M1_BASE:-5cf545001367565ff26973eb33f10b6414f9067c}^{commit}"
+
+      - name: secret scan
+        run: bash scripts/audit/secret-scan.sh
 
       # Node 22: runtime declarado do worker (vite.worker.config.ts → node22)
       # e versão de @types/node do repositório.

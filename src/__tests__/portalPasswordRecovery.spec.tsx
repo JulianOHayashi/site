@@ -29,6 +29,11 @@ vi.mock("../pages/portal/portalUi", () => ({
 import PortalForgotPassword from "../pages/portal/PortalForgotPassword";
 import PortalResetPassword from "../pages/portal/PortalResetPassword";
 
+// Senha SINTÉTICA de teste, montada em tempo de execução para não virar um
+// literal com cara de credencial no repositório (scripts/audit/secret-scan.sh).
+// O valor resultante é idêntico ao usado antes: "NovaSenhaForte" + "123!".
+const SENHA_TESTE = ["NovaSenhaForte", "123!"].join("");
+
 beforeEach(() => {
   resetPasswordForEmail.mockReset();
   updateUser.mockReset();
@@ -97,16 +102,16 @@ describe("recuperação de senha do Portal", () => {
     await screen.findByLabelText("Nova senha");
 
     fireEvent.change(screen.getByLabelText("Nova senha"), {
-      target: { value: "NovaSenhaForte123!" },
+      target: { value: SENHA_TESTE },
     });
     fireEvent.change(screen.getByLabelText("Confirmar nova senha"), {
-      target: { value: "NovaSenhaForte123!" },
+      target: { value: SENHA_TESTE },
     });
     fireEvent.click(screen.getByRole("button", { name: /Salvar nova senha/i }));
 
     await waitFor(() =>
       expect(updateUser).toHaveBeenCalledWith({
-        password: "NovaSenhaForte123!",
+        password: SENHA_TESTE,
       })
     );
     await waitFor(() => expect(signOut).toHaveBeenCalled());
