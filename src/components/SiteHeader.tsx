@@ -245,14 +245,22 @@ export default function SiteHeader() {
           )}
 
           {autenticado ? (
-            <button
-              type="button"
-              onClick={() => void sair()}
-              disabled={saindo}
-              className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta disabled:opacity-60"
-            >
-              {saindo ? "Saindo..." : "Sair"}
-            </button>
+            <>
+              <Link
+                to="/portal/dashboard"
+                className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta"
+              >
+                Portal
+              </Link>
+              <button
+                type="button"
+                onClick={() => void sair()}
+                disabled={saindo}
+                className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta disabled:opacity-60"
+              >
+                {saindo ? "Saindo..." : "Sair"}
+              </button>
+            </>
           ) : (
             <Link
               to="/portal/login"
@@ -351,14 +359,22 @@ export default function SiteHeader() {
 
           <div className="mt-4 grid gap-2">
             {autenticado ? (
-              <button
-                type="button"
-                onClick={() => void sair()}
-                disabled={saindo}
-                className="block w-full rounded-xl border border-borda py-3 text-center font-semibold text-tinta disabled:opacity-60"
-              >
-                {saindo ? "Saindo..." : "Sair"}
-              </button>
+              <>
+                <Link
+                  to="/portal/dashboard"
+                  className="block rounded-xl border border-borda py-3 text-center font-semibold text-tinta"
+                >
+                  Portal
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void sair()}
+                  disabled={saindo}
+                  className="block w-full rounded-xl border border-borda py-3 text-center font-semibold text-tinta disabled:opacity-60"
+                >
+                  {saindo ? "Saindo..." : "Sair"}
+                </button>
+              </>
             ) : (
               <Link
                 to="/portal/login"
