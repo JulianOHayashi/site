@@ -327,10 +327,14 @@ export default function ParceirosCadastro() {
                         type="checkbox"
                         checked={aceitos.has(doc.legal_document_id)}
                         onChange={() => alternarAceite(doc.legal_document_id)}
-                        aria-label={`Aceito: ${doc.title}`}
+                        aria-label={doc.doc_type === "privacy_notice" ? `Ciente: ${doc.title}` : `Aceito: ${doc.title}`}
                         className="mt-1"
                       />
-                      <span>Li e aceito este documento.</span>
+                      <span>
+                        {doc.doc_type === "privacy_notice"
+                          ? "Li e estou ciente deste Aviso de Privacidade."
+                          : "Li e aceito este documento."}
+                      </span>
                     </label>
                   </div>
                 ))
