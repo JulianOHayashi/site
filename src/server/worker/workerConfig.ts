@@ -9,7 +9,7 @@
  * mensagem sanitizada — o nome da variável e o limite, nunca o valor.
  */
 
-import { BATCH_SIZE_MINIMO, RECOVERY_RESERVE_PADRAO } from "./supabaseOutboxGateway";
+import { BATCH_SIZE_MINIMO, RECOVERY_RESERVE_PADRAO } from "./supabaseOutboxGateway.js";
 
 export class WorkerConfigError extends Error {
   readonly code: string;

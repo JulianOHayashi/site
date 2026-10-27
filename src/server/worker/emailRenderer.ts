@@ -12,8 +12,8 @@
  * não pode substituir o destino: ela é tratada como texto, nunca como base.
  */
 
-import { mintCategoryFor } from "../notifications/supportedTemplates";
-import { montarPayloadData, type CabecalhosEmail } from "./smtpWire";
+import { mintCategoryFor } from "../notifications/supportedTemplates.js";
+import { montarPayloadData, type CabecalhosEmail } from "./smtpWire.js";
 
 export class RenderError extends Error {
   readonly code: string;

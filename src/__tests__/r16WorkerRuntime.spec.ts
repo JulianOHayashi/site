@@ -429,8 +429,12 @@ describe("R16_WORKER_ENTRYPOINT — casca fina e server-only", () => {
   });
 
   it("o cliente Supabase não persiste sessão no processo do worker", () => {
-    expect(fonteMain).toMatch(/persistSession:\s*false/);
-    expect(fonteMain).toMatch(/autoRefreshToken:\s*false/);
+    // O cliente é montado pela fábrica compartilhada com o adaptador one-shot;
+    // o invariante é o mesmo, no arquivo onde o cliente nasce.
+    const fonteDeps = lerFonte("src/server/worker/workerDependencies.ts");
+    expect(fonteMain).toContain("construirDependenciasWorker(config, logger)");
+    expect(fonteDeps).toMatch(/persistSession:\s*false/);
+    expect(fonteDeps).toMatch(/autoRefreshToken:\s*false/);
   });
 
   it("nenhum arquivo do worker é importado por página ou componente", () => {

@@ -3,8 +3,8 @@ import type {
   CanonicalOutboxGateway,
   PendingNotification,
   MintOutcome,
-} from "../notifications/dispatchOutbox";
-import { R16_SUPPORTED_TEMPLATE_KEYS } from "../notifications/supportedTemplates";
+} from "../notifications/dispatchOutbox.js";
+import { R16_SUPPORTED_TEMPLATE_KEYS } from "../notifications/supportedTemplates.js";
 
 /**
  * R16 — GATEWAY CONCRETO SOBRE O SUPABASE.

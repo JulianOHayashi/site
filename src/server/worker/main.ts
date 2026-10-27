@@ -23,19 +23,15 @@
  * allowlist de campos.
  */
 
-import { createClient } from "@supabase/supabase-js";
-import { carregarWorkerConfig, WorkerConfigError } from "./workerConfig";
-import { createSupabaseOutboxGateway } from "./supabaseOutboxGateway";
-import { criarTransporteSmtp } from "./smtpEmailTransport";
-import { criarWorkerLogger } from "./workerLogger";
+import { carregarWorkerConfig, WorkerConfigError } from "./workerConfig.js";
+import { criarWorkerLogger } from "./workerLogger.js";
+import { construirDependenciasWorker } from "./workerDependencies.js";
 import {
   SinalDeParada,
-  dormirCancelavel,
   executarPolling,
   executarUmaVez,
   EXIT_CONFIG,
-  type DependenciasRuntime,
-} from "./workerRuntime";
+} from "./workerRuntime.js";
 
 /** `--once` na linha de comando ou `WORKER_ONE_SHOT` no ambiente. */
 export function modoUmaVez(
@@ -74,43 +70,8 @@ export async function main(
     count: config.batchSize,
   });
 
-  // 2. DEPENDÊNCIAS.
-  const client = createClient(config.supabaseUrl, config.supabaseServiceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const gateway = createSupabaseOutboxGateway(
-    client,
-    {
-      onLinhaInvalida: (info) =>
-        logger.warn({
-          event: "worker_row_rejected",
-          notification_id: info.id ?? undefined,
-          outcome: info.motivo,
-        }),
-    },
-    { recoveryReserve: config.recoveryReserve }
-  );
-
-  const transport = criarTransporteSmtp({
-    config,
-    aoDesfecho: (info) =>
-      logger.info({
-        event: "worker_smtp_outcome",
-        provider: "smtp",
-        outcome: `${info.outcome}/${info.retry}`,
-        error_code: info.error_code,
-      }),
-  });
-
-  const deps: DependenciasRuntime = {
-    gateway,
-    transport,
-    logger,
-    batchSize: config.batchSize,
-    pollIntervalMs: config.pollIntervalMs,
-    dormir: dormirCancelavel,
-  };
+  // 2. DEPENDÊNCIAS — montagem compartilhada com o adaptador one-shot.
+  const deps = construirDependenciasWorker(config, logger);
 
   // 3. EXECUÇÃO.
   if (modoUmaVez(argv, env)) {

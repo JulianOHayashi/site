@@ -11,9 +11,9 @@
  * núcleo. A regra é: toda decisão fica aqui, todo efeito de processo fica lá.
  */
 
-import { dispatchPending, type CanonicalOutboxGateway } from "../notifications/dispatchOutbox";
-import type { EmailTransport } from "../notifications/emailProvider";
-import type { WorkerLogger } from "./workerLogger";
+import { dispatchPending, type CanonicalOutboxGateway } from "../notifications/dispatchOutbox.js";
+import type { EmailTransport } from "../notifications/emailProvider.js";
+import type { WorkerLogger } from "./workerLogger.js";
 
 /**
  * Códigos de saída. Estáveis e documentados: um orquestrador decide reinício

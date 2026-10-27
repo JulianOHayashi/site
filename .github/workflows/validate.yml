@@ -1,0 +1,41 @@
+# Gate canônico do Site — SOMENTE validação.
+#
+# Sem deploy, sem segredos, sem acesso a Supabase ou Vercel. Roda o mesmo
+# `npm run validate` usado localmente (legado, typecheck, testes, build do
+# Site e build do worker).
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "preview/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Node 22: runtime declarado do worker (vite.worker.config.ts → node22)
+      # e versão de @types/node do repositório.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run validate

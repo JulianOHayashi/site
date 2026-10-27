@@ -18,8 +18,8 @@ import {
   sanitizeForLog,
   type EmailTransport,
   type EmailMessage,
-} from "./emailProvider";
-import { mintCategoryFor } from "./supportedTemplates";
+} from "./emailProvider.js";
+import { mintCategoryFor } from "./supportedTemplates.js";
 
 /** Resultado da cunhagem canônica (contrato jsonb {ok,...} do M1). */
 export type MintOutcome =

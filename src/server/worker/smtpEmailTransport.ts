@@ -27,20 +27,20 @@ import type {
   EmailMessage,
   EmailTransport,
   SendResult,
-} from "../notifications/emailProvider";
-import { renderizar, montarMensagemSmtp, RenderError } from "./emailRenderer";
-import { SmtpSerializationError } from "./smtpWire";
+} from "../notifications/emailProvider.js";
+import { renderizar, montarMensagemSmtp, RenderError } from "./emailRenderer.js";
+import { SmtpSerializationError } from "./smtpWire.js";
 import {
   enviarMensagemSmtp,
   classificarParaRetry,
   type OpcoesTransporte,
   type ResultadoTransporte,
-} from "./smtpTransport";
-import { criarFabricaSocketNode, type FabricaSocket } from "./nodeSmtpSocket";
+} from "./smtpTransport.js";
+import { criarFabricaSocketNode, type FabricaSocket } from "./nodeSmtpSocket.js";
 import {
   aplicarPoliticaDestinatario,
   type WorkerConfig,
-} from "./workerConfig";
+} from "./workerConfig.js";
 
 export const NOME_TRANSPORTE_SMTP = "smtp";
 

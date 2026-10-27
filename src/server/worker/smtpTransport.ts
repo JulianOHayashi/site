@@ -27,14 +27,14 @@ import {
   LeitorRespostaSmtp,
   SmtpProtocolError,
   type RespostaSmtp,
-} from "./smtpReplyParser";
-import { SmtpSerializationError, validarEnderecoDeEnvelope } from "./smtpWire";
+} from "./smtpReplyParser.js";
+import { SmtpSerializationError, validarEnderecoDeEnvelope } from "./smtpWire.js";
 import {
   SmtpSocketError,
   traduzirErroDeSocket,
   type FabricaSocket,
   type SocketSmtp,
-} from "./nodeSmtpSocket";
+} from "./nodeSmtpSocket.js";
 
 export type FaseSmtp =
   | "connect"
