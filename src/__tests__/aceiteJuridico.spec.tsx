@@ -26,6 +26,8 @@ vi.mock("../lib/supabase", () => ({
 
 import ParceirosCadastro from "../pages/parceiros/ParceirosCadastro";
 
+const DOC_PRIV = { legal_document_id: "priv-1", doc_type: "privacy_notice",
+  version: "v1", title: "Aviso de Privacidade", content: "texto", content_url: null };
 const DOC_A = { legal_document_id: "aaaa-1", doc_type: "truthfulness_declaration",
   version: "v1", title: "Declaração de veracidade", content: "texto", content_url: null };
 const DOC_B = { legal_document_id: "bbbb-1", doc_type: "document_analysis_authorization",
@@ -83,10 +85,10 @@ describe("B4 — estados de carregamento e erro", () => {
 
   it("carregados os termos, cada documento tem aceite proprio", async () => {
     rpcMock.mockImplementation(async (nome: string) =>
-      nome === "get_partner_application_terms" ? termosOk([DOC_A, DOC_B]) : { data: { ok: true }, error: null }
+      nome === "get_partner_application_terms" ? termosOk([DOC_PRIV, DOC_A, DOC_B]) : { data: { ok: true }, error: null }
     );
     montar();
-    await waitFor(() => expect(screen.getAllByRole("checkbox").length).toBe(2));
+    await waitFor(() => expect(screen.getAllByRole("checkbox").length).toBe(3));
     expect(screen.getByLabelText(/aceito: declaração de veracidade/i)).toBeDefined();
     expect(screen.getByLabelText(/aceito: autorização de análise/i)).toBeDefined();
     const botao = screen.getByRole("button", { name: /enviar solicitação/i }) as HTMLButtonElement;
@@ -106,7 +108,7 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
 
   it("exige aceite de TODOS os documentos", async () => {
     rpcMock.mockImplementation(async (nome: string) =>
-      nome === "get_partner_application_terms" ? termosOk([DOC_A, DOC_B]) : { data: { ok: true }, error: null }
+      nome === "get_partner_application_terms" ? termosOk([DOC_PRIV, DOC_A, DOC_B]) : { data: { ok: true }, error: null }
     );
     fetchMock.mockResolvedValue({
       ok: true,
@@ -119,6 +121,7 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     montar();
     await waitFor(() => expect(screen.getByLabelText(/aceito: declaração/i)).toBeDefined());
     await preencher();
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: declaração/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
     await waitFor(() => expect(screen.getByText(/aceitar todos os termos/i)).toBeDefined());
@@ -128,12 +131,13 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
   it("envia SOMENTE os ids aceitos, sem versao nem hash", async () => {
     rpcMock.mockImplementation(async (nome: string) =>
       nome === "get_partner_application_terms"
-        ? termosOk([DOC_A, DOC_B])
+        ? termosOk([DOC_PRIV, DOC_A, DOC_B])
         : { data: { ok: true, application_id: "app-1", status: "pending_email_verification" }, error: null }
     );
     montar();
     await waitFor(() => expect(screen.getByLabelText(/aceito: declaração/i)).toBeDefined());
     await preencher();
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: declaração/i));
     fireEvent.click(screen.getByLabelText(/aceito: autorização/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
@@ -143,6 +147,7 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     expect(url).toBe("/api/public/partner-application/create");
     const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(payload.acceptances).toEqual([
+      { legal_document_id: "priv-1" },
       { legal_document_id: "aaaa-1" },
       { legal_document_id: "bbbb-1" },
     ]);
@@ -160,13 +165,14 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     rpcMock.mockImplementation(async (nome: string) => {
       if (nome === "get_partner_application_terms") {
         rodada += 1;
-        return termosOk(rodada === 1 ? [DOC_A, DOC_B] : [DOC_A_V2, DOC_B]);
+        return termosOk(rodada === 1 ? [DOC_PRIV, DOC_A, DOC_B] : [DOC_PRIV, DOC_A_V2, DOC_B]);
       }
       return { data: { ok: false, reason: "acceptance_stale" }, error: null };
     });
     montar();
     await waitFor(() => expect(screen.getByLabelText(/aceito: declaração/i)).toBeDefined());
     await preencher();
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: declaração/i));
     fireEvent.click(screen.getByLabelText(/aceito: autorização/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
@@ -198,7 +204,7 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     rpcMock.mockImplementation(async (nome: string) => {
       if (nome === "get_partner_application_terms") {
         rodada += 1;
-        return termosOk(rodada === 1 ? [DOC_A, DOC_B] : [DOC_A_V2, DOC_B]);
+        return termosOk(rodada === 1 ? [DOC_PRIV, DOC_A, DOC_B] : [DOC_PRIV, DOC_A_V2, DOC_B]);
       }
       if (rodada === 1) return { data: { ok: false, reason: "acceptance_stale" }, error: null };
       return { data: { ok: true, application_id: "app-1", status: "pending_email_verification" }, error: null };
@@ -206,11 +212,13 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     montar();
     await waitFor(() => expect(screen.getByLabelText(/aceito: declaração/i)).toBeDefined());
     await preencher();
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: declaração/i));
     fireEvent.click(screen.getByLabelText(/aceito: autorização/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
     await waitFor(() => expect(screen.getByText(/versão v2/i)).toBeDefined());
 
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: declaração/i));
     fireEvent.click(screen.getByLabelText(/aceito: autorização/i));
     fireEvent.click(screen.getByRole("button", { name: /enviar solicitação/i }));
@@ -219,6 +227,7 @@ describe("B4 — aceite pré-Auth atado ao ID", () => {
     const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(payload.acceptances).toEqual([
+      { legal_document_id: "priv-1" },
       { legal_document_id: "aaaa-2" },
       { legal_document_id: "bbbb-1" },
     ]);
