@@ -402,7 +402,7 @@ export default function BeneficiosValidar() {
             </button>
 
             {falha && (
-              <div role="alert" className="rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
+              <div role="alert" className="aviso-erro p-3">
                 {falha === "not_authorized"
                   ? "Você não está autorizado a validar nesta unidade."
                   : falha === "token_open_denied" || falha === "request_denied"
@@ -451,13 +451,13 @@ export default function BeneficiosValidar() {
                   benefício só é consumido depois dessa confirmação.
                 </p>
                 {falhaStatus && (
-                  <p className="text-xs text-tinta/50">
+                  <p className="text-xs text-tinta/60">
                     Não foi possível atualizar o resultado agora. Tentando novamente...
                   </p>
                 )}
               </>
             )}
-            <p className="text-xs text-tinta/50">
+            <p className="text-xs text-tinta/60">
               Referência: <span className="font-mono">{sucesso.correlationId}</span>
             </p>
           </div>

@@ -760,7 +760,7 @@ export default function PortalEquipe() {
                                   role="alertdialog"
                                   aria-labelledby={`confirma-revogacao-${m.id}`}
                                   aria-describedby={`confirma-detalhe-${m.id}`}
-                                  className="mt-3 rounded-xl border-2 border-magenta/40 bg-magenta/5 p-4"
+                                  className="mt-3 rounded-xl border border-vermelho/40 bg-vermelho/10 p-4"
                                 >
                                   <p
                                     id={`confirma-revogacao-${m.id}`}
@@ -782,7 +782,7 @@ export default function PortalEquipe() {
                                       ref={confirmarRef}
                                       disabled={acao !== null}
                                       onClick={() => void alterarStatusManager(m, "revoke")}
-                                      className="min-h-[44px] rounded-xl bg-magenta px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                      className="btn-perigo btn-sm min-h-[44px] disabled:opacity-50"
                                     >
                                       {acao === `status:${m.id}:revoke`
                                         ? "Revogando..."
@@ -843,7 +843,7 @@ export default function PortalEquipe() {
                           <div>
                             <strong>{c.full_name}</strong>
                             <p className="text-sm text-tinta/60">{c.email}</p>
-                            <p className="mt-1 text-xs text-tinta/50">
+                            <p className="mt-1 text-xs text-tinta/60">
                               {unidade ? `Unidade: ${unidade.name}` : "Sem unidade vinculada"}
                             </p>
                           </div>

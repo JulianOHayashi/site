@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { supabase } from "../lib/supabase";
+import Marca from "./marca/Marca";
 
 /**
  * Navegação pública SmallFlags.
@@ -141,21 +142,23 @@ export default function SiteHeader() {
   }, [institucionalAberto, menuAberto]);
 
   const classeLinkDesktop = (ativo: boolean) =>
-    `whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition hover:bg-papel2 hover:text-tinta ${
-      ativo ? "bg-papel2 text-tinta" : "text-tinta/70"
+    `relative whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium transition hover:bg-superficie2 hover:text-tinta ${
+      ativo ? "bg-superficie2 text-tinta" : "text-tinta/70"
     }`;
 
   return (
     <header
-      className={`sticky top-0 z-50 border-b bg-papel/85 backdrop-blur-md transition-shadow ${
-        rolou
-          ? "border-borda shadow-[0_1px_20px_rgba(23,18,31,0.07)]"
-          : "border-transparent"
+      className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-300 ${
+        rolou ? "border-borda bg-papel/85" : "border-transparent bg-papel/60"
       }`}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
-        <Link to="/" className="display inline-flex min-h-[44px] items-center text-xl" aria-label="SmallFlags — início">
-          Small<span className="text-magenta">Flags</span>
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <Link
+          to="/"
+          className="inline-flex min-h-[44px] items-center rounded-lg"
+          aria-label="SmallFlags — início"
+        >
+          <Marca tamanho="md" />
         </Link>
 
         <nav className="hidden items-center gap-1 xl:flex" aria-label="Principal">
@@ -204,7 +207,7 @@ export default function SiteHeader() {
             {institucionalAberto && (
               <ul
                 id={idGrupo}
-                className="absolute left-0 top-full mt-2 w-56 rounded-2xl border border-borda bg-white p-2 shadow-[0_12px_32px_rgba(23,18,31,0.12)]"
+                className="absolute left-0 top-full mt-2 w-56 rounded-2xl border border-borda bg-superficie p-1.5 shadow-painel"
               >
                 {LINKS_INSTITUCIONAIS.map((l) => {
                   const ativo = ehAtual(caminho, l.to);
@@ -213,8 +216,8 @@ export default function SiteHeader() {
                       <Link
                         to={l.to}
                         aria-current={ativo ? "page" : undefined}
-                        className={`block rounded-xl px-4 py-2.5 text-sm font-medium transition hover:bg-papel2 ${
-                          ativo ? "bg-papel2 text-tinta" : "text-tinta/75"
+                        className={`block rounded-xl px-4 py-2.5 text-sm font-medium transition hover:bg-superficie2 hover:text-tinta ${
+                          ativo ? "bg-superficie2 text-tinta" : "text-tinta/75"
                         }`}
                       >
                         {l.rotulo}
@@ -236,9 +239,13 @@ export default function SiteHeader() {
                   ? `Localidade comercial: ${rotuloLocalidade}. Alterar localidade.`
                   : "Selecionar localidade comercial"
               }
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-borda px-3 py-1.5 text-xs font-semibold text-tinta/70 transition hover:border-magenta hover:text-magenta"
+              className="flex min-h-[36px] items-center gap-2 whitespace-nowrap rounded-full border border-borda bg-superficie/60 px-3 py-1.5 text-xs font-semibold text-tinta/75 transition hover:border-borda-forte hover:text-tinta"
             >
-              <span aria-hidden>⌖</span>
+              {temLocalidadeComercial ? (
+                <span aria-hidden className="ponto-vivo h-1.5 w-1.5" />
+              ) : (
+                <span aria-hidden>⌖</span>
+              )}
               {rotuloLocalidade}
               {temLocalidadeComercial && <span className="hidden xl:inline">· Alterar</span>}
             </Link>
@@ -248,7 +255,7 @@ export default function SiteHeader() {
             <>
               <Link
                 to="/portal/dashboard"
-                className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta"
+                className="whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-superficie2 hover:text-tinta"
               >
                 Portal
               </Link>
@@ -256,7 +263,7 @@ export default function SiteHeader() {
                 type="button"
                 onClick={() => void sair()}
                 disabled={saindo}
-                className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta disabled:opacity-60"
+                className="whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-superficie2 hover:text-tinta disabled:opacity-60"
               >
                 {saindo ? "Saindo..." : "Sair"}
               </button>
@@ -264,7 +271,7 @@ export default function SiteHeader() {
           ) : (
             <Link
               to="/portal/login"
-              className="whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-papel2 hover:text-tinta"
+              className="whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold text-tinta/80 transition hover:bg-superficie2 hover:text-tinta"
             >
               Entrar
             </Link>
@@ -272,7 +279,7 @@ export default function SiteHeader() {
 
           <Link
             to="/parceiros/cadastro"
-            className="whitespace-nowrap rounded-full bg-tinta px-5 py-2 text-sm font-bold text-white transition hover:bg-magenta"
+            className="btn-primary btn-sm rounded-full px-4"
           >
             Quero ser parceiro
           </Link>
@@ -285,7 +292,7 @@ export default function SiteHeader() {
           aria-expanded={menuAberto}
           aria-controls={idMenu}
           aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}
-          className="flex h-11 w-11 items-center justify-center rounded-xl border border-borda xl:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-xl border border-borda bg-superficie/60 transition hover:border-borda-forte xl:hidden"
         >
           <div className="space-y-1.5">
             <span
@@ -310,7 +317,7 @@ export default function SiteHeader() {
       {menuAberto && (
         <div
           id={idMenu}
-          className="max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-t border-borda bg-papel px-4 pb-6 pt-3 xl:hidden"
+          className="max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-t border-borda bg-papel px-4 pb-6 pt-3 sm:px-6 xl:hidden"
         >
           <nav aria-label="Menu">
             <ul className="space-y-1">
@@ -319,7 +326,7 @@ export default function SiteHeader() {
                   <Link
                     to={l.to}
                     aria-current={ehAtual(caminho, l.to) ? "page" : undefined}
-                    className="block rounded-xl px-4 py-3 font-medium text-tinta/80 transition hover:bg-papel2"
+                    className="block rounded-xl px-4 py-3 font-medium text-tinta/80 transition hover:bg-superficie2 hover:text-tinta aria-[current=page]:bg-superficie2 aria-[current=page]:text-tinta"
                   >
                     {l.rotulo}
                   </Link>
@@ -327,7 +334,7 @@ export default function SiteHeader() {
               ))}
             </ul>
 
-            <p className="mt-4 px-4 text-xs font-bold uppercase tracking-[0.2em] text-tinta/60">
+            <p className="rotulo mt-5 px-4 text-tinta/60">
               Institucional
             </p>
             <ul className="mt-1 grid grid-cols-2 gap-1">
@@ -336,7 +343,7 @@ export default function SiteHeader() {
                   <Link
                     to={l.to}
                     aria-current={ehAtual(caminho, l.to) ? "page" : undefined}
-                    className="block rounded-xl px-4 py-3 text-sm font-medium text-tinta/80 transition hover:bg-papel2"
+                    className="block rounded-xl px-4 py-3 text-sm font-medium text-tinta/80 transition hover:bg-superficie2 hover:text-tinta aria-[current=page]:bg-superficie2 aria-[current=page]:text-tinta"
                   >
                     {l.rotulo}
                   </Link>
@@ -348,7 +355,7 @@ export default function SiteHeader() {
           {ehComercial && (
             <Link
               to={`/selecionar-localidade?next=${destinoNext}`}
-              className="mt-4 block rounded-xl border border-borda px-4 py-3 text-center text-sm font-semibold text-tinta/70"
+              className="mt-4 block rounded-xl border border-borda bg-superficie px-4 py-3 text-center text-sm font-semibold text-tinta/75"
             >
               <span aria-hidden>⌖</span>{" "}
               {temLocalidadeComercial
@@ -362,7 +369,7 @@ export default function SiteHeader() {
               <>
                 <Link
                   to="/portal/dashboard"
-                  className="block rounded-xl border border-borda py-3 text-center font-semibold text-tinta"
+                  className="btn-secondary w-full"
                 >
                   Portal
                 </Link>
@@ -370,7 +377,7 @@ export default function SiteHeader() {
                   type="button"
                   onClick={() => void sair()}
                   disabled={saindo}
-                  className="block w-full rounded-xl border border-borda py-3 text-center font-semibold text-tinta disabled:opacity-60"
+                  className="btn-secondary w-full disabled:opacity-60"
                 >
                   {saindo ? "Saindo..." : "Sair"}
                 </button>
@@ -378,14 +385,14 @@ export default function SiteHeader() {
             ) : (
               <Link
                 to="/portal/login"
-                className="block rounded-xl border border-borda py-3 text-center font-semibold text-tinta"
+                className="btn-secondary w-full"
               >
                 Entrar
               </Link>
             )}
             <Link
               to="/parceiros/cadastro"
-              className="block rounded-xl bg-tinta py-3 text-center font-bold text-white transition hover:bg-magenta"
+              className="btn-primary w-full"
             >
               Quero ser parceiro
             </Link>

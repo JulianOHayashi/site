@@ -17,23 +17,23 @@ export default function FormacaoReferencia({
   tom?: "claro" | "escuro";
 }) {
   const escuro = tom === "escuro";
-  const corSeg = (i: number) =>
-    i === 0
-      ? escuro
-        ? "bg-amarelo"
-        : "bg-magenta"
-      : escuro
-        ? i % 2
-          ? "bg-white/85"
-          : "bg-white/45"
-        : i % 2
-          ? "bg-tinta"
-          : "bg-tinta/45";
+  // A régua percorre a sequência de cores do ícone, nicho a nicho: lida em
+  // conjunto, é o gradiente da marca em degraus. Decorativa — a lista abaixo
+  // carrega a informação.
+  const SEQUENCIA_MARCA = [
+    "bg-vivo-ciano",
+    "bg-vivo-azul",
+    "bg-vivo-verde",
+    "bg-vivo-amarelo",
+    "bg-vivo-laranja",
+    "bg-vivo-magenta",
+  ];
+  const corSeg = (i: number) => SEQUENCIA_MARCA[i % SEQUENCIA_MARCA.length];
 
   return (
     <figure>
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-        <p className={`display t-numero ${escuro ? "text-white" : "text-tinta"}`}>
+        <p className="display t-numero texto-marca pb-1">
           {TOTAL_UNIDADES_REFERENCIA}
         </p>
         <p
@@ -49,7 +49,7 @@ export default function FormacaoReferencia({
         </p>
       </div>
 
-      <div aria-hidden className="mt-7 flex h-3 w-full gap-1 overflow-hidden rounded-full">
+      <div aria-hidden className="mt-7 flex h-2.5 w-full gap-1 overflow-hidden rounded-full">
         {FORMACAO_REFERENCIA.map((n, i) => (
           <span
             key={n.nome}

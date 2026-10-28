@@ -75,7 +75,7 @@ export default function AdminSolicitacoes() {
       <main className="mx-auto max-w-4xl px-4 pb-24 pt-10">
         <h1 className="text-3xl">
           Solicitações de parceria
-          <span className="mt-3 block h-2 w-24 rounded-full bg-magenta" />
+          <span className="mt-3 traco-marca" />
         </h1>
 
         <div className="mt-6 flex items-center gap-3">
@@ -100,7 +100,7 @@ export default function AdminSolicitacoes() {
         </div>
 
         {erro ? (
-          <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">
+          <div role="alert" className="mt-4 aviso-erro p-4">
             {erro}
           </div>
         ) : null}
@@ -222,7 +222,7 @@ function Detalhe({ applicationId, aoMudar }: { applicationId: string; aoMudar: (
   return (
     <div className="mt-5 space-y-6 rounded-2xl border border-borda p-5">
       {erro ? (
-        <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">
+        <div role="alert" className="aviso-erro p-3">
           {erro}
         </div>
       ) : null}
@@ -327,7 +327,7 @@ function Detalhe({ applicationId, aoMudar }: { applicationId: string; aoMudar: (
                 {c.response_message ? (
                   <p className="mt-1 text-tinta/70">Resposta: {c.response_message}</p>
                 ) : (
-                  <p className="mt-1 text-tinta/50">Sem resposta.</p>
+                  <p className="mt-1 text-tinta/60">Sem resposta.</p>
                 )}
               </li>
             ))}
@@ -464,7 +464,7 @@ function FormularioRepresentante({
       <input id={`rep-${nome}`} type={tipo} value={form[nome]} onChange={mudar(nome)}
         aria-invalid={erros[nome] ? true : undefined}
         className="w-full rounded-xl border border-borda px-3 py-2 text-sm" />
-      {erros[nome] ? <p className="mt-1 text-sm text-red-700">{erros[nome]}</p> : null}
+      {erros[nome] ? <p className="mt-1 text-sm text-vermelho">{erros[nome]}</p> : null}
     </div>
   );
 

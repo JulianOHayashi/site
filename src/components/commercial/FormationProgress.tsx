@@ -64,11 +64,11 @@ export default function FormationProgress({
       </dl>
 
       {summary.isComplete ? (
-        <p className="mt-4 rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+        <p className="mt-4 rounded-xl border border-verde/35 bg-verde/10 px-3 py-2 text-sm font-semibold text-verde">
           Formação concluída — os seis nichos foram contratados.
         </p>
       ) : (
-        <p className="mt-4 text-xs text-tinta/50">
+        <p className="mt-4 text-xs text-tinta/60">
           A formação comercial se completa quando os seis nichos estiverem
           contratados (84 unidades correspondentes).
         </p>

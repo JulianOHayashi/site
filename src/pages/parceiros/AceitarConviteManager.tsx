@@ -208,7 +208,7 @@ export default function AceitarConviteManager() {
               />
             </div>
             {erroLogin ? (
-              <p className="text-sm text-red-700" role="alert">
+              <p className="text-sm text-vermelho" role="alert">
                 {erroLogin}
               </p>
             ) : null}

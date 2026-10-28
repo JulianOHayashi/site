@@ -110,13 +110,13 @@ export default function PortalDocumentos() {
 
                   <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                     <div>
-                      <dt className="text-tinta/55">Registrado em</dt>
+                      <dt className="text-tinta/60">Registrado em</dt>
                       <dd className="font-semibold">
                         {new Date(aceite.acceptedAt).toLocaleString("pt-BR")}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-tinta/55">Contexto</dt>
+                      <dt className="text-tinta/60">Contexto</dt>
                       <dd className="font-semibold">
                         {CONTEXTO[aceite.context] ?? aceite.context}
                       </dd>
@@ -124,7 +124,7 @@ export default function PortalDocumentos() {
                   </dl>
 
                   {aceite.contentHash && (
-                    <p className="mt-3 break-all font-mono text-xs text-tinta/55">
+                    <p className="mt-3 break-all font-mono text-xs text-tinta/60">
                       SHA-256 {aceite.contentHash}
                     </p>
                   )}

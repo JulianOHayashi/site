@@ -253,7 +253,7 @@ export default function ConfirmarEmail() {
               <input id="senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
                      className="w-full rounded-xl border border-borda px-4 py-2.5" />
             </div>
-            {mensagem ? <p className="text-sm text-red-700" role="alert">{mensagem}</p> : null}
+            {mensagem ? <p className="text-sm text-vermelho" role="alert">{mensagem}</p> : null}
             <button type="submit" disabled={enviando} className="btn-primary w-full">
               {enviando ? "Criando..." : "Continuar"}
             </button>
@@ -293,7 +293,7 @@ export default function ConfirmarEmail() {
             ) : null}
 
             {termos.tipo === "erro" ? (
-              <div role="alert" className="rounded-xl bg-amarelo/25 p-4 text-sm">
+              <div role="alert" className="aviso-atencao p-4">
                 <p>{mensagemDeMotivo(termos.motivo)}</p>
                 <button type="button" onClick={() => void carregarTermos()}
                         className="mt-3 rounded-xl border border-borda px-3 py-2 font-semibold">
@@ -305,7 +305,7 @@ export default function ConfirmarEmail() {
             {documentos.map((doc) => (
               <div key={doc.legal_document_id} className="rounded-2xl border border-borda p-4">
                 <p className="font-semibold">{doc.title}</p>
-                <p className="text-xs text-tinta/50">Versão {doc.version}</p>
+                <p className="text-xs text-tinta/60">Versão {doc.version}</p>
                 {doc.content_url ? (
                   <a href={doc.content_url} target="_blank" rel="noopener noreferrer"
                      className="mt-2 inline-block text-sm underline">Ler o documento</a>
@@ -326,7 +326,7 @@ export default function ConfirmarEmail() {
               </div>
             ))}
 
-            {mensagem ? <p className="text-sm text-red-700" role="alert">{mensagem}</p> : null}
+            {mensagem ? <p className="text-sm text-vermelho" role="alert">{mensagem}</p> : null}
 
             <button type="button" onClick={() => void aceitarEConcluir()}
                     disabled={enviando || termos.tipo !== "carregado" || !todosAceitos}

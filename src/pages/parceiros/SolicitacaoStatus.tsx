@@ -134,16 +134,16 @@ export default function SolicitacaoStatus() {
 
   return (
     <Moldura>
-      <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+      <p className="rotulo-marca">
         Acesso provisório
       </p>
       <h1 className="mt-3 text-3xl">
         {s.legal_name}
-        <span className="mt-3 block h-2 w-24 rounded-full bg-magenta" />
+        <span className="mt-3 traco-marca" />
       </h1>
 
       {aviso ? (
-        <div role="alert" className="mt-4 rounded-xl bg-amarelo/25 p-4 text-sm">
+        <div role="alert" className="mt-4 aviso-atencao p-4">
           {aviso}
         </div>
       ) : null}
@@ -225,7 +225,7 @@ function Correcoes({ correcoes, aoResponder }: { correcoes: Correcao[]; aoRespon
     <section className="card mt-6 p-6">
       <h2 className="text-lg font-bold">Correções solicitadas</h2>
       {erro ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-vermelho">
           {erro}
         </p>
       ) : null}
@@ -338,7 +338,7 @@ function Documentos({
       </p>
 
       {erro ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-vermelho">
           {erro}
         </p>
       ) : null}

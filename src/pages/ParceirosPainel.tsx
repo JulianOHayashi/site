@@ -49,7 +49,7 @@ export default function ParceirosPainel() {
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+            <p className="rotulo-marca">
               Área de parceiros
             </p>
             <h1 className="mt-2 text-3xl sm:text-4xl">
@@ -58,7 +58,7 @@ export default function ParceirosPainel() {
           </div>
           <button
             onClick={sair}
-            className="rounded-xl border-2 border-tinta px-4 py-2 text-sm font-semibold transition hover:bg-tinta hover:text-white"
+            className="btn-secondary btn-sm"
           >
             Sair
           </button>

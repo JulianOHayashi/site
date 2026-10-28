@@ -107,7 +107,7 @@ export default function ParceirosCadastro() {
       <>
         <Header />
         <main className="mx-auto max-w-xl px-4 pb-24 pt-14">
-          <div className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+          <div className="aviso-atencao p-5 text-center">
             Cadastro em configuração. Tente novamente mais tarde.
           </div>
         </main>
@@ -158,7 +158,7 @@ export default function ParceirosCadastro() {
         className="w-full rounded-xl border border-borda px-4 py-2.5"
       />
       {erros[nome] ? (
-        <p id={`${nome}-erro`} className="mt-1 text-sm text-red-700">
+        <p id={`${nome}-erro`} className="mt-1 text-sm text-vermelho">
           {erros[nome]}
         </p>
       ) : null}
@@ -169,12 +169,12 @@ export default function ParceirosCadastro() {
     <>
       <Header />
       <main className="mx-auto max-w-2xl px-4 pb-24 pt-10">
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+        <p className="rotulo-marca">
           Parceiros SmallFlags
         </p>
         <h1 className="mt-3 text-3xl sm:text-4xl">
           Solicitação de parceria
-          <span className="mt-3 block h-2 w-24 rounded-full bg-magenta" />
+          <span className="mt-3 traco-marca" />
         </h1>
         <p className="mt-3 text-sm text-tinta/60">
           Envie os dados da empresa e do responsável. Após confirmar o e-mail,
@@ -216,7 +216,7 @@ export default function ParceirosCadastro() {
                   </option>
                 ))}
               </select>
-              {erros.uf ? <p className="mt-1 text-sm text-red-700">{erros.uf}</p> : null}
+              {erros.uf ? <p className="mt-1 text-sm text-vermelho">{erros.uf}</p> : null}
             </div>
           </section>
 
@@ -243,7 +243,7 @@ export default function ParceirosCadastro() {
           </section>
 
           {erroGeral ? (
-            <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">
+            <div role="alert" className="aviso-erro p-4">
               {erroGeral}
             </div>
           ) : null}

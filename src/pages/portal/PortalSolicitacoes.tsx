@@ -28,7 +28,7 @@ export default function PortalSolicitacoes() {
 
         <section
           aria-labelledby="indisponivel-titulo"
-          className="mt-10 rounded-3xl border border-borda bg-white p-8 sm:p-12"
+          className="mt-10 rounded-3xl border border-borda bg-superficie p-8 sm:p-12"
         >
           <p className="text-xs font-bold uppercase tracking-widest text-tinta/60">
             Histórico indisponível no Portal

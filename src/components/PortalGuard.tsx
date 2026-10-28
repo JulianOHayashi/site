@@ -100,7 +100,7 @@ export default function PortalGuard({ children }: { children: React.ReactNode })
       <>
         <SiteHeader />
         <main className="mx-auto mt-16 max-w-md px-4">
-          <div className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+          <div className="aviso-atencao p-5 text-center">
             Portal em configuração.
           </div>
         </main>
@@ -177,7 +177,7 @@ function Negado({
     <>
       <SiteHeader />
       <main className="mx-auto mt-16 max-w-md px-4">
-        <div role="alert" className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+        <div role="alert" className="aviso-atencao p-5 text-center">
           <p className="font-semibold">{titulo}</p>
           <p className="mt-2 text-tinta/70">{detalhe}</p>
           {acao ? (

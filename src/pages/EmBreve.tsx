@@ -10,7 +10,7 @@ export default function EmBreve() {
     <main className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
       <h1 className="text-4xl sm:text-6xl">
         Em breve por aqui
-        <span className="mx-auto mt-3 block h-2 w-40 rounded-full bg-amarelo" />
+        <span className="mx-auto mt-3 traco-marca w-20" />
       </h1>
       <p className="mt-6 max-w-md text-tinta/70">
         {individual

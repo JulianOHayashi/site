@@ -87,9 +87,9 @@ const ETAPAS: Etapa[] = [
       </p>
     ),
     extra: (
-      <div className="mt-2 rounded-3xl bg-tinta p-6 sm:p-8">
-        <p className="mb-4 text-sm font-bold text-amarelo">Formação comercial de referência</p>
-        <FormacaoReferencia tom="escuro" />
+      <div className="mt-2 rounded-3xl border border-borda bg-superficie p-6 sm:p-8">
+        <p className="rotulo-marca mb-5">Formação comercial de referência</p>
+        <FormacaoReferencia />
       </div>
     ),
   },
@@ -137,12 +137,12 @@ export default function ComoFunciona() {
               {i < ETAPAS.length - 1 && (
                 <span
                   aria-hidden
-                  className="absolute left-[19px] top-12 h-[calc(100%-2.5rem)] w-px bg-tinta/20 sm:left-[27px]"
+                  className="absolute left-[19px] top-12 h-[calc(100%-2.5rem)] w-px bg-borda-forte sm:left-[27px]"
                 />
               )}
               <span
                 aria-hidden
-                className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full border-2 border-tinta bg-papel font-display font-bold text-tinta sm:h-14 sm:w-14 sm:text-xl"
+                className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full borda-marca font-display font-bold text-tinta sm:h-14 sm:w-14 sm:text-xl"
               >
                 {i + 1}
               </span>

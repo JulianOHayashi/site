@@ -135,7 +135,7 @@ export default function Oportunidades() {
         {estado.fase === "ok" && estado.dados.exclusivity && estado.dados.summary && (
           <>
             <header className="mb-8">
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+              <p className="rotulo-marca">
                 {estado.dados.region?.regionName} ·{" "}
                 {EXCLUSIVITY_STATUS_LABEL[estado.dados.exclusivity.status]}
               </p>

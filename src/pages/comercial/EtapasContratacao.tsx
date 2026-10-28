@@ -230,7 +230,7 @@ export default function EtapasContratacao(props: {
             )}
             {p.pixCopyPaste && (
               <>
-                <code className="block break-all rounded-xl bg-tinta/5 p-3 text-xs">
+                <code className="block break-all rounded-xl bg-superficie2 p-3 text-xs">
                   {p.pixCopyPaste}
                 </code>
                 <button
@@ -245,7 +245,7 @@ export default function EtapasContratacao(props: {
                 </button>
               </>
             )}
-            <p className="text-xs text-tinta/50" role="status">
+            <p className="text-xs text-tinta/60" role="status">
               Status: aguardando confirmação do pagamento.
             </p>
           </div>
@@ -307,14 +307,14 @@ export default function EtapasContratacao(props: {
           </Link>
         </div>
       ) : (
-        <p role="alert" className="rounded-xl border border-amarelo/60 bg-amarelo/15 p-4 text-sm">
+        <p role="alert" className="aviso-atencao p-4">
           Não foi possível identificar a versão do Acordo Mestre que rege esta
           empresa. A contratação não pode ser concluída sem esse vínculo.
         </p>
       )}
 
       {t.content ? (
-        <div className="max-h-64 overflow-y-auto rounded-xl bg-tinta/5 p-4 text-sm whitespace-pre-wrap">
+        <div className="max-h-64 overflow-y-auto rounded-xl bg-superficie2 p-4 text-sm whitespace-pre-wrap">
           {t.content}
         </div>
       ) : t.contentUrl ? (
@@ -368,7 +368,7 @@ export default function EtapasContratacao(props: {
       </button>
 
       {falha && (
-        <div role="alert" className="rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
+        <div role="alert" className="aviso-erro p-3">
           {falha === "reservation_expired"
             ? "O prazo da reserva terminou. Reserve a oportunidade novamente."
             : falha === "terms_not_published"

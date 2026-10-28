@@ -87,12 +87,12 @@ export default function SelecionarLocalidade() {
     <>
       <Header />
       <main className="mx-auto max-w-xl px-4 pb-24 pt-10">
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+        <p className="rotulo-marca">
           Região comercial
         </p>
         <h1 className="mt-3 text-3xl sm:text-4xl">
           Escolha sua localidade
-          <span className="mt-3 block h-2 w-24 rounded-full bg-magenta" />
+          <span className="mt-3 traco-marca" />
         </h1>
         <p className="mt-3 text-sm text-tinta/60">
           Informe seu estado e cidade para ver as oportunidades comerciais
@@ -139,7 +139,7 @@ export default function SelecionarLocalidade() {
 
           {error && (
             <p
-              className="rounded-xl bg-magenta/10 px-4 py-2.5 text-sm font-medium text-magenta"
+              className="aviso-erro font-medium"
               aria-live="polite"
             >
               {error}
@@ -159,8 +159,8 @@ export default function SelecionarLocalidade() {
         {resultado && (
           <div className="mt-6" aria-live="polite">
             {resultado.ativa ? (
-              <div className="rounded-3xl border-2 border-green-200 bg-green-50 p-6">
-                <p className="font-display text-lg font-bold text-green-800">
+              <div className="rounded-3xl border border-verde/35 bg-verde/10 p-6">
+                <p className="font-display text-lg font-bold text-verde">
                   Região comercial encontrada: {resultado.regionName}
                 </p>
                 <button

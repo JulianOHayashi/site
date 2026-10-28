@@ -198,7 +198,7 @@ export default function RevisaoContratacao() {
           <h2 id="nicho-titulo" className="text-lg font-bold">
             {nicho.displayName}
           </h2>
-          <p className="mt-1 text-xs text-tinta/50">
+          <p className="mt-1 text-xs text-tinta/60">
             Nicho contratado integralmente — {nicho.nominalQuantity} unidades.
           </p>
 
@@ -383,11 +383,11 @@ export default function RevisaoContratacao() {
               </strong>
               . Passado esse prazo a oportunidade volta a ficar disponível.
             </p>
-            <p className="mt-2 text-xs text-tinta/50">
+            <p className="mt-2 text-xs text-tinta/60">
               Reserva não é pagamento nem contrato. Nenhum valor foi cobrado.
             </p>
             {reserva.already && (
-              <p className="mt-2 text-xs text-tinta/50">
+              <p className="mt-2 text-xs text-tinta/60">
                 Você já tinha esta reserva em andamento; o prazo original foi
                 mantido.
               </p>
@@ -428,7 +428,7 @@ export default function RevisaoContratacao() {
             {falhaReserva && (
               <div
                 role="alert"
-                className="mt-3 rounded-xl bg-magenta/10 p-3 text-sm text-magenta"
+                className="mt-3 aviso-erro p-3"
               >
                 {falhaReserva === "opportunity_reserved"
                   ? "Esta oportunidade está reservada por outra empresa no momento."
@@ -456,7 +456,7 @@ export default function RevisaoContratacao() {
             Verificando acesso comercial...
           </p>
         ) : perfilComercial === "erro" ? (
-          <div role="alert" className="mt-6 rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
+          <div role="alert" className="mt-6 aviso-erro p-3">
             Não foi possível verificar o acesso comercial. Nenhuma contratação foi liberada.
           </div>
         ) : (

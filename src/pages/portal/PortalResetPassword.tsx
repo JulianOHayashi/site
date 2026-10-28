@@ -92,7 +92,7 @@ export default function PortalResetPassword() {
     <>
       <Header />
       <main className="mx-auto max-w-md px-4 pb-24 pt-14">
-        <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-ciano">
+        <p className="flex justify-center rotulo-marca">
           Portal do parceiro SmallFlags
         </p>
         <h1 className="mt-3 text-center text-3xl">
@@ -167,7 +167,7 @@ export default function PortalResetPassword() {
             </div>
 
             {erro && (
-              <p className="rounded-xl bg-magenta/10 px-4 py-2.5 text-sm font-medium text-magenta" role="alert">
+              <p className="aviso-erro font-medium" role="alert">
                 {erro}
               </p>
             )}

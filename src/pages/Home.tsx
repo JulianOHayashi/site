@@ -59,6 +59,15 @@ function Revelar({
   );
 }
 
+/** Seta decorativa dos CTAs. */
+function Seta() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4">
+      <path d="M3 8h9M8.5 4 12.5 8l-4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function Home() {
   return (
     <>
@@ -67,27 +76,30 @@ export default function Home() {
       {/* ===================== HERO ===================== */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="malha malha-esmaecida absolute inset-0" />
-        <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-12 sm:pb-10 sm:pt-20">
+        <div aria-hidden className="halo-marca -right-48 -top-56 h-[34rem] w-[34rem] opacity-[0.09] sm:opacity-[0.16]" />
+        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-24 sm:pt-24">
           <div className="grid gap-12 lg:grid-cols-12 lg:gap-10">
             <div className="lg:col-span-7">
-              <p className="rotulo text-magenta">Oportunidades comerciais SmallFlags</p>
-              <h1 className="display t-hero mt-5 max-w-[18ch]">
-                Oportunidades comerciais por região e por nicho.
+              <p className="rotulo-marca entrar">Oportunidades comerciais SmallFlags</p>
+              <h1 className="display t-hero entrar entrar-2 mt-6 max-w-[16ch]">
+                Oportunidades comerciais por região e{" "}
+                <span className="texto-marca">por nicho.</span>
               </h1>
-              <p className="mt-7 max-w-xl text-lg leading-8 text-tinta/75">
+              <p className="entrar entrar-3 mt-7 max-w-xl text-lg leading-8 text-tinta/70">
                 Cada oportunidade é a contratação integral de um nicho dentro de uma
                 exclusividade comercial da região. A {REGIAO_ATIVA.nome} ({REGIAO_ATIVA.uf})
                 é a primeira região ativa.
               </p>
-              <div className="mt-9 flex flex-wrap gap-3">
-                <Link to="/oportunidades" className="btn-primary">
+              <div className="entrar entrar-4 mt-10 flex flex-wrap gap-3">
+                <Link to="/oportunidades" className="btn-primary px-6">
                   Ver oportunidades
+                  <Seta />
                 </Link>
-                <Link to="/parceiros" className="btn-secondary">
+                <Link to="/parceiros" className="btn-secondary px-6">
                   Quero ser parceiro
                 </Link>
               </div>
-              <p className="mt-5 max-w-md text-sm leading-6 text-tinta/65">
+              <p className="mt-5 max-w-md text-sm leading-6 text-tinta/60">
                 Estado e cidade são solicitados ao abrir as oportunidades.
               </p>
             </div>
@@ -95,40 +107,34 @@ export default function Home() {
             {/* Painel da região ativa: estado do território, não um card decorativo. */}
             <aside
               aria-label="Região comercial ativa"
-              className="lg:col-span-5 lg:pt-9"
+              className="entrar entrar-3 lg:col-span-5 lg:pt-6"
             >
-              <div className="rounded-3xl border border-tinta/15 bg-white/80 p-7 backdrop-blur-sm sm:p-8">
-                <div className="flex items-center gap-2.5">
-                  <span aria-hidden className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-ciano/60" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ciano" />
-                  </span>
-                  <p className="rotulo text-tinta/65">Região ativa</p>
+              <div className="painel-marca relative overflow-hidden p-7 sm:p-8">
+                <div aria-hidden className="absolute inset-x-0 top-0 h-40 bg-marca-suave opacity-80 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+                <div className="relative">
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden className="ponto-vivo" />
+                    <p className="rotulo text-tinta/65">Região ativa</p>
+                  </div>
+                  <p className="display mt-5 text-3xl leading-tight sm:text-4xl">
+                    {REGIAO_ATIVA.nome}
+                    <span className="font-normal text-tinta/60"> · {REGIAO_ATIVA.uf}</span>
+                  </p>
+                  <ul className="mt-5 flex flex-wrap gap-2">
+                    {REGIAO_ATIVA.cidades.map((c) => (
+                      <li key={c} className="chip">
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-6 border-t border-borda pt-5 text-sm leading-6 text-tinta/65">
+                    Novas regiões são abertas por etapas. Fora da região ativa, é possível
+                    registrar interesse territorial.
+                  </p>
+                  <Link to="/selecionar-localidade" className="btn-tertiary mt-3">
+                    Selecionar localidade
+                  </Link>
                 </div>
-                <p className="display mt-4 text-3xl leading-tight sm:text-4xl">
-                  {REGIAO_ATIVA.nome}
-                  <span className="font-normal text-tinta/70"> · {REGIAO_ATIVA.uf}</span>
-                </p>
-                <ul className="mt-5 flex flex-wrap gap-2">
-                  {REGIAO_ATIVA.cidades.map((c) => (
-                    <li
-                      key={c}
-                      className="rounded-full border border-tinta/15 px-3 py-1.5 text-sm text-tinta/75"
-                    >
-                      {c}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-6 border-t border-tinta/10 pt-5 text-sm leading-6 text-tinta/70">
-                  Novas regiões são abertas por etapas. Fora da região ativa, é possível
-                  registrar interesse territorial.
-                </p>
-                <Link
-                  to="/selecionar-localidade"
-                  className="mt-4 inline-flex min-h-[44px] items-center font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
-                >
-                  Selecionar localidade
-                </Link>
               </div>
             </aside>
           </div>
@@ -142,27 +148,27 @@ export default function Home() {
             <h2 id="nichos-titulo" className="t-secao">
               Seis nichos por exclusividade
             </h2>
-            <p className="mt-4 max-w-sm leading-7 text-tinta/70">
+            <p className="mt-4 max-w-sm leading-7 text-tinta/65">
               Cada nicho é contratado integralmente dentro da exclusividade comercial da
               região. Um CNPJ contrata um único nicho.
             </p>
           </div>
 
           <div className="lg:col-span-8">
-            <ol className="border-t border-tinta/15">
+            <ol className="border-t border-borda">
               {FORMACAO_REFERENCIA.map((n, i) => (
                 <li key={n.nome}>
                   <Revelar atraso={i * 40}>
-                    <div className="flex items-baseline gap-4 border-b border-tinta/15 py-5 sm:gap-6">
+                    <div className="group flex items-baseline gap-4 border-b border-borda py-5 sm:gap-6">
                       <span
                         aria-hidden
-                        className="display w-8 shrink-0 text-sm text-tinta/40 tabular-nums"
+                        className="display w-8 shrink-0 text-sm text-tinta/35 tabular-nums"
                       >
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <h3 className="flex-1 text-xl leading-snug sm:text-2xl">{n.nome}</h3>
-                      <span className="shrink-0 text-sm text-tinta/70">
-                        <span className="font-semibold tabular-nums text-tinta">
+                      <span className="shrink-0 text-sm text-tinta/60">
+                        <span className="display text-lg tabular-nums text-tinta">
                           {n.unidades}
                         </span>{" "}
                         unidades
@@ -179,26 +185,26 @@ export default function Home() {
       {/* ===================== FORMAÇÃO DE REFERÊNCIA ===================== */}
       <section aria-labelledby="formacao-titulo" className="faixa-densa">
         <Revelar>
-          <div className="rounded-[2rem] bg-tinta px-6 py-12 text-white sm:px-12 sm:py-16">
-            <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
+          <div className="relative overflow-hidden rounded-[2rem] border border-borda bg-superficie px-6 py-12 shadow-painel sm:px-12 sm:py-16">
+            <div aria-hidden className="halo-marca -bottom-40 -left-24 h-80 w-80 opacity-[0.12]" />
+            <hr aria-hidden className="divisor-marca absolute inset-x-0 top-0 opacity-70" />
+            <div className="relative grid gap-10 lg:grid-cols-12 lg:gap-12">
               <div className="lg:col-span-5">
-                <p className="rotulo text-amarelo">Formação comercial</p>
-                <h2 id="formacao-titulo" className="t-secao mt-4">
+                <p className="rotulo-marca">Formação comercial</p>
+                <h2 id="formacao-titulo" className="t-secao mt-5">
                   Seis nichos · 84 unidades
                 </h2>
-                <p className="mt-5 max-w-sm leading-7 text-white/75">
+                <p className="mt-5 max-w-sm leading-7 text-tinta/65">
                   A formação comercial de referência de uma exclusividade. O andamento de
                   cada oportunidade fica na página da sua região.
                 </p>
-                <Link
-                  to="/oportunidades"
-                  className="mt-8 inline-flex min-h-[44px] items-center rounded-xl bg-white px-6 py-3 font-semibold text-tinta transition hover:bg-amarelo"
-                >
+                <Link to="/oportunidades" className="btn-primary mt-8 px-6">
                   Ver oportunidades
+                  <Seta />
                 </Link>
               </div>
               <div className="lg:col-span-7">
-                <FormacaoReferencia tom="escuro" />
+                <FormacaoReferencia />
               </div>
             </div>
           </div>
@@ -212,13 +218,13 @@ export default function Home() {
             <h2 id="conheca-titulo" className="t-secao">
               Conheça a SmallFlags
             </h2>
-            <p className="mt-4 max-w-sm leading-7 text-tinta/70">
+            <p className="mt-4 max-w-sm leading-7 text-tinta/65">
               Dois ambientes com responsabilidades separadas. O Site cuida da relação
               comercial; o App cuida da jornada do divulgador — o microempreendedor
               individual que faz divulgação sonora em vias públicas com o próprio
               veículo.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/quem-somos" className="btn-secondary">
                 Quem somos
               </Link>
@@ -239,26 +245,27 @@ export default function Home() {
           Entradas para empresas parceiras
         </h2>
         <Revelar>
-          <div className="grid gap-px overflow-hidden rounded-3xl border border-borda bg-borda md:grid-cols-2">
-            <div className="flex flex-col bg-white p-8 sm:p-10">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="card-interativo flex flex-col p-8 sm:p-10">
               <p className="rotulo text-tinta/60">Ainda não é parceira</p>
               <h3 className="mt-3 text-2xl leading-snug">Conheça a parceria SmallFlags</h3>
-              <p className="mt-3 flex-1 leading-7 text-tinta/70">
+              <p className="mt-3 flex-1 leading-7 text-tinta/65">
                 Entenda o modelo comercial, os requisitos e envie a solicitação da sua
                 empresa.
               </p>
-              <Link to="/parceiros" className="btn-secondary mt-7 self-start">
+              <Link to="/parceiros" className="btn-primary mt-8 self-start">
                 Área de parceiros
+                <Seta />
               </Link>
             </div>
-            <div className="flex flex-col bg-white p-8 sm:p-10">
+            <div className="card-interativo flex flex-col p-8 sm:p-10">
               <p className="rotulo text-tinta/60">Já é parceira</p>
               <h3 className="mt-3 text-2xl leading-snug">Portal do Parceiro</h3>
-              <p className="mt-3 flex-1 leading-7 text-tinta/70">
+              <p className="mt-3 flex-1 leading-7 text-tinta/65">
                 Gestão da empresa, equipe e a validação dos benefícios apresentados pelos
                 divulgadores.
               </p>
-              <Link to="/portal/login" className="btn-secondary mt-7 self-start">
+              <Link to="/portal/login" className="btn-secondary mt-8 self-start">
                 Ir para o Portal
               </Link>
             </div>
@@ -267,13 +274,10 @@ export default function Home() {
       </section>
 
       {/* ===================== ENTRADA INSTITUCIONAL DISCRETA ===================== */}
-      <section className="mx-auto max-w-6xl px-4 pb-6">
-        <p className="border-t border-borda pt-8 text-sm leading-6 text-tinta/70">
+      <section className="mx-auto max-w-6xl px-4 pb-6 sm:px-6">
+        <p className="border-t border-borda pt-8 text-sm leading-6 text-tinta/65">
           Quer construir a SmallFlags com a gente?{" "}
-          <Link
-            to="/trabalhe-conosco"
-            className="font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
-          >
+          <Link to="/trabalhe-conosco" className="link">
             Trabalhe conosco
           </Link>
         </p>

@@ -61,7 +61,7 @@ export default function Contato() {
         </h2>
         <ul className="grid gap-px overflow-hidden rounded-3xl border border-borda bg-borda md:grid-cols-2">
           {CAMINHOS.map((c) => (
-            <li key={c.to} className="flex flex-col bg-white p-7 sm:p-8">
+            <li key={c.to} className="flex flex-col bg-superficie p-7 sm:p-8">
               <h3 className="text-xl leading-snug">{c.perfil}</h3>
               <p className="mt-2 flex-1 text-sm leading-6 text-tinta/70">{c.texto}</p>
               <Link to={c.to} className="btn-secondary mt-6 self-start">

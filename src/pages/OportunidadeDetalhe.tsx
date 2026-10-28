@@ -225,13 +225,13 @@ export default function OportunidadeDetalhe() {
                   unidades avulsas.
                 </p>
                 {opp.status === "available" ? (
-                  <p className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
+                  <p className="mt-3 aviso-atencao text-tinta/70">
                     Revise as condições comerciais abaixo. O titular autenticado
                     pode avançar ao checkout para reservar a oportunidade por 30
                     minutos e, após o aceite dos termos, iniciar o pagamento.
                   </p>
                 ) : (
-                  <div className="mt-3 rounded-xl border border-amarelo bg-amarelo/15 px-4 py-3 text-sm text-tinta/70">
+                  <div className="mt-3 aviso-atencao text-tinta/70">
                     <p>
                       A oportunidade atual não está disponível. O titular da empresa
                       pode registrar interesse na próxima exclusividade. Esse registro
@@ -241,7 +241,7 @@ export default function OportunidadeDetalhe() {
                     {ownerCompanyId ? (
                       <div className="mt-4">
                         {future.tipo === "preorder" ? (
-                          <div className="rounded-xl bg-white/70 p-3">
+                          <div className="rounded-xl bg-superficie2 p-3">
                             <p className="font-semibold">
                               Pré-compra registrada para a exclusividade {future.targetSequenceNumber}.
                             </p>
@@ -252,7 +252,7 @@ export default function OportunidadeDetalhe() {
                             </p>
                           </div>
                         ) : future.tipo === "sales_waitlist" ? (
-                          <div className="rounded-xl bg-white/70 p-3">
+                          <div className="rounded-xl bg-superficie2 p-3">
                             <p className="font-semibold">
                               Lista de espera de venda registrada.
                             </p>
@@ -276,7 +276,7 @@ export default function OportunidadeDetalhe() {
                         )}
 
                         {future.tipo === "erro" && (
-                          <p className="mt-2 text-sm text-magenta" role="alert">
+                          <p className="mt-2 text-sm text-vermelho" role="alert">
                             {future.codigo === "current_opportunity_available"
                               ? "A oportunidade atual voltou a ficar disponível; use o checkout normal."
                               : future.codigo === "company_already_preordered_next_exclusivity"

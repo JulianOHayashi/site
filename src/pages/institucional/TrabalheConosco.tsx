@@ -53,7 +53,7 @@ const AREAS = [
 function CartaoVaga({ vaga }: { vaga: Vaga }) {
   const externo = /^https?:\/\//.test(vaga.destino);
   return (
-    <li className="rounded-3xl border border-borda bg-white p-6">
+    <li className="rounded-3xl border border-borda bg-superficie p-6">
       <p className="text-sm font-bold text-tinta/70">{vaga.area}</p>
       <h3 className="mt-1 text-xl">{vaga.titulo}</h3>
       <p className="mt-1 text-sm text-tinta/65">
@@ -122,7 +122,7 @@ export default function TrabalheConosco() {
         ) : (
           /* Estado vazio deliberado: a moldura ocupa o mesmo espaço que os
              cartões de vaga ocuparão, para a página não parecer inacabada. */
-          <div className="flex min-h-[15rem] flex-col justify-center rounded-3xl border border-tinta/15 bg-white p-8 sm:p-12">
+          <div className="flex min-h-[15rem] flex-col justify-center rounded-3xl border border-tinta/15 bg-superficie p-8 sm:p-12">
             <p className="rotulo text-tinta/65">Nenhuma vaga publicada</p>
             <p className="display mt-4 text-2xl leading-snug sm:text-3xl">
               Não há processos seletivos abertos no momento.
