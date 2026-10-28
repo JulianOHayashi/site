@@ -23,6 +23,7 @@ import { capturarFragmento } from "./lib/benefitTokenFragment";
 
 capturarFragmento();
 import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
+import PortalDocumentos from "./pages/portal/PortalDocumentos";
 import SelecionarLocalidade from "./pages/SelecionarLocalidade";
 import Oportunidades from "./pages/Oportunidades";
 import OportunidadeDetalhe from "./pages/OportunidadeDetalhe";
@@ -145,6 +146,7 @@ export default function App() {
           <Route path="/portal/validar" element={<PortalGuard><PortalValidar /></PortalGuard>} />
           <Route path="/beneficios/validar/:publicLookupId" element={<PortalGuard><BeneficiosValidar /></PortalGuard>} />
           <Route path="/portal/solicitacoes" element={<PortalGuard><PortalSolicitacoes /></PortalGuard>} />
+          <Route path="/portal/documentos" element={<PortalGuard><PortalDocumentos /></PortalGuard>} />
         </Route>
         {/* Compatibilidade temporária do antigo endereço do painel. */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
