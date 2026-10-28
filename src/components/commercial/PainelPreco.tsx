@@ -76,7 +76,7 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
   return (
     <div className="card mt-4 p-6">
       <h2 className="text-lg font-bold">Condições comerciais vigentes</h2>
-      <p className="mt-1 text-xs text-tinta/50">
+      <p className="mt-1 text-xs text-tinta/60">
         Nicho contratado integralmente — {nominalQuantity} unidades. Tabela
         versão {founding.pricingRuleVersion}.
       </p>
@@ -118,12 +118,12 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
             ? "a empresa aporta em dinheiro a contraprestação dos participantes elegíveis, além da remuneração contratual da SmallFlags. A cobrança financeira corresponde ao valor econômico completo."
             : "a empresa aporta em dinheiro o pool histórico dos usuários elegíveis. A cobrança financeira corresponde ao valor econômico completo."}
         </p>
-        <p className="text-xs text-tinta/50">
+        <p className="text-xs text-tinta/60">
           A escolha é feita pela empresa na etapa de contratação.
         </p>
       </div>
 
-      <p className="mt-3 text-xs text-tinta/50">
+      <p className="mt-3 text-xs text-tinta/60">
         Condição fidelizada aplicada a contratos seguintes no mesmo CNPJ,
         cidade e nicho. A condição é determinada pela SmallFlags a partir do
         histórico da empresa, não escolhida na contratação.
@@ -237,7 +237,7 @@ function Cta({ nicheCode }: { nicheCode?: string }) {
       >
         Solicitar contratação
       </Link>
-      <p className="mt-2 text-center text-xs text-tinta/50">
+      <p className="mt-2 text-center text-xs text-tinta/60">
         {nicheCode
           ? "No checkout, o titular autenticado pode reservar a oportunidade por 30 minutos e avançar após o aceite dos termos."
           : "As condições vigentes não estão disponíveis. Solicite o contato da SmallFlags para receber a proposta atualizada."}

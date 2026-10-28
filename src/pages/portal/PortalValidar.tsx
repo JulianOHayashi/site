@@ -236,7 +236,7 @@ export default function PortalValidar() {
                 placeholder="XXXX-XXXX"
                 aria-label="Código do benefício"
               />
-              <span className="mt-1 block text-xs text-tinta/50">
+              <span className="mt-1 block text-xs text-tinta/60">
                 Oito caracteres, como o usuário lê no aplicativo.
               </span>
             </label>
@@ -268,7 +268,7 @@ export default function PortalValidar() {
             </button>
 
             {falha && (
-              <div role="alert" className="rounded-xl bg-magenta/10 p-3 text-sm text-magenta">
+              <div role="alert" className="aviso-erro p-3">
                 {falha === "not_authorized" || falha === "not_company_owner"
                   ? "Você não está autorizado a validar nesta unidade."
                   : falha === "invalid_display_code"
@@ -280,13 +280,13 @@ export default function PortalValidar() {
             )}
 
             {sucesso && (
-              <div className="rounded-xl bg-amarelo/25 p-4 text-sm">
+              <div className="aviso-atencao p-4">
                 <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
                 <p className="mt-2 text-tinta/70">
                   O usuário precisa confirmar ou recusar no aplicativo SmallFlags. O
                   benefício só é consumido depois dessa confirmação.
                 </p>
-                <p className="mt-2 text-xs text-tinta/50">
+                <p className="mt-2 text-xs text-tinta/60">
                   Referência: <span className="font-mono">{sucesso.correlationId}</span>
                 </p>
               </div>

@@ -53,8 +53,8 @@ export default function PortalDashboard() {
         <PortalTopo titulo="Painel do parceiro" onSair={sair} />
 
         {/* Conta autenticada (Supabase do site) */}
-        <section className="mt-8 rounded-3xl border border-borda bg-white/85 p-6 backdrop-blur">
-          <p className="text-xs font-bold uppercase tracking-widest text-tinta/60">
+        <section className="card mt-8 p-6">
+          <p className="rotulo text-tinta/60">
             Sua conta
           </p>
           <h2 className="mt-1 text-xl font-bold">{session?.user.email}</h2>
@@ -71,7 +71,7 @@ export default function PortalDashboard() {
         <EscolhaEmpresa />
 
         {ctx.fase === "sem_vinculo" && (
-          <section className="mt-5 rounded-3xl border-2 border-dashed border-ciano/40 bg-ciano/5 p-8 text-center">
+          <section className="mt-5 rounded-2xl border border-dashed border-ciano/40 bg-ciano/5 p-8 text-center">
             <h2 className="text-2xl font-bold">Cadastre sua empresa parceira</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-tinta/70">
               Para começar no Portal SmallFlags, cadastre a empresa e torne-se o
@@ -87,13 +87,21 @@ export default function PortalDashboard() {
           <>
             <EmpresaAtualBarra />
 
-            <section className="mt-5 rounded-3xl border border-borda bg-white/85 p-6 backdrop-blur">
-              <p className="text-xs font-bold uppercase tracking-widest text-tinta/60">
+            <section className="card mt-5 p-6">
+              <p className="rotulo text-tinta/60">
                 Empresa parceira
               </p>
               <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-bold">{empresa.trade_name}</h2>
-                <span className="rounded-full bg-amarelo/30 px-3 py-1 text-xs font-semibold">
+                <span
+                  className={
+                    empresa.company_status === "active"
+                      ? "status-ok"
+                      : empresa.company_status === "pending"
+                        ? "status-aviso"
+                        : "status-neutro"
+                  }
+                >
                   {STATUS_EMPRESA[empresa.company_status] ?? empresa.company_status}
                 </span>
               </div>
@@ -105,24 +113,24 @@ export default function PortalDashboard() {
             <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Link
                 to="/portal/validar"
-                className="group rounded-3xl bg-magenta p-7 text-white shadow-lg transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(229,0,126,0.35)]"
+                className="group painel-marca rounded-2xl p-7 transition hover:shadow-brilho"
               >
                 <h3 className="text-2xl font-bold">Validar benefício</h3>
-                <p className="mt-2 text-sm text-white/85">
+                <p className="mt-2 text-sm leading-6 text-tinta/70">
                   Leia o QR code do divulgador e registre a solicitação. A
                   confirmação é feita pelo próprio divulgador no aplicativo.
                 </p>
-                <span className="mt-4 inline-block font-semibold transition group-hover:translate-x-1">
+                <span className="mt-4 inline-block font-semibold text-tinta transition group-hover:translate-x-1">
                   Abrir →
                 </span>
               </Link>
 
               <Link
                 to="/portal/solicitacoes"
-                className="group rounded-3xl border-2 border-tinta bg-tinta p-7 text-papel shadow-lg transition hover:-translate-y-1"
+                className="group card-interativo p-7"
               >
                 <h3 className="text-2xl font-bold">Solicitações</h3>
-                <p className="mt-2 text-sm text-papel/80">
+                <p className="mt-2 text-sm leading-6 text-tinta/70">
                   O histórico de usos ainda não está disponível no Portal. A
                   página explica onde consultar enquanto isso.
                 </p>
@@ -134,10 +142,10 @@ export default function PortalDashboard() {
               {empresa.role === "partner_owner" && (
                 <Link
                   to="/portal/equipe"
-                  className="group rounded-3xl border-2 border-borda bg-white p-7 text-tinta shadow-lg transition hover:-translate-y-1"
+                  className="group card-interativo p-7"
                 >
                   <h3 className="text-2xl font-bold">Equipe e unidades</h3>
-                  <p className="mt-2 text-sm text-tinta/70">
+                  <p className="mt-2 text-sm leading-6 text-tinta/70">
                     Cadastre filiais e convide managers para validar benefícios.
                   </p>
                   <span className="mt-4 inline-block font-semibold text-ciano transition group-hover:translate-x-1">

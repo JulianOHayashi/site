@@ -60,10 +60,10 @@ const TRILHAS: Trilha[] = [
 ];
 
 function Trilha({ t, escuro }: { t: Trilha; escuro: boolean }) {
-  const borda = escuro ? "border-white/20" : "border-tinta/15";
+  const borda = escuro ? "border-white/20" : "border-borda";
   const texto = escuro ? "text-white" : "text-tinta";
-  const suave = escuro ? "text-white/70" : "text-tinta/70";
-  const sup = escuro ? "bg-white/5" : "bg-white";
+  const suave = escuro ? "text-white/70" : "text-tinta/65";
+  const sup = escuro ? "bg-white/5" : "bg-superficie";
 
   return (
     <section aria-label={t.atorRotulo} className={`rounded-3xl border ${borda} ${sup} px-6 py-6 sm:px-8 sm:py-7`}>
@@ -83,9 +83,8 @@ function Trilha({ t, escuro }: { t: Trilha; escuro: boolean }) {
             <span
               className={`inline-flex min-h-[44px] min-w-0 items-center rounded-xl px-4 py-2 text-sm font-semibold ${
                 i === 1
-                  ? escuro
-                    ? "bg-white text-tinta"
-                    : "bg-tinta text-white"
+                  ? // O sistema é o elo de cada trilha: recebe a borda da marca.
+                    "borda-marca text-tinta"
                   : `border ${borda} ${texto}`
               }`}
             >
@@ -127,10 +126,10 @@ export default function RelacaoSiteApp({ tom = "claro" }: { tom?: "claro" | "esc
 
       <div
         className={`mt-4 rounded-3xl border px-6 py-6 sm:px-8 sm:py-7 ${
-          escuro ? "border-amarelo/40 bg-amarelo/10" : "border-tinta/15 bg-papel2"
+          escuro ? "border-amarelo/40 bg-amarelo/10" : "border-borda bg-marca-suave"
         }`}
       >
-        <p className={`rotulo ${escuro ? "text-amarelo" : "text-tinta/60"}`}>
+        <p className={`rotulo ${escuro ? "text-amarelo" : "text-tinta/70"}`}>
           Onde as duas se encontram
         </p>
         <p

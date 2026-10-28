@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { REGIAO_ATIVA } from "../content/institucional";
+import Marca from "./marca/Marca";
 
 /**
  * Rodapé público global do Site SmallFlags.
@@ -37,14 +38,15 @@ const COLUNAS: { titulo: string; links: { rotulo: string; to: string }[] }[] = [
 
 export default function SiteFooter() {
   return (
-    <footer className="mt-12 border-t border-borda bg-papel2/70">
-      <div className="mx-auto max-w-6xl px-4 py-16">
+    <footer className="relative mt-16 bg-superficie/50">
+      <hr aria-hidden className="divisor-marca opacity-60" />
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <Link to="/" className="display inline-block text-2xl" aria-label="SmallFlags — início">
-              Small<span className="text-magenta">Flags</span>
+            <Link to="/" className="inline-flex rounded-lg" aria-label="SmallFlags — início">
+              <Marca tamanho="lg" />
             </Link>
-            <p className="mt-3 max-w-xs text-sm leading-6 text-tinta/65">
+            <p className="mt-5 max-w-xs text-sm leading-6 text-tinta/65">
               Oportunidades comerciais por região e por nicho. Região comercial
               ativa: {REGIAO_ATIVA.nome} ({REGIAO_ATIVA.uf}).
             </p>
@@ -62,7 +64,7 @@ export default function SiteFooter() {
                     <li key={l.to}>
                       <Link
                         to={l.to}
-                        className="inline-block py-1.5 text-sm text-tinta/70 transition hover:text-magenta"
+                        className="inline-block py-1.5 text-sm text-tinta/70 transition hover:text-tinta"
                       >
                         {l.rotulo}
                       </Link>
@@ -80,7 +82,7 @@ export default function SiteFooter() {
           </nav>
         </div>
 
-        <p className="mt-14 border-t border-borda pt-6 text-xs text-tinta/65">
+        <p className="mt-14 border-t border-borda pt-6 text-xs text-tinta/60">
           © 2026 SmallFlags
         </p>
       </div>

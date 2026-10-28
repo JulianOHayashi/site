@@ -16,7 +16,7 @@ export function EmpresaAtualBarra() {
   const varias = ctx.vinculos.length > 1;
 
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-borda bg-white/85 px-4 py-3">
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-borda bg-superficie/85 px-4 py-3">
       <p className="text-sm">
         <span className="text-tinta/60">Empresa ativa: </span>
         <strong>{ctx.atual.trade_name}</strong>
@@ -55,7 +55,7 @@ export function EscolhaEmpresa() {
   return (
     <section
       aria-labelledby="escolha-empresa-titulo"
-      className="mt-8 rounded-3xl border border-borda bg-white p-6 sm:p-8"
+      className="mt-8 rounded-3xl border border-borda bg-superficie p-6 sm:p-8"
     >
       <h2 id="escolha-empresa-titulo" className="text-xl font-bold">
         Escolha a empresa desta sessão
@@ -63,7 +63,7 @@ export function EscolhaEmpresa() {
       {ctx.selecaoAnteriorInvalida && (
         <p
           role="status"
-          className="mt-3 rounded-xl border border-amarelo/60 bg-amarelo/15 px-4 py-3 text-sm text-tinta"
+          className="mt-3 aviso-atencao text-tinta"
         >
           A empresa que você estava usando não está mais disponível para a sua
           conta. Nada foi ativado automaticamente: confirme abaixo com qual empresa
@@ -110,7 +110,7 @@ export function ErroContexto() {
   const ctx = useEmpresaSelecionada();
   if (ctx.fase !== "erro") return null;
   return (
-    <section role="alert" className="mt-8 rounded-3xl border border-borda bg-white p-8 text-center">
+    <section role="alert" className="mt-8 rounded-3xl border border-borda bg-superficie p-8 text-center">
       <p className="font-semibold">Não foi possível carregar suas empresas.</p>
       <p className="mt-2 text-sm text-tinta/70">
         Isto é uma falha de consulta, não a ausência de vínculo. Nada foi
@@ -174,7 +174,7 @@ export function AvisoOperacaoOutroContexto({ onFechar }: { onFechar: () => void 
   return (
     <div
       role="status"
-      className="mt-5 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-amarelo/60 bg-amarelo/15 px-4 py-3 text-sm text-tinta"
+      className="mt-5 flex flex-wrap items-start justify-between gap-3 aviso-atencao rounded-2xl text-tinta"
     >
       <p className="max-w-xl">
         Uma operação iniciada para a empresa anterior só teve a resposta recebida

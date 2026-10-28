@@ -59,12 +59,12 @@ export default function ParceirosAcesso() {
     <>
       <Header />
       <main className="mx-auto max-w-md px-4 pb-24 pt-14">
-        <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+        <p className="flex justify-center rotulo-marca">
           Solicitação de parceria
         </p>
         <h1 className="mt-3 text-center text-3xl sm:text-4xl">
           Acompanhar solicitação
-          <span className="mx-auto mt-3 block h-2 w-24 rounded-full bg-magenta" />
+          <span className="mx-auto mt-3 traco-marca" />
         </h1>
         <p className="mt-3 text-center text-sm text-tinta/60">
           Use o acesso provisório criado durante sua candidatura para acompanhar
@@ -72,7 +72,7 @@ export default function ParceirosAcesso() {
         </p>
 
         {!supabaseConfigurado && (
-          <div className="mt-6 rounded-2xl bg-amarelo/25 p-4 text-center text-sm">
+          <div className="mt-6 aviso-atencao p-4 text-center">
             Área temporariamente indisponível.
           </div>
         )}
@@ -107,7 +107,7 @@ export default function ParceirosAcesso() {
           </div>
 
           {erro && (
-            <p className="rounded-xl bg-magenta/10 px-4 py-2.5 text-sm font-medium text-magenta">
+            <p className="aviso-erro font-medium">
               {erro}
             </p>
           )}

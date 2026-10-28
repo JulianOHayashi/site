@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useEmpresaOpcional } from "../../portal/empresaContexto";
 
 /* =====================================================================
@@ -14,21 +14,21 @@ export const STATUS_SOLICITACAO: Record<
 > = {
   pending_user_confirmation: {
     rotulo: "Aguardando confirmação do usuário",
-    classes: "bg-amarelo/25 text-tinta",
+    classes: "bg-amarelo/10 text-amarelo",
   },
   approved_pending_settlement: {
     rotulo: "Aprovada — aguardando liquidação",
-    classes: "bg-[#E8F7EE] text-[#0B7A3E]",
+    classes: "bg-verde/10 text-verde",
   },
-  rejected: { rotulo: "Recusada", classes: "bg-magenta/10 text-magenta" },
-  expired: { rotulo: "Expirada", classes: "bg-papel2 text-tinta/60" },
-  cancelled: { rotulo: "Cancelada", classes: "bg-papel2 text-tinta/60" },
+  rejected: { rotulo: "Recusada", classes: "bg-vermelho/10 text-vermelho" },
+  expired: { rotulo: "Expirada", classes: "bg-superficie2 text-tinta/65" },
+  cancelled: { rotulo: "Cancelada", classes: "bg-superficie2 text-tinta/65" },
 };
 
 export function BadgeStatus({ status }: { status: string }) {
   const s = STATUS_SOLICITACAO[status] ?? {
     rotulo: status,
-    classes: "bg-papel2 text-tinta/70",
+    classes: "bg-superficie2 text-tinta/70",
   };
   return (
     <span
@@ -84,6 +84,14 @@ export function pegar(
  * apresentação: as rotas e o servidor continuam se protegendo sozinhos diante
  * de uma URL digitada.
  */
+/** Abas do Portal: estado ativo discreto (superfície elevada + traço da marca). */
+const classeNavPortal = ({ isActive }: { isActive: boolean }) =>
+  `relative inline-flex min-h-[40px] items-center rounded-xl px-3 py-2 transition ${
+    isActive
+      ? "bg-superficie3 text-tinta after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-marca"
+      : "text-tinta/70 hover:bg-superficie2 hover:text-tinta"
+  }`;
+
 export function PortalTopo({
   titulo,
   onSair,
@@ -103,52 +111,52 @@ export function PortalTopo({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-ciano">
+        <p className="rotulo-marca">
           Portal do parceiro SmallFlags
         </p>
-        <h1 className="mt-1 text-3xl sm:text-4xl">{titulo}</h1>
+        <h1 className="mt-3 text-3xl sm:text-4xl">{titulo}</h1>
       </div>
-      <nav className="flex items-center gap-2 text-sm font-semibold">
-        <Link
+      <nav aria-label="Portal" className="flex flex-wrap items-center gap-1 rounded-2xl border border-borda bg-superficie p-1 text-sm font-semibold">
+        <NavLink
           to="/portal/dashboard"
-          className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+          className={classeNavPortal}
         >
           Início
-        </Link>
-        <Link
+        </NavLink>
+        <NavLink
           to="/portal/documentos"
-          className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+          className={classeNavPortal}
         >
           Documentos
-        </Link>
+        </NavLink>
         {dependenteDeEmpresa && (
           <>
-            <Link
+            <NavLink
               to="/portal/validar"
-              className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+              className={classeNavPortal}
             >
               Validar QR
-            </Link>
-            <Link
+            </NavLink>
+            <NavLink
               to="/portal/solicitacoes"
-              className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+              className={classeNavPortal}
             >
               Solicitações
-            </Link>
+            </NavLink>
             {podeGerenciarEquipe && (
-              <Link
+              <NavLink
                 to="/portal/equipe"
-                className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+                className={classeNavPortal}
               >
                 Equipe
-              </Link>
+              </NavLink>
             )}
           </>
         )}
         {onSair && (
           <button
             onClick={onSair}
-            className="rounded-xl border-2 border-tinta px-3 py-2 transition hover:bg-tinta hover:text-white"
+            className="min-h-[40px] rounded-xl px-3 py-2 text-tinta/70 transition hover:bg-superficie2 hover:text-tinta"
           >
             Sair
           </button>
@@ -161,7 +169,7 @@ export function PortalTopo({
 export function CarregandoPortal() {
   return (
     <div className="mt-24 flex flex-col items-center gap-3">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-papel2 border-t-magenta" />
+      <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-borda border-t-ciano" />
       <p className="text-sm text-tinta/60">Carregando portal...</p>
     </div>
   );
@@ -169,7 +177,7 @@ export function CarregandoPortal() {
 
 export function PortalNaoConfigurado() {
   return (
-    <div className="mx-auto mt-10 max-w-md rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+    <div className="aviso-atencao mx-auto mt-10 max-w-md p-5 text-center">
       Portal em configuração — defina VITE_SUPABASE_URL e
       VITE_SUPABASE_ANON_KEY na Vercel e faça Redeploy.
     </div>

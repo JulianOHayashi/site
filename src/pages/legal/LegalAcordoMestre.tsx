@@ -79,7 +79,7 @@ export default function LegalAcordoMestre() {
           )}
 
           {estado.tipo === "indisponivel" && (
-            <div role="alert" className="rounded-3xl border border-borda bg-white p-8">
+            <div role="alert" className="rounded-3xl border border-borda bg-superficie p-8">
               <p className="font-semibold">
                 Não foi possível carregar o Acordo Mestre agora.
               </p>
@@ -110,7 +110,7 @@ export default function LegalAcordoMestre() {
           {doc && (
             <article>
               {/* Identidade do documento: versão e hash sempre juntos. */}
-              <dl className="grid gap-4 rounded-3xl border border-borda bg-white p-6 sm:grid-cols-2 sm:p-8">
+              <dl className="grid gap-4 rounded-3xl border border-borda bg-superficie p-6 sm:grid-cols-2 sm:p-8">
                 <div>
                   <dt className="text-xs font-bold uppercase tracking-widest text-tinta/60">
                     Versão
@@ -158,7 +158,7 @@ export default function LegalAcordoMestre() {
               {doc.status === "archived" && (
                 <p
                   role="status"
-                  className="mt-5 rounded-2xl border border-amarelo/60 bg-amarelo/15 px-4 py-3 text-sm"
+                  className="mt-5 aviso-atencao rounded-2xl"
                 >
                   Esta é uma versão histórica, mantida para consulta de contratos
                   celebrados sob ela.{" "}

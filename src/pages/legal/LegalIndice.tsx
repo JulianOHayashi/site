@@ -86,7 +86,7 @@ export default function LegalIndice() {
 
           {/* Falha de consulta NÃO é "não há documento publicado". */}
           {estado.fase === "indisponivel" && (
-            <div role="alert" className="rounded-3xl border border-borda bg-white p-8">
+            <div role="alert" className="rounded-3xl border border-borda bg-superficie p-8">
               <p className="font-semibold">
                 Não foi possível carregar os documentos legais agora.
               </p>

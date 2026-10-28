@@ -61,13 +61,14 @@ export function Abertura({
   return (
     <section className="relative overflow-hidden">
       <div aria-hidden className="malha malha-esmaecida absolute inset-0" />
-      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-12 sm:pb-20 sm:pt-20">
+      <div aria-hidden className="halo-marca -right-56 -top-64 h-[30rem] w-[30rem] opacity-[0.12]" />
+      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-24">
       <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
         <div className={aside ? "lg:col-span-7" : "lg:col-span-9"}>
-          <p className="rotulo text-magenta">{rotulo}</p>
-          <h1 className="display t-hero mt-5 max-w-[18ch] break-words">{titulo}</h1>
+          <p className="rotulo-marca">{rotulo}</p>
+          <h1 className="display t-hero mt-6 max-w-[18ch] break-words">{titulo}</h1>
           {texto && (
-            <div className="mt-7 max-w-xl text-lg leading-8 text-tinta/75">{texto}</div>
+            <div className="mt-7 max-w-xl text-lg leading-8 text-tinta/70">{texto}</div>
           )}
           {children && <div className="mt-9 flex flex-wrap gap-3">{children}</div>}
         </div>
@@ -108,7 +109,7 @@ export function Secao({
             <h2 id={idTitulo} className="t-secao">
               {titulo}
             </h2>
-            {intro && <div className="mt-4 max-w-sm leading-7 text-tinta/70">{intro}</div>}
+            {intro && <div className="mt-4 max-w-sm leading-7 text-tinta/65">{intro}</div>}
           </div>
           <div className="lg:col-span-8">{children}</div>
         </div>
@@ -119,7 +120,7 @@ export function Secao({
 
 type Destino = { rotulo: string; to: string };
 
-/** Faixa final de chamada: fundo tinta, uma ação principal e uma secundária. */
+/** Faixa final de chamada: painel escuro com fio da marca, uma ação principal e uma secundária. */
 export function Chamada({
   titulo,
   texto,
@@ -132,24 +133,26 @@ export function Chamada({
   secundaria?: Destino;
 }) {
   return (
-    <section className="mx-auto max-w-6xl px-4 pb-20 pt-6">
-      <div className="rounded-[2rem] bg-tinta px-6 py-12 text-white sm:px-12 sm:py-16">
-        <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
+    <section className="mx-auto max-w-6xl px-4 pb-20 pt-6 sm:px-6">
+      <div className="relative overflow-hidden rounded-[2rem] border border-borda bg-superficie px-6 py-12 shadow-painel sm:px-12 sm:py-16">
+        <hr aria-hidden className="divisor-marca absolute inset-x-0 top-0 opacity-70" />
+        <div aria-hidden className="halo-marca -bottom-48 -right-24 h-96 w-96 opacity-[0.12]" />
+        <div className="relative grid gap-8 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
             <h2 className="t-secao">{titulo}</h2>
-            {texto && <p className="mt-5 max-w-xl leading-7 text-white/75">{texto}</p>}
+            {texto && <p className="mt-5 max-w-xl leading-7 text-tinta/70">{texto}</p>}
           </div>
           <div className="flex flex-wrap gap-3 lg:col-span-5 lg:justify-end">
             <Link
               to={principal.to}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-tinta transition hover:bg-amarelo"
+              className="btn-primary px-6"
             >
               {principal.rotulo}
             </Link>
             {secundaria && (
               <Link
                 to={secundaria.to}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border-2 border-white/80 px-6 py-3 font-semibold text-white transition hover:bg-white hover:text-tinta"
+                className="btn-secondary px-6"
               >
                 {secundaria.rotulo}
               </Link>
@@ -173,16 +176,16 @@ export function Bloco({
 }) {
   const fio =
     destaque === "magenta"
-      ? "border-magenta"
+      ? "border-magenta/80"
       : destaque === "ciano"
-        ? "border-ciano"
+        ? "border-ciano/80"
         : destaque === "amarelo"
-          ? "border-amarelo"
+          ? "border-amarelo/80"
           : "border-borda";
   return (
     <div className={`border-t-2 ${fio} pt-5`}>
       <h3 className="text-lg leading-snug sm:text-xl">{titulo}</h3>
-      <div className="mt-2 text-sm leading-6 text-tinta/70">{children}</div>
+      <div className="mt-2 text-sm leading-6 text-tinta/65">{children}</div>
     </div>
   );
 }

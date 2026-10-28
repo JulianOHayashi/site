@@ -20,7 +20,7 @@ export default function ProvisionalGuard({ children }: { children: React.ReactNo
       <>
         <SiteHeader />
         <main className="mx-auto mt-16 max-w-md px-4">
-          <div className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+          <div className="aviso-atencao p-5 text-center">
             Área em configuração.
           </div>
         </main>

@@ -4,194 +4,476 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =====================================================================
+   DESIGN SYSTEM SMALLFLAGS — TEMA CLARO
+   Fonte única de verdade da paleta. Os tokens do Tailwind
+   (tailwind.config.ts) leem estes canais RGB.
+
+   Princípio: a interface é clara, limpa e de alto contraste. O gradiente
+   do ícone é ASSINATURA — aparece com intenção (CTA principal, marca,
+   destaques, divisores, estado selecionado), nunca como fundo de página.
+===================================================================== */
 :root {
-  --magenta: #e5007e;
-  --ciano: #00a8e0;
-  --amarelo: #ffc400;
-  --tinta: #17121f;
-  --papel: #fbfaf6;
-  --papel-2: #f1efe8;
+  color-scheme: light;
+
+  /* Neutros frios — tema claro */
+  --sf-bg: 255 255 255; /* #FFFFFF */
+  --sf-surface: 247 248 250; /* #F7F8FA */
+  --sf-surface-2: 239 241 244; /* #EFF1F4 */
+  --sf-surface-3: 229 232 237; /* #E5E8ED */
+  --sf-border: 227 230 235; /* #E3E6EB */
+  --sf-border-strong: 196 202 211; /* #C4CAD3 */
+  --sf-fg: 11 13 18; /* #0B0D12 */
+  --sf-muted: 91 100 114; /* #5B6472 */
+  --sf-noite: 8 9 11; /* preto da marca, fixo */
+
+  /* Cores da marca para TEXTO e ícones sobre branco.
+     Mesma família do ícone, escurecida até passar AA (≥ 4.5:1) no branco. */
+  --sf-ciano: 14 116 144; /* #0E7490 */
+  --sf-azul: 36 87 230; /* #2457E6 */
+  --sf-verde: 21 128 61; /* #15803D */
+  --sf-amarelo: 161 98 7; /* #A16207 */
+  --sf-laranja: 194 65 12; /* #C2410C */
+  --sf-vermelho: 217 45 32; /* #D92D20 */
+  --sf-magenta: 194 24 107; /* #C2186B */
+
+  /* Cores VIVAS, exatamente as do ícone: gradiente e preenchimentos.
+     Nunca usar como cor de texto sobre branco. */
+  --sf-v-ciano: 31 209 255; /* #1FD1FF */
+  --sf-v-azul: 77 132 255; /* #4D84FF */
+  --sf-v-verde: 52 227 90; /* #34E35A */
+  --sf-v-amarelo: 255 214 10; /* #FFD60A */
+  --sf-v-laranja: 255 138 31; /* #FF8A1F */
+  --sf-v-vermelho: 255 69 58; /* #FF453A */
+  --sf-v-magenta: 255 61 154; /* #FF3D9A */
+
+  /* Gradiente principal da marca — a ÚNICA definição no projeto. */
+  --sf-gradiente: linear-gradient(
+    110deg,
+    rgb(var(--sf-v-ciano)) 0%,
+    rgb(var(--sf-v-azul)) 17%,
+    rgb(var(--sf-v-verde)) 34%,
+    rgb(var(--sf-v-amarelo)) 51%,
+    rgb(var(--sf-v-laranja)) 67%,
+    rgb(var(--sf-v-vermelho)) 84%,
+    rgb(var(--sf-v-magenta)) 100%
+  );
+  /* Variante para TEXTO grande (títulos, números): mesma sequência,
+     escurecida para ≥ 3:1 no branco em todo o trecho. */
+  --sf-gradiente-texto: linear-gradient(
+    110deg,
+    #0891b2 0%,
+    #2457e6 20%,
+    #16a34a 40%,
+    #d97706 58%,
+    #ea580c 72%,
+    #dc2626 86%,
+    #db2777 100%
+  );
+  /* Mesma sequência em baixa intensidade, para halos e fundos de destaque. */
+  --sf-gradiente-suave: linear-gradient(
+    110deg,
+    rgb(var(--sf-v-ciano) / 0.14),
+    rgb(var(--sf-v-verde) / 0.1),
+    rgb(var(--sf-v-amarelo) / 0.12),
+    rgb(var(--sf-v-vermelho) / 0.1),
+    rgb(var(--sf-v-magenta) / 0.14)
+  );
+
+  --sf-raio: 1rem;
+  --sf-anel: rgb(var(--sf-ciano));
+  --sf-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
-html {
-  scroll-behavior: smooth;
+/* =====================================================================
+   BASE
+===================================================================== */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-papel font-body text-tinta antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .display {
+    @apply font-display font-bold tracking-tight text-tinta;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Campos de formulário padronizados em um só lugar.
+     Utilitários locais (largura, padding) continuam valendo; aqui ficam
+     cor, borda, foco, placeholder e estado desabilitado. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    @apply border-borda-forte bg-papel text-tinta;
+    transition:
+      border-color 150ms var(--sf-ease),
+      box-shadow 150ms var(--sf-ease),
+      background-color 150ms var(--sf-ease);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--sf-muted) / 0.8);
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):hover:not(:disabled),
+  select:hover:not(:disabled),
+  textarea:hover:not(:disabled) {
+    @apply border-borda-forte;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: rgb(var(--sf-ciano));
+    box-shadow: 0 0 0 3px rgb(var(--sf-ciano) / 0.25);
+  }
+  input[aria-invalid="true"],
+  select[aria-invalid="true"],
+  textarea[aria-invalid="true"] {
+    border-color: rgb(var(--sf-vermelho));
+  }
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    @apply cursor-not-allowed bg-superficie2 text-tinta/60;
+  }
+  select option {
+    @apply bg-papel text-tinta;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: rgb(var(--sf-ciano));
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+  input[type="file"] {
+    @apply text-sm text-tinta/70;
+  }
+  input[type="file"]::file-selector-button {
+    @apply mr-3 cursor-pointer rounded-lg border border-borda-forte bg-superficie2 px-3 py-2 text-sm font-semibold text-tinta;
+  }
+
+  code,
+  kbd {
+    @apply rounded-md bg-superficie2 px-1.5 py-0.5 text-[0.9em];
+  }
+
+  hr {
+    @apply border-borda;
+  }
 }
 
-body {
-  @apply bg-papel text-tinta font-body antialiased;
-}
-
-h1,
-h2,
-h3,
-.display {
-  @apply font-display font-bold tracking-tight;
-}
-
-/* Foco visível e consistente */
+/* Foco visível e consistente em todo elemento interativo. */
 :focus-visible {
-  outline: 3px solid var(--ciano);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: 2px solid var(--sf-anel);
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
 
-/* ===== Escala tipográfica fluida =====
-   Usada nos títulos editoriais das páginas públicas: cresce com a viewport
-   sem saltos e sem depender de uma cadeia de breakpoints por elemento. */
+/* =====================================================================
+   ESCALA TIPOGRÁFICA
+   Fluida: cresce com a viewport sem cadeia de breakpoints por elemento.
+===================================================================== */
 .t-hero {
-  font-size: clamp(2.5rem, 1.75rem + 2.6vw, 3.75rem);
-  line-height: 1.05;
-  letter-spacing: -0.028em;
+  font-size: clamp(2.6rem, 1.6rem + 3.4vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
 }
 .t-secao {
-  font-size: clamp(1.75rem, 1.35rem + 1.7vw, 2.75rem);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.85rem, 1.35rem + 1.8vw, 2.9rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
 }
 .t-numero {
-  font-size: clamp(3.5rem, 2rem + 6vw, 7rem);
-  line-height: 0.9;
-  letter-spacing: -0.04em;
+  font-size: clamp(3.75rem, 2rem + 6.5vw, 7.5rem);
+  line-height: 0.88;
+  letter-spacing: -0.045em;
   font-variant-numeric: tabular-nums;
 }
 
-/* ===== Ritmo e superfícies ===== */
+/* =====================================================================
+   COMPONENTES
+===================================================================== */
 @layer components {
-  /* Faixa padrão: mesma largura e o mesmo respiro vertical em todo o site. */
+  /* ---------- Ritmo ---------- */
   .faixa {
-    @apply mx-auto max-w-6xl px-4 py-12 sm:py-16;
+    @apply mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20;
   }
   .faixa-densa {
-    @apply mx-auto max-w-6xl px-4 py-8 sm:py-10;
+    @apply mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12;
   }
-  /* Fio de abertura de seção: separa sem o peso de uma borda de card. */
+  /* Abertura de seção: fio fino + respiro, sem peso de card. */
   .fio {
-    @apply border-t border-tinta/15 pt-8;
+    @apply border-t border-borda pt-10;
   }
-  /* Rótulo sobrescrito. O tamanho mínimo é 0.75rem para não cair abaixo do
-     limite de legibilidade quando somado ao tracking largo. */
+  /* Rótulo sobrescrito. Mínimo de 0.75rem com tracking largo. */
   .rotulo {
-    @apply text-xs font-bold uppercase tracking-[0.28em];
+    @apply text-xs font-semibold uppercase tracking-[0.24em];
   }
+  /* Rótulo com o traço da marca à esquerda — abertura de página/hero. */
+  .rotulo-marca {
+    @apply rotulo inline-flex items-center gap-3 text-tinta/65;
+  }
+  .rotulo-marca::before {
+    content: "";
+    @apply h-0.5 w-7 shrink-0 rounded-full;
+    background-image: var(--sf-gradiente);
+  }
+
+  /* ---------- Assinatura da marca ---------- */
+  /* Texto com o gradiente — usar em UMA palavra ou número de destaque. */
+  .texto-marca {
+    background-image: var(--sf-gradiente-texto);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  /* Borda com o gradiente sobre superfície escura (1px). */
+  .borda-marca {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(rgb(var(--sf-surface)), rgb(var(--sf-surface))) padding-box,
+      var(--sf-gradiente) border-box;
+  }
+  /* Divisor de 1px com o gradiente. */
+  .divisor-marca {
+    @apply h-px w-full border-0;
+    background-image: var(--sf-gradiente);
+  }
+  /* Barra curta de destaque (sob títulos, à esquerda de itens ativos). */
+  .traco-marca {
+    @apply block h-1 w-12 rounded-full;
+    background-image: var(--sf-gradiente);
+  }
+  /* Ponto de status com halo discreto. */
+  .ponto-vivo {
+    @apply relative inline-flex h-2.5 w-2.5 rounded-full bg-verde;
+    box-shadow: 0 0 0 4px rgb(var(--sf-verde) / 0.15);
+  }
+
+  /* ---------- Botões ----------
+     primary   → gradiente da marca, texto noite
+     secondary → transparente + borda
+     tertiary  → texto/link
+     Estados: hover, focus-visible (global), disabled, loading (aria-busy). */
+  .btn {
+    @apply relative inline-flex min-h-[44px] select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-[0.95rem] font-semibold leading-none;
+    transition:
+      background-position 400ms var(--sf-ease),
+      background-color 150ms var(--sf-ease),
+      border-color 150ms var(--sf-ease),
+      color 150ms var(--sf-ease),
+      box-shadow 200ms var(--sf-ease),
+      transform 150ms var(--sf-ease);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    @apply pointer-events-none cursor-not-allowed;
+  }
+
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-magenta px-6 py-3 font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500;
+    @apply btn text-noite;
+    background-image: var(--sf-gradiente);
+    background-size: 180% 100%;
+    background-position: 0% 50%;
+    box-shadow: 0 8px 22px -12px rgb(var(--sf-v-magenta) / 0.55);
   }
+  .btn-primary:hover:not(:disabled) {
+    background-position: 100% 50%;
+    box-shadow:
+      0 10px 30px -12px rgb(var(--sf-v-ciano) / 0.5),
+      0 10px 30px -14px rgb(var(--sf-v-magenta) / 0.5);
+  }
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled="true"] {
+    @apply bg-superficie3 text-tinta/45 shadow-none;
+    background-image: none;
+  }
+
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-tinta bg-transparent px-6 py-3 font-semibold text-tinta transition hover:bg-tinta hover:text-white;
+    @apply btn border border-borda-forte bg-transparent text-tinta;
   }
+  .btn-secondary:hover:not(:disabled) {
+    @apply border-tinta/60 bg-superficie2;
+  }
+  .btn-secondary:disabled,
+  .btn-secondary[aria-disabled="true"] {
+    @apply border-borda text-tinta/40;
+  }
+
+  .btn-tertiary {
+    @apply btn min-h-[44px] px-1 text-tinta underline decoration-borda-forte decoration-2 underline-offset-[6px];
+  }
+  .btn-tertiary:hover:not(:disabled) {
+    @apply decoration-ciano;
+  }
+  .btn-tertiary:disabled {
+    @apply text-tinta/40;
+  }
+
+  /* Ação destrutiva confirmada (ex.: revogar). */
+  .btn-perigo {
+    @apply btn bg-vermelho text-white;
+  }
+  .btn-perigo:hover:not(:disabled) {
+    box-shadow: 0 8px 24px -10px rgb(var(--sf-vermelho) / 0.6);
+    filter: brightness(1.06);
+  }
+
+  .btn-sm {
+    @apply min-h-[36px] rounded-lg px-3.5 py-2 text-sm;
+  }
+
+  /* Loading: aplicar aria-busy="true" no botão. O texto continua legível
+     para leitor de tela; o spinner é decorativo. */
+  .btn[aria-busy="true"] {
+    @apply cursor-progress;
+    color: transparent !important;
+  }
+  .btn[aria-busy="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 9999px;
+    border: 2px solid currentColor;
+    border-color: rgb(var(--sf-fg) / 0.85) rgb(var(--sf-fg) / 0.85) rgb(var(--sf-fg) / 0.85) transparent;
+    animation: girar 700ms linear infinite;
+  }
+  .btn-primary[aria-busy="true"]::after {
+    border-color: rgb(var(--sf-noite)) rgb(var(--sf-noite)) rgb(var(--sf-noite)) transparent;
+  }
+
+  /* ---------- Superfícies ---------- */
   .card {
-    @apply rounded-2xl border border-borda bg-white shadow-sm;
+    @apply rounded-2xl border border-borda bg-superficie;
+  }
+  /* Card navegável: hover sofisticado — borda acende, nada salta. */
+  .card-interativo {
+    @apply card;
+    transition:
+      border-color 200ms var(--sf-ease),
+      background-color 200ms var(--sf-ease),
+      box-shadow 250ms var(--sf-ease),
+      transform 250ms var(--sf-ease);
+  }
+  .card-interativo:hover {
+    @apply border-borda-forte bg-papel;
+    box-shadow: 0 18px 40px -24px rgb(16 24 40 / 0.18);
+    transform: translateY(-2px);
+  }
+  /* Painel de destaque com borda em gradiente (uso pontual). */
+  .painel-marca {
+    @apply borda-marca rounded-3xl shadow-painel;
+  }
+
+  /* ---------- Chips e status ---------- */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-borda bg-superficie px-3 py-1.5 text-sm text-tinta/80;
+  }
+  .status {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold;
+  }
+  .status-ok {
+    @apply status border-verde/30 bg-verde/10 text-verde;
+  }
+  .status-aviso {
+    @apply status border-amarelo/30 bg-amarelo/10 text-amarelo;
+  }
+  .status-erro {
+    @apply status border-vermelho/30 bg-vermelho/10 text-vermelho;
+  }
+  .status-info {
+    @apply status border-ciano/30 bg-ciano/10 text-ciano;
+  }
+  .status-neutro {
+    @apply status border-borda bg-superficie2 text-tinta/70;
+  }
+
+  /* ---------- Avisos (blocos) ---------- */
+  .aviso {
+    @apply rounded-xl border px-4 py-3 text-sm leading-6;
+  }
+  .aviso-erro {
+    @apply aviso border-vermelho/35 bg-vermelho/10 text-tinta;
+  }
+  .aviso-ok {
+    @apply aviso border-verde/35 bg-verde/10 text-tinta;
+  }
+  .aviso-atencao {
+    @apply aviso border-amarelo/35 bg-amarelo/10 text-tinta;
+  }
+
+  /* ---------- Formulários ---------- */
+  .campo {
+    @apply w-full rounded-xl border px-4 py-3 text-base;
+  }
+  .campo-rotulo {
+    @apply mb-1.5 block text-sm font-semibold text-tinta;
+  }
+  .campo-ajuda {
+    @apply mt-1.5 text-sm text-tinta/60;
+  }
+  .campo-erro {
+    @apply mt-1.5 text-sm font-medium text-vermelho;
+  }
+  .form-card {
+    @apply rounded-2xl border border-borda bg-superficie p-6 sm:p-8;
+  }
+
+  /* ---------- Links em texto ---------- */
+  .link {
+    @apply font-semibold text-tinta underline decoration-ciano/70 decoration-2 underline-offset-4 transition hover:decoration-ciano;
   }
 }
 
-/* ===== Manchas de cor da marca (fundo da home) ===== */
-.mancha {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.4;
-  animation: flutuar 22s ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-@keyframes flutuar {
-  from {
-    transform: translate(0, 0) scale(1);
-  }
+/* =====================================================================
+   ANIMAÇÃO — discreta, sempre com reduced-motion respeitado acima.
+===================================================================== */
+@keyframes girar {
   to {
-    transform: translate(60px, -40px) scale(1.12);
+    transform: rotate(360deg);
   }
 }
 
-/* ===== Nuvens (usadas pela versão /classica) ===== */
-.nuvem {
-  position: absolute;
-  left: -260px;
-  background: #ffffff;
-  border-radius: 9999px;
-  filter: drop-shadow(0 6px 12px rgba(40, 90, 130, 0.12));
-  animation-name: deriva;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-.nuvem::before,
-.nuvem::after {
-  content: "";
-  position: absolute;
-  background: #ffffff;
-  border-radius: 50%;
-}
-.nuvem::before {
-  width: 55%;
-  height: 170%;
-  left: 14%;
-  bottom: 18%;
-}
-.nuvem::after {
-  width: 38%;
-  height: 120%;
-  right: 12%;
-  bottom: 32%;
-}
-
-@keyframes deriva {
-  to {
-    transform: translateX(calc(100vw + 520px));
-  }
-}
-
-/* ===== Letreiro em movimento (marquee) ===== */
-.letreiro-faixa {
-  display: flex;
-  gap: 2rem;
-  width: max-content;
-  animation: rolar 24s linear infinite;
-}
-
-@keyframes rolar {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-/* ===== Polimento visual ===== */
-
-/* seleção de texto nas cores da marca */
-::selection {
-  background: var(--amarelo);
-  color: var(--tinta);
-}
-
-/* barra de rolagem discreta */
-::-webkit-scrollbar {
-  width: 10px;
-}
-::-webkit-scrollbar-track {
-  background: var(--papel);
-}
-::-webkit-scrollbar-thumb {
-  background: #d8d4c8;
-  border-radius: 8px;
-  border: 2px solid var(--papel);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--magenta);
-}
-
-/* entrada em cascata do hero */
 @keyframes entrar {
   from {
     opacity: 0;
-    transform: translateY(26px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -199,27 +481,62 @@ h3,
   }
 }
 .entrar {
-  animation: entrar 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation: entrar 0.6s var(--sf-ease) both;
 }
-.entrar-2 { animation-delay: 0.12s; }
-.entrar-3 { animation-delay: 0.24s; }
-.entrar-4 { animation-delay: 0.36s; }
-
-/* palavra gigante de contorno (CTA final) */
-.texto-contorno {
-  color: transparent;
-  -webkit-text-stroke: 2px rgba(251, 250, 246, 0.07);
+.entrar-2 {
+  animation-delay: 0.08s;
+}
+.entrar-3 {
+  animation-delay: 0.16s;
+}
+.entrar-4 {
+  animation-delay: 0.24s;
 }
 
-/* ===== Malha de fundo ===== 
-   Grade tênue usada atrás do hero. Puramente decorativa, sem custo de imagem. */
+/* =====================================================================
+   FUNDOS DECORATIVOS (sem imagem, sem custo de rede)
+===================================================================== */
+/* Grade tênue atrás do hero. */
 .malha {
   background-image:
-    linear-gradient(to right, rgba(23, 18, 31, 0.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(23, 18, 31, 0.055) 1px, transparent 1px);
+    linear-gradient(to right, rgb(var(--sf-fg) / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(var(--sf-fg) / 0.045) 1px, transparent 1px);
   background-size: 64px 64px;
 }
 .malha-esmaecida {
-  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 35%, transparent 78%);
-  mask-image: radial-gradient(120% 80% at 50% 0%, #000 35%, transparent 78%);
+  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%);
+}
+/* Halo de luz com as cores da marca — estático, desfocado uma única vez. */
+.halo-marca {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: var(--sf-gradiente);
+  filter: blur(80px);
+  opacity: 0.22;
+}
+
+/* =====================================================================
+   POLIMENTO
+===================================================================== */
+::selection {
+  background: rgb(var(--sf-v-ciano) / 0.35);
+  color: rgb(var(--sf-fg));
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(var(--sf-bg));
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--sf-border-strong));
+  border-radius: 8px;
+  border: 2px solid rgb(var(--sf-bg));
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--sf-muted));
 }

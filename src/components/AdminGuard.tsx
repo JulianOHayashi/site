@@ -62,7 +62,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
       <>
         <Header />
         <main className="mx-auto mt-16 max-w-md px-4">
-          <div className="rounded-2xl bg-amarelo/25 p-5 text-center text-sm">
+          <div className="aviso-atencao p-5 text-center">
             Supabase do site não configurado. Defina VITE_SUPABASE_URL e
             VITE_SUPABASE_ANON_KEY e recarregue.
           </div>
@@ -96,7 +96,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
       <>
         <Header />
         <main className="mx-auto max-w-md px-4 pb-24 pt-14 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-magenta">
+          <p className="rotulo-marca">
             Acesso restrito
           </p>
           <h1 className="mt-3 text-3xl">Painel administrativo</h1>
