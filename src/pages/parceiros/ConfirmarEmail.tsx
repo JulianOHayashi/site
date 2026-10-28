@@ -316,8 +316,12 @@ export default function ConfirmarEmail() {
                 <label className="mt-3 flex items-start gap-3 text-sm">
                   <input type="checkbox" checked={aceitos.has(doc.legal_document_id)}
                          onChange={() => alternarAceite(doc.legal_document_id)}
-                         aria-label={`Aceito: ${doc.title}`} className="mt-1" />
-                  <span>Li e aceito este documento.</span>
+                         aria-label={doc.doc_type === "privacy_notice" ? `Ciente: ${doc.title}` : `Aceito: ${doc.title}`} className="mt-1" />
+                  <span>
+                        {doc.doc_type === "privacy_notice"
+                          ? "Li e estou ciente deste Aviso de Privacidade."
+                          : "Li e aceito este documento."}
+                      </span>
                 </label>
               </div>
             ))}

@@ -166,3 +166,64 @@ export async function obterDocumentoPorVersao(
   const documento = converter(linha);
   return documento ? { tipo: "ok", documento } : { tipo: "ausente" };
 }
+
+
+export type LegalAcceptanceRecord = {
+  acceptanceId: string;
+  docType: LegalDocType;
+  version: string;
+  title: string;
+  contentHash: string | null;
+  isMaterialChange: boolean;
+  context: string;
+  acceptedAt: string;
+  revokedAt: string | null;
+};
+
+type LinhaAceiteRpc = {
+  acceptance_id?: unknown;
+  doc_type?: unknown;
+  version?: unknown;
+  title?: unknown;
+  content_hash?: unknown;
+  is_material_change?: unknown;
+  context?: unknown;
+  accepted_at?: unknown;
+  revoked_at?: unknown;
+};
+
+/**
+ * Histórico jurídico do usuário autenticado.
+ * A RPC já filtra por auth.uid(); aqui apenas validamos o formato.
+ */
+export async function listarMeusAceites(): Promise<
+  { tipo: "ok"; aceites: LegalAcceptanceRecord[] } | { tipo: "indisponivel" }
+> {
+  if (!supabase) return { tipo: "indisponivel" };
+  const { data, error } = await supabase.rpc("get_my_legal_acceptances");
+  if (error || !Array.isArray(data)) return { tipo: "indisponivel" };
+
+  const aceites: LegalAcceptanceRecord[] = [];
+  for (const item of data as LinhaAceiteRpc[]) {
+    const acceptanceId = texto(item.acceptance_id);
+    const docType = texto(item.doc_type);
+    const version = texto(item.version);
+    const title = texto(item.title);
+    const acceptedAt = texto(item.accepted_at);
+    if (!acceptanceId || !docType || !version || !title || !acceptedAt) continue;
+
+    aceites.push({
+      acceptanceId,
+      docType: docType as LegalDocType,
+      version,
+      title,
+      contentHash: texto(item.content_hash),
+      isMaterialChange: item.is_material_change === true,
+      context: texto(item.context) ?? "",
+      acceptedAt,
+      revokedAt: texto(item.revoked_at),
+    });
+  }
+
+  return { tipo: "ok", aceites };
+}

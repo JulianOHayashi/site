@@ -112,8 +112,8 @@ describe("B2 — claim por e-mail e identidade", () => {
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "senha-forte-1" } });
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
 
-    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
-    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    await waitFor(() => expect(screen.getByLabelText(/ciente: aviso de privacidade/i)).toBeDefined());
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByRole("button", { name: /aceitar e ativar acesso/i }));
 
     await waitFor(() => expect(screen.getByText(/não é o mesmo que confirmamos/i)).toBeDefined());

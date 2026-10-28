@@ -256,8 +256,10 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // modelo signable aprovado, a contratacao eletronica falha fechada.
     // 20261008130000 condiciona o financiamento publico ao modo de liquidacao.
     // 20261008140000 retira SELECT direto de anon/authenticated em
-    // legal_documents; leitura publica so por RPC autorizada. Total = 60.
-    expect(arquivos.length).toBe(60);
+    // legal_documents; leitura publica so por RPC autorizada. 20261027154258 publica
+    // os quatro documentos finais do onboarding; a migration seguinte move os
+    // aceites para depois do cadastro. Total = 62.
+    expect(arquivos.length).toBe(62);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {

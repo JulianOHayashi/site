@@ -95,6 +95,11 @@ export function PortalTopo({
   // Fora da casca do Portal não há contexto para consultar: mantém o
   // comportamento anterior.
   const dependenteDeEmpresa = empresa === null || empresa.fase === "pronta";
+  const podeGerenciarEquipe =
+    empresa !== null &&
+    empresa.fase === "pronta" &&
+    empresa.atual.role === "partner_owner" &&
+    empresa.atual.member_status === "active";
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -110,6 +115,12 @@ export function PortalTopo({
         >
           Início
         </Link>
+        <Link
+          to="/portal/documentos"
+          className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+        >
+          Documentos
+        </Link>
         {dependenteDeEmpresa && (
           <>
             <Link
@@ -124,6 +135,14 @@ export function PortalTopo({
             >
               Solicitações
             </Link>
+            {podeGerenciarEquipe && (
+              <Link
+                to="/portal/equipe"
+                className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+              >
+                Equipe
+              </Link>
+            )}
           </>
         )}
         {onSair && (

@@ -73,11 +73,11 @@ describe("A — signUp devolve sessao", () => {
     montar();
     await criarConta();
 
-    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
+    await waitFor(() => expect(screen.getByLabelText(/ciente: aviso de privacidade/i)).toBeDefined());
     // Antes do aceite, o claim NÃO foi chamado.
     expect(chamadas("claim_partner_application_account").length).toBe(0);
 
-    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: termos da conta/i));
     fireEvent.click(screen.getByRole("button", { name: /aceitar e ativar acesso/i }));
 
@@ -150,8 +150,8 @@ describe("C — claim responde provisional_terms_required", () => {
     });
     montar();
     await criarConta();
-    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
-    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    await waitFor(() => expect(screen.getByLabelText(/ciente: aviso de privacidade/i)).toBeDefined());
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: termos da conta/i));
     fireEvent.click(screen.getByRole("button", { name: /aceitar e ativar acesso/i }));
 
@@ -180,8 +180,8 @@ describe("D — wrapper responde acceptance_stale", () => {
     });
     montar();
     await criarConta();
-    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
-    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    await waitFor(() => expect(screen.getByLabelText(/ciente: aviso de privacidade/i)).toBeDefined());
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: termos da conta/i));
     fireEvent.click(screen.getByRole("button", { name: /aceitar e ativar acesso/i }));
 
@@ -210,8 +210,8 @@ describe("E — falha em um dos dois aceites", () => {
     });
     montar();
     await criarConta();
-    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
-    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    await waitFor(() => expect(screen.getByLabelText(/ciente: aviso de privacidade/i)).toBeDefined());
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     fireEvent.click(screen.getByLabelText(/aceito: termos da conta/i));
     fireEvent.click(screen.getByRole("button", { name: /aceitar e ativar acesso/i }));
 
@@ -229,10 +229,10 @@ describe("E — falha em um dos dois aceites", () => {
     );
     montar();
     await criarConta();
-    await waitFor(() => expect(screen.getByLabelText(/aceito: aviso de privacidade/i)).toBeDefined());
+    await waitFor(() => expect(screen.getByLabelText(/ciente: aviso de privacidade/i)).toBeDefined());
     const botao = screen.getByRole("button", { name: /aceitar e ativar acesso/i }) as HTMLButtonElement;
     expect(botao.disabled).toBe(true);
-    fireEvent.click(screen.getByLabelText(/aceito: aviso de privacidade/i));
+    fireEvent.click(screen.getByLabelText(/ciente: aviso de privacidade/i));
     expect(botao.disabled).toBe(true);
     fireEvent.click(screen.getByLabelText(/aceito: termos da conta/i));
     await waitFor(() => expect(botao.disabled).toBe(false));

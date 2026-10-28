@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "../../components/Header";
 import { UFS } from "../../lib/brazilStates";
@@ -10,9 +10,7 @@ import {
 } from "../../lib/onboardingValidacao";
 import {
   criarSolicitacao,
-  obterTermosSolicitacao,
   mensagemDeMotivo,
-  type TermosEstado,
 } from "../../services/partnerApplicationService";
 import { supabaseConfigurado } from "../../lib/supabase";
 
@@ -21,14 +19,10 @@ import { supabaseConfigurado } from "../../lib/supabase";
  *
  * A solicitação nasce ANTES de existir conta Auth. Nenhum owner é criado
  * aqui, e a RPC legada create_my_partner_owner_registration não é usada.
- * O backend decide tudo: esta tela apenas coleta e reflete.
  *
- * ACEITE JURÍDICO
- * O aceite é atado ao ID EXATO do documento vigente, num Set de ids — nunca
- * a um booleano solto. Se os termos forem republicados enquanto a tela está
- * aberta, o backend responde `acceptance_stale`, os termos são recarregados
- * e o aceite anterior é DESCARTADO: um booleano herdado viraria aceite
- * implícito de um texto que o usuário nunca leu.
+ * Os aceites jurídicos de onboarding não são coletados nesta tela. Eles são
+ * apresentados depois do cadastro, na ativação autenticada da conta
+ * provisória, e ficam consultáveis no Portal.
  */
 
 const CAMPOS_INICIAIS: CamposFormulario = {
@@ -56,31 +50,6 @@ export default function ParceirosCadastro() {
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
-  const [termos, setTermos] = useState<TermosEstado>({ tipo: "carregando" });
-  const [aceitos, setAceitos] = useState<Set<string>>(new Set());
-
-  const carregarTermos = useCallback(async () => {
-    setTermos({ tipo: "carregando" });
-    // Recarregar os termos SEMPRE limpa o aceite anterior.
-    setAceitos(new Set());
-    setTermos(await obterTermosSolicitacao());
-  }, []);
-
-  useEffect(() => {
-    void carregarTermos();
-  }, [carregarTermos]);
-
-  const alternarAceite = (id: string) =>
-    setAceitos((atual) => {
-      const proximo = new Set(atual);
-      if (proximo.has(id)) proximo.delete(id);
-      else proximo.add(id);
-      return proximo;
-    });
-
-  const documentos = termos.tipo === "carregado" ? termos.documentos : [];
-  const todosAceitos =
-    documentos.length > 0 && documentos.every((doc) => aceitos.has(doc.legal_document_id));
 
   const alterar = (nome: keyof CamposFormulario) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -98,20 +67,7 @@ export default function ParceirosCadastro() {
     e.preventDefault();
     setErroGeral(null);
 
-    // Sem os termos vigentes carregados, a RPC não é chamada.
-    if (termos.tipo !== "carregado") {
-      setErroGeral(
-        termos.tipo === "erro"
-          ? mensagemDeMotivo(termos.motivo)
-          : "Aguarde o carregamento dos termos."
-      );
-      return;
-    }
-
     const problemas = validarFormulario(campos);
-    if (!todosAceitos) {
-      problemas.aceite = "É necessário aceitar todos os termos para continuar.";
-    }
     setErros(problemas);
     if (Object.keys(problemas).length > 0) return;
 
@@ -133,17 +89,14 @@ export default function ParceirosCadastro() {
       representative_role_title: campos.representative_role_title.trim(),
       representative_email: campos.representative_email.trim().toLowerCase() || undefined,
       representative_phone: somenteDigitos(campos.representative_phone) || undefined,
-      // Somente os IDs. Versão e hash não são enviados: não são autoridade.
-      acceptances: documentos.map((doc) => ({ legal_document_id: doc.legal_document_id })),
+      // O cadastro inicial não coleta aceite jurídico. O backend exige o
+      // conjunto vazio e os documentos são aceitos depois, com sessão Auth.
+      acceptances: [],
     });
     setEnviando(false);
 
     if (!resultado.ok) {
       setErroGeral(mensagemDeMotivo(resultado.motivo));
-      if (resultado.motivo === "acceptance_stale") {
-        // Termos mudaram: recarrega e exige aceite explícito da nova versão.
-        void carregarTermos();
-      }
       return;
     }
     setEnviado(true);
@@ -279,68 +232,14 @@ export default function ParceirosCadastro() {
             {campo("representative_email", "E-mail do responsável", { tipo: "email" })}
             {campo("representative_phone", "Telefone do responsável")}
           </section>
-
-          <section className="card space-y-4 p-6">
-            <h2 className="text-lg font-bold">Termos</h2>
-
-            {termos.tipo === "carregando" ? (
-              <p className="text-sm text-tinta/60" role="status">
-                Carregando os termos...
-              </p>
-            ) : null}
-
-            {termos.tipo === "erro" ? (
-              <div role="alert" className="rounded-xl bg-amarelo/25 p-4 text-sm">
-                <p>{mensagemDeMotivo(termos.motivo)}</p>
-                <button
-                  type="button"
-                  onClick={() => void carregarTermos()}
-                  className="mt-3 rounded-xl border border-borda px-3 py-2 font-semibold"
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            ) : null}
-
-            {termos.tipo === "carregado"
-              ? documentos.map((doc) => (
-                  <div key={doc.legal_document_id} className="rounded-2xl border border-borda p-4">
-                    <p className="font-semibold">{doc.title}</p>
-                    <p className="text-xs text-tinta/50">Versão {doc.version}</p>
-                    {doc.content_url ? (
-                      <a
-                        href={doc.content_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-block text-sm underline"
-                      >
-                        Ler o documento
-                      </a>
-                    ) : null}
-                    {doc.content ? (
-                      <p className="mt-2 max-h-40 overflow-auto text-sm text-tinta/70">
-                        {doc.content}
-                      </p>
-                    ) : null}
-                    <label className="mt-3 flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={aceitos.has(doc.legal_document_id)}
-                        onChange={() => alternarAceite(doc.legal_document_id)}
-                        aria-label={`Aceito: ${doc.title}`}
-                        className="mt-1"
-                      />
-                      <span>Li e aceito este documento.</span>
-                    </label>
-                  </div>
-                ))
-              : null}
-
-            {erros.aceite ? (
-              <p className="text-sm text-red-700" role="alert">
-                {erros.aceite}
-              </p>
-            ) : null}
+          <section className="rounded-2xl border border-borda bg-papel2/60 p-4 text-sm text-tinta/70">
+            <p>
+              Os documentos jurídicos de onboarding serão apresentados depois
+              do envio do cadastro, na ativação do seu acesso provisório.
+            </p>
+            <Link to="/legal" className="mt-2 inline-block font-semibold underline">
+              Consultar documentos publicados
+            </Link>
           </section>
 
           {erroGeral ? (
@@ -351,7 +250,7 @@ export default function ParceirosCadastro() {
 
           <button
             type="submit"
-            disabled={enviando || termos.tipo !== "carregado"}
+            disabled={enviando}
             className="btn-primary w-full"
           >
             {enviando ? "Enviando..." : "Enviar solicitação"}
