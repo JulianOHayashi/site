@@ -115,6 +115,12 @@ export function PortalTopo({
         >
           Início
         </Link>
+        <Link
+          to="/portal/documentos"
+          className="rounded-xl border-2 border-borda px-3 py-2 transition hover:border-tinta"
+        >
+          Documentos
+        </Link>
         {dependenteDeEmpresa && (
           <>
             <Link
