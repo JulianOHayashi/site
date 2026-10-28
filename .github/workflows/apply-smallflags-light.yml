@@ -1,0 +1,50 @@
+name: Apply SmallFlags light design
+
+on:
+  push:
+    branches:
+      - tmp/apply-smallflags-light-20261028
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout reconstruction branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "BDFlow GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+
+      - name: Verify base and apply Claude patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="ca89b1ea6ec9d11061742d9ca33bbc289f754af3"
+          git merge-base --is-ancestor "$BASE" HEAD
+          git am --3way .tmp/smallflags/design.patch
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate full site
+        run: npm run validate
+
+      - name: Produce clean single design commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="ca89b1ea6ec9d11061742d9ca33bbc289f754af3"
+          rm -rf .tmp/smallflags
+          rm -f .github/workflows/apply-smallflags-light.yml
+          git add -A
+          git reset --soft "$BASE"
+          git commit -m "feat(design): SmallFlags light identity"
+          git push --force-with-lease origin HEAD:tmp/apply-smallflags-light-20261028
