@@ -3,6 +3,14 @@ import { Link } from "react-router-dom";
 import Header from "../../components/Header";
 import { supabase, supabaseConfigurado } from "../../lib/supabase";
 import { PortalNaoConfigurado } from "./portalUi";
+import { useCaptchaAuth } from "../../components/seguranca/useCaptchaAuth";
+import {
+  ehErroDeCaptcha,
+  MENSAGEM_CAPTCHA_FALHOU,
+  MENSAGEM_CAPTCHA_INDISPONIVEL,
+  MENSAGEM_CAPTCHA_PENDENTE,
+  opcoesComCaptcha,
+} from "../../lib/captcha";
 
 const RESPOSTA_INVARIANTE =
   "Se houver uma conta para este e-mail, enviaremos as instruções para redefinir a senha.";
@@ -11,24 +19,41 @@ export default function PortalForgotPassword() {
   const [email, setEmail] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [concluido, setConcluido] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const captcha = useCaptchaAuth("reset_senha");
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase || enviando) return;
+    // Sem CAPTCHA válido, nada é enviado ao Auth.
+    if (!captcha.pronto) {
+      setErro(captcha.bloqueado ? MENSAGEM_CAPTCHA_INDISPONIVEL : MENSAGEM_CAPTCHA_PENDENTE);
+      return;
+    }
 
+    setErro(null);
     setEnviando(true);
+    let recusadoPorCaptcha = false;
     try {
       const redirectTo =
         `${window.location.origin}/portal/redefinir-senha?mode=recovery`;
 
-      await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo,
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim().toLowerCase(),
+        opcoesComCaptcha(captcha.consumir(), { redirectTo })
+      );
+      // CAPTCHA recusado não diz nada sobre a conta, e nenhum e-mail saiu:
+      // pede nova tentativa em vez de fingir que enviou.
+      recusadoPorCaptcha = ehErroDeCaptcha(error);
     } finally {
-      // Resposta visual invariável: não revela se o e-mail existe, se está
-      // confirmado nem qualquer detalhe da conta.
       setEnviando(false);
-      setConcluido(true);
+      if (recusadoPorCaptcha) {
+        setErro(MENSAGEM_CAPTCHA_FALHOU);
+      } else {
+        // Resposta visual invariável: não revela se o e-mail existe, se está
+        // confirmado nem qualquer detalhe da conta.
+        setConcluido(true);
+      }
     }
   };
 
@@ -87,7 +112,11 @@ export default function PortalForgotPassword() {
               />
             </div>
 
-            <button type="submit" disabled={enviando} className="btn-primary w-full">
+            {captcha.widget}
+
+            {erro && <p role="alert" className="aviso-erro font-medium">{erro}</p>}
+
+            <button type="submit" disabled={enviando || !captcha.pronto} className="btn-primary w-full">
               {enviando ? "Enviando..." : "Enviar link de recuperação"}
             </button>
 

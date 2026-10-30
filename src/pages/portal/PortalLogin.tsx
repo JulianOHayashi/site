@@ -6,6 +6,13 @@ import { usePortalSiteAuth } from "../../hooks/usePortalSiteAuth";
 import { CarregandoPortal, PortalNaoConfigurado } from "./portalUi";
 import { safeInternalDestination } from "../../lib/safeInternalDestination";
 import { armazenamentoDeSessaoDisponivel } from "../../lib/armazenamentoSessao";
+import { useCaptchaAuth } from "../../components/seguranca/useCaptchaAuth";
+import {
+  MENSAGEM_CAPTCHA_INDISPONIVEL,
+  MENSAGEM_CAPTCHA_PENDENTE,
+  mensagemSeguraDeAuth,
+  opcoesComCaptcha,
+} from "../../lib/captcha";
 
 /**
  * /portal/login — nesta etapa, autentica no Supabase do SITE
@@ -24,6 +31,7 @@ export default function PortalLogin() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const captcha = useCaptchaAuth("login_portal");
   // Avalia uma vez: se o navegador não guarda dados do site, o login some ao
   // recarregar. Só avisa quando o teste de escrita falha de fato.
   const [semArmazenamento] = useState(() => !armazenamentoDeSessaoDisponivel());
@@ -57,19 +65,25 @@ export default function PortalLogin() {
 
   const entrar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || enviando) return;
+    // Sem CAPTCHA válido, nada é enviado ao Auth.
+    if (!captcha.pronto) {
+      setErro(captcha.bloqueado ? MENSAGEM_CAPTCHA_INDISPONIVEL : MENSAGEM_CAPTCHA_PENDENTE);
+      return;
+    }
     setErro(null);
     setEnviando(true);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password: senha,
+      options: opcoesComCaptcha(captcha.consumir()),
     });
     if (error) {
       setEnviando(false);
       setErro(
-        error.message.includes("Invalid login")
+        error.code === "invalid_credentials" || error.message.includes("Invalid login")
           ? "E-mail ou senha incorretos."
-          : "Não foi possível entrar. Tente novamente."
+          : mensagemSeguraDeAuth(error, "Não foi possível entrar. Tente novamente.")
       );
       return;
     }
@@ -149,13 +163,15 @@ export default function PortalLogin() {
             />
           </div>
 
+          {captcha.widget}
+
           {erro && (
             <p className="aviso-erro font-medium">
               {erro}
             </p>
           )}
 
-          <button type="submit" disabled={enviando} className="btn-primary w-full">
+          <button type="submit" disabled={enviando || !captcha.pronto} className="btn-primary w-full">
             {enviando ? "Aguarde..." : "Entrar"}
           </button>
 
