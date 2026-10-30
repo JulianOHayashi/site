@@ -111,7 +111,8 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
           </div>
           <button
             onClick={async () => {
-              await supabase?.auth.signOut();
+              // Sai só deste navegador; não derruba os outros aparelhos.
+              await supabase?.auth.signOut({ scope: "local" });
             }}
             className="btn-secondary mt-6"
           >
