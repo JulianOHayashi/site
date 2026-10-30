@@ -12,7 +12,11 @@ import {
   obterContextoValidador,
   type ContextoValidador,
 } from "../../services/partnerApplicationService";
-import { enviarUsoDeBeneficioPorCodigo } from "../../services/benefitUsageService";
+import {
+  enviarUsoDeBeneficioPorCodigo,
+  obterStatusUsoDeBeneficio,
+  type BenefitUsageRequestStatus,
+} from "../../services/benefitUsageService";
 import { normalizarDisplayCode } from "../../server/benefitUsage/benefitUsageContract";
 
 /**
@@ -47,7 +51,13 @@ export default function PortalValidar() {
   const [documentoConferido, setDocumentoConferido] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
-  const [sucesso, setSucesso] = useState<{ correlationId: string } | null>(null);
+  const [sucesso, setSucesso] = useState<{
+    correlationId: string;
+    unitId: string;
+  } | null>(null);
+  const [statusUso, setStatusUso] =
+    useState<BenefitUsageRequestStatus | null>(null);
+  const [falhaStatus, setFalhaStatus] = useState(false);
 
   // O valor digitado é preservado literalmente até a validação autoritativa.
   // Isso impede TAB, Unicode ou hífens extras de serem "limpos" pelo cliente e
@@ -101,6 +111,8 @@ export default function PortalValidar() {
     setDocumentoConferido(false);
     setFalha(null);
     setSucesso(null);
+    setStatusUso(null);
+    setFalhaStatus(false);
     setEnviando(false);
     void carregar();
     // Valores estáveis, não a identidade de `carregar`: re-render do contexto
@@ -114,6 +126,45 @@ export default function PortalValidar() {
     },
     []
   );
+
+  // Depois que o Site cria a solicitação no App, acompanha o desfecho
+  // autoritativo pela mesma rota de status usada no fluxo por QR. O Site
+  // nunca fabrica "confirmado": só apresenta um estado terminal devolvido
+  // pelo App para a correlação e unidade originais.
+  useEffect(() => {
+    if (!sucesso) return;
+    if (statusUso && statusUso !== "awaiting_user_confirmation") return;
+
+    let cancelado = false;
+    let emAndamento = false;
+
+    const consultar = async () => {
+      if (emAndamento) return;
+      emAndamento = true;
+      const r = await obterStatusUsoDeBeneficio({
+        correlationId: sucesso.correlationId,
+        unitId: sucesso.unitId,
+      });
+      emAndamento = false;
+      if (cancelado) return;
+
+      if (r.tipo === "ok") {
+        setStatusUso(r.status);
+        setFalhaStatus(false);
+      } else {
+        // Falha de leitura não altera o desfecho: mantém o último estado
+        // conhecido e tenta novamente no próximo intervalo.
+        setFalhaStatus(true);
+      }
+    };
+
+    void consultar();
+    const timer = window.setInterval(() => void consultar(), 2000);
+    return () => {
+      cancelado = true;
+      window.clearInterval(timer);
+    };
+  }, [statusUso, sucesso]);
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +193,16 @@ export default function PortalValidar() {
     }
     setEnviando(false);
     if (r.tipo === "ok") {
-      setSucesso({ correlationId: r.correlationId });
+      const statusInicial: BenefitUsageRequestStatus =
+        r.appStatus === "confirmed" ||
+        r.appStatus === "refused" ||
+        r.appStatus === "expired" ||
+        r.appStatus === "cancelled"
+          ? r.appStatus
+          : "awaiting_user_confirmation";
+      setStatusUso(statusInicial);
+      setFalhaStatus(false);
+      setSucesso({ correlationId: r.correlationId, unitId: unidade });
       // O código some da memória da tela assim que a solicitação é criada.
       setCodigo("");
     } else {
@@ -280,12 +340,49 @@ export default function PortalValidar() {
             )}
 
             {sucesso && (
-              <div className="aviso-atencao p-4">
-                <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
-                <p className="mt-2 text-tinta/70">
-                  O usuário precisa confirmar ou recusar no aplicativo SmallFlags. O
-                  benefício só é consumido depois dessa confirmação.
-                </p>
+              <div className="aviso-atencao p-4" role="status" aria-live="polite">
+                {statusUso === "confirmed" ? (
+                  <>
+                    <p className="font-semibold">Uso confirmado com sucesso.</p>
+                    <p className="mt-2 text-tinta/70">
+                      O aplicativo confirmou o uso e o benefício foi consumido.
+                    </p>
+                  </>
+                ) : statusUso === "refused" ? (
+                  <>
+                    <p className="font-semibold">Uso recusado pelo usuário.</p>
+                    <p className="mt-2 text-tinta/70">
+                      O benefício permanece disponível para o usuário.
+                    </p>
+                  </>
+                ) : statusUso === "expired" ? (
+                  <>
+                    <p className="font-semibold">Tempo para confirmação expirou.</p>
+                    <p className="mt-2 text-tinta/70">
+                      O benefício não foi consumido.
+                    </p>
+                  </>
+                ) : statusUso === "cancelled" ? (
+                  <>
+                    <p className="font-semibold">Solicitação cancelada.</p>
+                    <p className="mt-2 text-tinta/70">
+                      O benefício não foi consumido.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold">Solicitação enviada ao aplicativo.</p>
+                    <p className="mt-2 text-tinta/70">
+                      O usuário precisa confirmar ou recusar no aplicativo SmallFlags. O
+                      benefício só é consumido depois dessa confirmação.
+                    </p>
+                    {falhaStatus && (
+                      <p className="mt-2 text-xs text-tinta/60">
+                        Não foi possível atualizar o resultado agora. Tentando novamente...
+                      </p>
+                    )}
+                  </>
+                )}
                 <p className="mt-2 text-xs text-tinta/60">
                   Referência: <span className="font-mono">{sucesso.correlationId}</span>
                 </p>
