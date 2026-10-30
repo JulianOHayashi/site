@@ -1,6 +1,5 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Header from "../../components/Header";
-import { supabase } from "../../lib/supabase";
 import { usePortalSiteAuth } from "../../hooks/usePortalSiteAuth";
 import { PortalTopo } from "./portalUi";
 import { useEmpresaSelecionada } from "../../portal/empresaContexto";
@@ -35,26 +34,16 @@ const STATUS_EMPRESA: Record<string, string> = {
 };
 
 export default function PortalDashboard() {
-  const navigate = useNavigate();
   const { session } = usePortalSiteAuth(); // sessão garantida pelo PortalGuard
   const ctx = useEmpresaSelecionada();
 
   const empresa = ctx.fase === "pronta" ? ctx.atual : null;
 
-  // Sair encerra a sessão DESTE navegador (como o Sair do header). O
-  // default do supabase-js é scope "global", que revogaria os refresh
-  // tokens de todos os dispositivos da conta e derrubaria o login de quem
-  // não clicou em Sair.
-  const sair = async () => {
-    await supabase?.auth.signOut({ scope: "local" });
-    navigate("/portal/login", { replace: true });
-  };
-
   return (
     <>
       <Header />
       <main className="mx-auto max-w-4xl px-4 pb-24 pt-10">
-        <PortalTopo titulo="Painel do parceiro" onSair={sair} />
+        <PortalTopo titulo="Painel do parceiro" />
 
         {/* Conta autenticada (Supabase do site) */}
         <section className="card mt-8 p-6">
