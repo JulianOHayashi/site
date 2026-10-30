@@ -12,7 +12,7 @@
  * Acessibilidade: o símbolo é decorativo (alt=""). Quem envolve a marca em
  * um link dá o nome acessível ao link (ex.: aria-label="SmallFlags — início").
  */
-export const ICONE_MARCA_SRC = "/brand/smallflags-icon.png";
+export const ICONE_MARCA_SRC = "/brand/smallflags-icon-centered.svg";
 
 const TAMANHOS = {
   sm: { icone: "h-7 w-7", nome: "text-base", gap: "gap-2" },
