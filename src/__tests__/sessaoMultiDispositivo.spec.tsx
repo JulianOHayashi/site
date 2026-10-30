@@ -247,7 +247,7 @@ describe("dois aparelhos", () => {
 
     await montarAppA("/portal/dashboard");
     await screen.findByRole("heading", { name: "Painel do parceiro" });
-    fireEvent.click(screen.getByRole("button", { name: "Sair" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sair" }));
     await screen.findByRole("heading", { name: /Entrar no portal/i });
 
     expect(logouts).toEqual(["local"]);
