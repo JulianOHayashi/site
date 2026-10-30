@@ -34,6 +34,7 @@ const LISTA = [{
   city: "Vila Velha", uf: "ES", status: "under_review", company_review_status: "pending",
   authority_review_status: "pending", created_at: "2026-08-01T10:00:00Z",
   representative: { id: "rep-1", full_name: "Maria Souza", authority_status: "pending" },
+  is_qa_fixture: false,
 }];
 
 vi.mock("../lib/supabase", () => ({
@@ -90,6 +91,7 @@ describe("B10 — listagem e detalhe", () => {
   it("lista solicitacoes reais com filtro de situacao", async () => {
     montar();
     await waitFor(() => expect(screen.getByText("Super Teste LTDA")).toBeDefined());
+    expect(screen.queryByLabelText(/empresa de qa/i)).toBeNull();
     expect(screen.getByLabelText(/situação/i)).toBeDefined();
     const chamada = rpcMock.mock.calls.find((c) => c[0] === "admin_list_partner_applications");
     expect((chamada?.[1] as { p_status: string }).p_status).toBe("under_review");
@@ -103,6 +105,17 @@ describe("B10 — listagem e detalhe", () => {
     expect(screen.getByText(/maria@teste\.com\.br/)).toBeDefined();
     expect(screen.getByText(/contrato\.pdf/)).toBeDefined();
     expect(screen.getByText(/falta contrato/i)).toBeDefined();
+  });
+  it("identifica fixture QA sem esconder a solicitacao", async () => {
+    rpcMock.mockImplementation(async (nome: string) => {
+      if (nome === "admin_list_partner_applications") {
+        return { data: { ok: true, items: [{ ...LISTA[0], is_qa_fixture: true }] }, error: null };
+      }
+      return { data: { ok: true }, error: null };
+    });
+    montar();
+    await waitFor(() => expect(screen.getByText("Super Teste LTDA")).toBeDefined());
+    expect(screen.getByLabelText(/empresa de qa/i)).toBeDefined();
   });
 });
 
