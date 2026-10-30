@@ -41,8 +41,12 @@ export default function PortalDashboard() {
 
   const empresa = ctx.fase === "pronta" ? ctx.atual : null;
 
+  // Sair encerra a sessão DESTE navegador (como o Sair do header). O
+  // default do supabase-js é scope "global", que revogaria os refresh
+  // tokens de todos os dispositivos da conta e derrubaria o login de quem
+  // não clicou em Sair.
   const sair = async () => {
-    await supabase?.auth.signOut();
+    await supabase?.auth.signOut({ scope: "local" });
     navigate("/portal/login", { replace: true });
   };
 
