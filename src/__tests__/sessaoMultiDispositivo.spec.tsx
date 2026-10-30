@@ -247,7 +247,7 @@ describe("dois aparelhos", () => {
 
     await montarAppA("/portal/dashboard");
     await screen.findByRole("heading", { name: "Painel do parceiro" });
-    fireEvent.click(within(screen.getByRole("main")).getByRole("button", { name: "Sair" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sair" }));
     await screen.findByRole("heading", { name: /Entrar no portal/i });
 
     expect(logouts).toEqual(["local"]);
@@ -289,7 +289,7 @@ describe("todos os logouts normais são locais", () => {
       const texto = readFileSync(f, "utf8");
       for (const m of texto.matchAll(/\.signOut\(([^)]*)\)/g)) chamadas.push(`${f.slice(raiz.length)}: ${m[1].trim()}`);
     }
-    expect(chamadas.length).toBeGreaterThanOrEqual(5);
+    expect(chamadas.length).toBeGreaterThanOrEqual(4);
     const naoLocais = chamadas.filter((c) => !/scope:\s*["']local["']/.test(c));
     expect(naoLocais).toEqual([]);
   });

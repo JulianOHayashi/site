@@ -715,7 +715,7 @@ describe("4. diálogo de revogação não modal", () => {
 /* 5. Topo do Portal sem empresa selecionada                              */
 /* ===================================================================== */
 describe("5. navegação do topo enquanto se escolhe a empresa", () => {
-  it("esconde Validar QR e Solicitações, mantém Início e Sair", async () => {
+  it("esconde Validar QR e Solicitações, mantém Início e não duplica Sair no topo", async () => {
     obterVinculosParceiro.mockResolvedValue(duasOwner());
     renderPortal(<PortalDashboard />);
     await screen.findByRole("heading", { name: /escolha a empresa desta sessão/i });
@@ -724,7 +724,7 @@ describe("5. navegação do topo enquanto se escolhe a empresa", () => {
     expect(within(nav).getByRole("link", { name: /início/i })).toBeDefined();
     expect(within(nav).queryByRole("link", { name: /validar qr/i })).toBeNull();
     expect(within(nav).queryByRole("link", { name: /solicitações/i })).toBeNull();
-    expect(within(nav).getByRole("button", { name: /sair/i })).toBeDefined();
+    expect(within(nav).queryByRole("button", { name: /sair/i })).toBeNull();
   });
 
   it("com empresa selecionada, os quatro itens estão presentes", async () => {
@@ -735,7 +735,7 @@ describe("5. navegação do topo enquanto se escolhe a empresa", () => {
     for (const nome of [/início/i, /validar qr/i, /solicitações/i]) {
       expect(within(nav).getByRole("link", { name: nome })).toBeDefined();
     }
-    expect(within(nav).getByRole("button", { name: /sair/i })).toBeDefined();
+    expect(within(nav).queryByRole("button", { name: /sair/i })).toBeNull();
   });
 
   it("durante erro de consulta também não oferece destinos dependentes de empresa", async () => {
