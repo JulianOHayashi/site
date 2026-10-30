@@ -45,7 +45,9 @@ vi.mock("../services/partnerApplicationService", () => ({
 vi.mock("../services/benefitUsageService", () => ({
   enviarUsoDeBeneficioPorCodigo: (...a: unknown[]) => enviarUsoDeBeneficioPorCodigo(...a),
   enviarUsoDeBeneficio: vi.fn(),
-  obterStatusUsoDeBeneficio: vi.fn(),
+  // O polling de status (PortalValidar) roda após o envio; o mock precisa
+  // devolver um resultado tratável em vez de undefined.
+  obterStatusUsoDeBeneficio: vi.fn(async () => ({ tipo: "erro" as const })),
 }));
 
 import PortalDashboard from "../pages/portal/PortalDashboard";
