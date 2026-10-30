@@ -26,7 +26,7 @@ export default function ParceirosPainel() {
   }, [carregando, session, navigate]);
 
   const sair = async () => {
-    await supabase?.auth.signOut();
+    await supabase?.auth.signOut({ scope: "local" });
     navigate("/");
   };
 

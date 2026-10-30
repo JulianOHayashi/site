@@ -5,6 +5,7 @@ import { supabase, supabaseConfigurado } from "../../lib/supabase";
 import { usePortalSiteAuth } from "../../hooks/usePortalSiteAuth";
 import { CarregandoPortal, PortalNaoConfigurado } from "./portalUi";
 import { safeInternalDestination } from "../../lib/safeInternalDestination";
+import { armazenamentoDeSessaoDisponivel } from "../../lib/armazenamentoSessao";
 
 /**
  * /portal/login — nesta etapa, autentica no Supabase do SITE
@@ -23,6 +24,9 @@ export default function PortalLogin() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // Avalia uma vez: se o navegador não guarda dados do site, o login some ao
+  // recarregar. Só avisa quando o teste de escrita falha de fato.
+  const [semArmazenamento] = useState(() => !armazenamentoDeSessaoDisponivel());
 
   // Normaliza primeiro como destino estritamente interno e, em seguida,
   // aplica a allowlist das duas subárvores que podem iniciar autenticação.
@@ -106,6 +110,14 @@ export default function PortalLogin() {
         <p className="mt-3 text-center text-sm text-tinta/60">
           Acesso para parceiros comerciais SmallFlags.
         </p>
+
+        {semArmazenamento && (
+          <p role="status" className="aviso-atencao mt-6">
+            Este navegador não está guardando dados do site, então o login não
+            ficará salvo. Para continuar conectado, abra pelo Safari ou Chrome
+            normal, com cookies permitidos.
+          </p>
+        )}
 
         <form onSubmit={entrar} className="card mt-8 space-y-4 p-6">
           <div>

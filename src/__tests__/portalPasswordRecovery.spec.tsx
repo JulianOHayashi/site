@@ -114,7 +114,9 @@ describe("recuperação de senha do Portal", () => {
         password: SENHA_TESTE,
       })
     );
-    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    // Encerra só a sessão de recuperação deste navegador: nunca global.
+    await waitFor(() => expect(signOut).toHaveBeenCalledWith({ scope: "local" }));
+    expect(signOut).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Senha alterada")).toBeTruthy();
   });
 

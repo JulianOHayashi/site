@@ -69,8 +69,12 @@ export default function PortalResetPassword() {
       return;
     }
 
-    // Evita deixar uma sessão de recuperação aberta no navegador compartilhado.
-    await supabase.auth.signOut();
+    // Encerra a sessão de recuperação NESTE navegador (pode ser compartilhado).
+    // scope "local": o default do supabase-js é "global", que revogaria a
+    // sessão de todos os outros aparelhos da conta. Revogar os outros
+    // aparelhos após troca de senha seria uma decisão de segurança de produto
+    // — não é o objetivo declarado deste fluxo e não é feita aqui.
+    await supabase.auth.signOut({ scope: "local" });
     setSalvando(false);
     setSenha("");
     setConfirmacao("");
