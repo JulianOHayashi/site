@@ -147,7 +147,7 @@ export default function PortalDashboard() {
                 </Link>
               )}
 
-              {empresa.role === "partner_owner" && empresa.member_status === "active" && (
+              {empresa.role === "partner_owner" && (
                 <Link
                   to="/portal/pedidos"
                   className="group card-interativo p-7"
