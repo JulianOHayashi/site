@@ -146,6 +146,22 @@ export default function PortalDashboard() {
                   </span>
                 </Link>
               )}
+
+              {empresa.role === "partner_owner" && (
+                <Link
+                  to="/portal/pedidos"
+                  className="group card-interativo p-7"
+                >
+                  <h3 className="text-2xl font-bold">Pedidos</h3>
+                  <p className="mt-2 text-sm leading-6 text-tinta/70">
+                    Envie ou substitua a imagem para personalização de cada
+                    pedido de exclusividade.
+                  </p>
+                  <span className="mt-4 inline-block font-semibold text-ciano transition group-hover:translate-x-1">
+                    Abrir →
+                  </span>
+                </Link>
+              )}
             </section>
           </>
         )}
