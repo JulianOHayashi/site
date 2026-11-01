@@ -151,6 +151,14 @@ export function PortalTopo({
                 Equipe
               </NavLink>
             )}
+            {podeGerenciarEquipe && (
+              <NavLink
+                to="/portal/pedidos"
+                className={classeNavPortal}
+              >
+                Pedidos
+              </NavLink>
+            )}
           </>
         )}
         {onSair && (
