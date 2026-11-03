@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { isCommercialNicheCode, nicheByCode } from "../domain/commercial/niches";
+import { isFormationNicheCode, nicheByCode } from "../domain/commercial/niches";
 
 /**
  * Imagem de personalização do PEDIDO de exclusividade (backend M2 / R7).
@@ -104,7 +104,14 @@ export async function listarPedidosDaEmpresa(
     const codigo = typeof p.niche_code === "string" ? p.niche_code : "";
     pedidos.push({
       orderId: p.order_id,
-      nicho: isCommercialNicheCode(codigo) ? nicheByCode(codigo).displayName : "Pedido de exclusividade",
+      // Segmento contratado (Outros/substituição) prevalece sobre o nome da
+      // posição; pedidos antigos de calçados F/M mantêm o nome histórico.
+      nicho:
+        typeof p.segment_name === "string" && p.segment_name.trim()
+          ? p.segment_name
+          : isFormationNicheCode(codigo)
+            ? nicheByCode(codigo).displayName
+            : "Pedido de exclusividade",
       temImagem: p.has_customization_image === true,
       statusPagamento: typeof p.payment_status === "string" ? p.payment_status : null,
     });

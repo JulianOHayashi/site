@@ -97,8 +97,11 @@ const CATEGORIAS: Categoria[] = [
           <>
             Cada exclusividade reúne seis nichos, somando {TOTAL_UNIDADES_REFERENCIA} unidades
             na formação de referência: Supermercado (24) e Farmácia, Roupas femininas, Roupas
-            masculinas, Calçados femininos e Calçados masculinos (12 cada). Cada nicho é
-            contratado por inteiro, e cada CNPJ contrata um único nicho por exclusividade.
+            masculinas, Calçados e Outros (12 cada). Outros recebe um segmento comercial
+            autorizado pela SmallFlags, como papelaria ou pet shop, e também pode ocupar a
+            posição de Farmácia, Roupas ou Calçados; Supermercado nunca é substituído. Cada
+            nicho é contratado por inteiro, e cada CNPJ contrata um único nicho por
+            exclusividade.
           </>
         ),
       },

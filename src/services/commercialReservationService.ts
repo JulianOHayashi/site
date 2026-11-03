@@ -1,8 +1,10 @@
 /**
  * Reserva comercial — cliente de navegador.
  *
- * O navegador envia TRÊS coisas: qual empresa, qual nicho e como a empresa
- * quer cumprir a parcela de benefícios. Preço, fidelidade, forma de pagamento,
+ * O navegador envia qual empresa, qual posição, como a empresa quer cumprir a
+ * parcela de benefícios e, quando houver, o segmento de Outros pretendido.
+ * Se o segmento é aceito, se está livre na exclusividade e se a posição o
+ * admite (Supermercado nunca admite) é decidido pelo servidor. Preço, fidelidade, forma de pagamento,
  * componentes monetários, quantidade, identidade da oportunidade e prazo de
  * expiração são todos derivados no servidor — não há por onde enviá-los, e a
  * resposta é a única fonte do que a tela exibe.
@@ -23,6 +25,9 @@ export type ReservaComercial = {
   reservedUntil: string;
   reservationMinutes: number;
   nicheCode: string;
+  /** Segmento efetivamente reservado, como o servidor gravou. */
+  segmentCode: string | null;
+  segmentName: string | null;
   nominalQuantity: number;
   fidelized: boolean;
   paymentMethod: string;
@@ -42,6 +47,7 @@ export async function reservarOportunidade(params: {
   companyId: string;
   nicheCode: string;
   benefitSettlementMode: BenefitSettlementMode;
+  segmentId?: string | null;
 }): Promise<ResultadoReserva> {
   if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable" };
 
@@ -49,6 +55,8 @@ export async function reservarOportunidade(params: {
     p_company_id: params.companyId,
     p_niche_code: params.nicheCode,
     p_benefit_settlement_mode: params.benefitSettlementMode,
+    // Só enviado quando há segmento: mantém a chamada antiga idêntica.
+    ...(params.segmentId ? { p_segment_id: params.segmentId } : {}),
   });
   if (error) return { tipo: "erro", codigo: "rpc_error" };
 
@@ -71,6 +79,8 @@ export async function reservarOportunidade(params: {
       reservedUntil: String(o.reserved_until),
       reservationMinutes: Number(o.reservation_minutes),
       nicheCode: String(o.niche_code),
+      segmentCode: typeof o.segment_code === "string" ? o.segment_code : null,
+      segmentName: typeof o.segment_name === "string" ? o.segment_name : null,
       nominalQuantity: Number(o.nominal_quantity),
       fidelized: o.fidelized === true,
       paymentMethod: String(o.payment_method),

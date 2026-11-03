@@ -7,13 +7,43 @@
  * - o frontend nunca é autoridade sobre quantidade, status ou formação.
  */
 
+/**
+ * Posições comerciais ATIVAS (migration 20261103120000): seis posições, 84
+ * unidades. "footwear" unifica calçados; "others" é a posição de segmento
+ * variável. Supermercado (24) nunca é substituído.
+ */
 export type CommercialNicheCode =
   | "supermarket"
   | "pharmacy"
   | "womens_clothing"
   | "mens_clothing"
-  | "womens_footwear"
-  | "mens_footwear";
+  | "footwear"
+  | "others";
+
+/**
+ * Códigos HISTÓRICOS de calçados. Continuam existindo no banco para pedidos e
+ * registros antigos; não são vendidos de novo. O navegador só os aceita na
+ * resposta da formação enquanto o backend ainda não recebeu a migration.
+ */
+export type LegacyCommercialNicheCode = "womens_footwear" | "mens_footwear";
+
+/** Código de posição que a vitrine pode receber do servidor. */
+export type FormationNicheCode = CommercialNicheCode | LegacyCommercialNicheCode;
+
+/** Segmento ocupando uma posição (somente dados públicos). */
+export interface OccupyingSegment {
+  code: string;
+  name: string;
+}
+
+/** Segmento aprovado do catálogo público. */
+export interface CommercialSegment {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  overlapsNicheCode: string | null;
+}
 
 export type CommercialExclusivityStatus =
   | "forming"
@@ -51,7 +81,7 @@ export interface CommercialTerritory {
 
 /** Metadados de apresentação de um nicho (fonte local, não autoridade). */
 export interface CommercialNiche {
-  code: CommercialNicheCode;
+  code: FormationNicheCode;
   displayName: string;
   sortOrder: number;
   shortDescription: string;
@@ -62,11 +92,17 @@ export interface CommercialNiche {
 export interface CommercialOpportunity {
   id: string;
   exclusivityId: string;
-  nicheCode: CommercialNicheCode;
+  nicheCode: FormationNicheCode;
   displayName: string;
   contractedQuantity: number;
   status: CommercialOpportunityStatus;
   sortOrder: number;
+  /** A posição pode ser ocupada por um segmento de Outros (decisão do servidor). */
+  acceptsSegment: boolean;
+  /** A posição só existe com segmento (Outros). */
+  requiresSegment: boolean;
+  /** Segmento que ocupa a posição agora, se houver. */
+  segment: OccupyingSegment | null;
 }
 
 export interface CommercialExclusivity {

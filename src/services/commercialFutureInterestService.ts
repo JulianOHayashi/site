@@ -6,6 +6,7 @@ export type FutureInterest =
       tipo: "preorder";
       status: string;
       targetSequenceNumber: number;
+      segmentName?: string | null;
       already?: boolean;
     }
   | {
@@ -13,19 +14,28 @@ export type FutureInterest =
       status: string;
       position: number;
       firstPossibleExclusivitySequence: number;
+      segmentName?: string | null;
       already?: boolean;
     }
   | { tipo: "erro"; codigo: string };
 
+/**
+ * Interesse futuro (pré-compra / fila de venda). `segmentId` é o segmento de
+ * Outros pretendido para a posição; o servidor valida e guarda o snapshot —
+ * o registro não cria reserva, contrato nem aprovação.
+ */
 export async function joinFutureQueue(params: {
   companyId: string;
   nicheCode: string;
+  segmentId?: string | null;
 }): Promise<FutureInterest> {
   if (!supabase) return { tipo: "erro", codigo: "site_backend_unavailable" };
 
   const { data, error } = await supabase.rpc("join_my_commercial_future_queue", {
     p_company_id: params.companyId,
     p_niche_code: params.nicheCode,
+    // Só enviado quando há segmento: o backend anterior não tem o parâmetro.
+    ...(params.segmentId ? { p_segment_id: params.segmentId } : {}),
   });
   if (error) return { tipo: "erro", codigo: "rpc_error" };
 
@@ -42,6 +52,7 @@ export async function joinFutureQueue(params: {
       tipo: "preorder",
       status: String(o.status ?? "waiting"),
       targetSequenceNumber: Number(o.target_sequence_number),
+      segmentName: typeof o.segment_name === "string" ? o.segment_name : null,
       already: o.already === true,
     };
   }
@@ -54,6 +65,7 @@ export async function joinFutureQueue(params: {
       firstPossibleExclusivitySequence: Number(
         o.first_possible_exclusivity_sequence
       ),
+      segmentName: typeof o.segment_name === "string" ? o.segment_name : null,
       already: o.already === true,
     };
   }
@@ -88,6 +100,7 @@ export async function getFutureInterest(params: {
       tipo: "preorder",
       status: String(o.status ?? "waiting"),
       targetSequenceNumber: Number(o.target_sequence_number),
+      segmentName: typeof o.segment_name === "string" ? o.segment_name : null,
     };
   }
 
@@ -99,6 +112,7 @@ export async function getFutureInterest(params: {
       firstPossibleExclusivitySequence: Number(
         o.first_possible_exclusivity_sequence
       ),
+      segmentName: typeof o.segment_name === "string" ? o.segment_name : null,
     };
   }
 
