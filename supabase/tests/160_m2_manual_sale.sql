@@ -272,9 +272,10 @@ select tests.check_raises('confirmacao de pagamento e imutavel',
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_admin uuid; v_excl uuid; v_i int;
+  v_admin uuid; v_excl uuid; v_i int; v_seg uuid;
+  -- Migration 20261103120000: Calcados unificado + posicao Outros (com segmento).
   v_niches text[] := array['pharmacy','womens_clothing','mens_clothing',
-                           'womens_footwear','mens_footwear'];
+                           'footwear','others'];
   v_cnpjs  text[] := array['70000137000121','70000274000166','70000411000162',
                            '70000548000117','70000685000151'];
   v_opp uuid; v_comp uuid; v_ord jsonb; v_devido bigint;
@@ -283,6 +284,8 @@ begin
   select id into v_excl from public.commercial_exclusivities where sequence_number = 2;
   perform set_config('request.jwt.claims',
       json_build_object('role','authenticated','sub',v_admin)::text, true);
+  v_seg := (public.admin_create_commercial_segment(
+              'papelaria', 'Papelaria', 'papelaria')->>'segment_id')::uuid;
 
   for v_i in 1..5 loop
     select id into v_opp from public.commercial_opportunities
@@ -294,7 +297,8 @@ begin
         v_opp, v_comp, 'v1', now() - interval '1 day',
         'Responsavel R8', (now() + interval '30 days')::date,
         case when v_niches[v_i] = 'pharmacy' then 'cash' else 'direct_benefits' end,
-        'doc://pedido-' || v_niches[v_i]);
+        'doc://pedido-' || v_niches[v_i],
+        p_segment_id => case when v_niches[v_i] = 'others' then v_seg end);
     -- O valor pago é lido do INSTANTÂNEO IMUTÁVEL do próprio pedido, não de
     -- constante na fixture: sob a v1.4 o devido à SmallFlags é taxa principal
     -- + parcela de QA, nos dois modos de liquidação.

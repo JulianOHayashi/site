@@ -318,13 +318,15 @@ select tests.check_raises('titular nao mexe na oportunidade',
 rollback;
 
 -- A assinatura da RPC nao aceita preco, fidelidade, metodo, quantidade,
--- oportunidade nem expiracao: nao ha por onde o navegador enviar.
-select tests.check('a RPC aceita exatamente tres argumentos, todos nao-monetarios',
+-- oportunidade nem expiracao: nao ha por onde o navegador enviar. O quarto
+-- argumento (migration 20261103120000) e o SEGMENTO pretendido, opcional e
+-- validado no servidor; tambem nao e monetario.
+select tests.check('a RPC aceita exatamente quatro argumentos, nenhum monetario',
     (select pg_get_function_identity_arguments(p.oid)
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public'
         and p.proname = 'create_commercial_checkout_intent')
-    = 'p_company_id uuid, p_niche_code text, p_benefit_settlement_mode text');
+    = 'p_company_id uuid, p_niche_code text, p_benefit_settlement_mode text, p_segment_id uuid');
 
 -- ---------------------------------------------------------------------------
 -- 8. Segurança estrutural da funcao alterada.
@@ -336,9 +338,9 @@ select tests.check('RPC segue SECURITY DEFINER com search_path fixo',
       where n.nspname = 'public' and p.proname = 'create_commercial_checkout_intent'));
 select tests.check('anon e service_role nao executam a RPC de checkout',
     not has_function_privilege('anon',
-      'public.create_commercial_checkout_intent(uuid,text,text)','EXECUTE')
+      'public.create_commercial_checkout_intent(uuid,text,text,uuid)','EXECUTE')
     and not has_function_privilege('service_role',
-      'public.create_commercial_checkout_intent(uuid,text,text)','EXECUTE'));
+      'public.create_commercial_checkout_intent(uuid,text,text,uuid)','EXECUTE'));
 select tests.check('a RPC usa o helper canonico de titular, sem literal novo',
     (select prosrc like '%m2_is_company_owner%' and prosrc not like '%role = ''owner''%'
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
