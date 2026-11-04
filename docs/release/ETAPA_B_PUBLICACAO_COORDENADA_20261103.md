@@ -6,11 +6,21 @@
 
 Branch: `feat/commercial-positions-segments-20261103` (base `main` = `86a73b3`).
 Migration: `supabase/migrations/20261103120000_commercial_positions_segments.sql`
-(sha256 `3a6436a3f9645545bb201be70c99bff02e87d261cc977f2cfaedb568cf1af3b1`).
+— revisão final: blob git `2d9fd44f639f4e0e32bdd8884dbaf4de0f5bb688`,
+sha256 `3a6436a3f9645545bb201be70c99bff02e87d261cc977f2cfaedb568cf1af3b1`.
 
-## 1. Estado de Production revalidado (2026-11-03, somente SELECT)
+> **Sobre o sha256.** No patch (`git format-patch`) o arquivo aparece **duas
+> vezes**: criado no commit 1/5 (blob `8a7a495…`, sha256 `8dfad66c…`) e
+> alterado no 3/5 (preservação de ACL). O sha256 aplicável é o da revisão
+> final, que é o que fica na árvore do HEAD. Para conferir:
+> `git show <HEAD>:supabase/migrations/20261103120000_commercial_positions_segments.sql | sha256sum`.
+> O registro de versão (§3, passo 8) **não confia** nesse texto: ele exige a
+> impressão digital das 28 funções criadas pela migration
+> (`33d122ef4ed5c0af806c9d27f61ba7fb/28`) e aborta se ela não bater.
 
-`supabase/ops/20261103_precheck_readonly.sql` → 9/9 itens `ok = true`:
+## 1. Estado de Production revalidado (somente SELECT; 2026-11-03 e de novo em 2026-11-04)
+
+`supabase/ops/20261103_precheck_readonly.sql` → 10/10 itens `ok = true` (snapshot de 2026-11-04):
 
 | Item | Valor |
 |---|---|
@@ -20,6 +30,7 @@ Migration: `supabase/migrations/20261103120000_commercial_positions_segments.sql
 | Referências a calçados F/M | 0 |
 | Intents/pedidos/pré-compras/fila/fidelidade/provisionamento | 0/0/0/0/0/0 |
 | Objetos novos | inexistentes |
+| 12 funções substituídas, normalizadas | `154f4fa1…/12`, igual ao repositório (sem deriva) |
 | `cfr_unico` | presente |
 | `site_admins` | 1 |
 | ACL authenticated (reserva/fila/manual) | **false**/true/true |
@@ -69,12 +80,12 @@ Production). **PASS:** ida, segunda execução recusada, reversão exata e
 | 0 | Revisão do PR, gates verdes (§6) | revisor | aprovação |
 | 1 🔒 | Merge do PR em `main` e deploy do **frontend** | Vercel | autorização |
 | 2 | Verificar o frontend com o backend antigo (§4) | navegador | vitrine com 6 nichos antigos, sem seletor de segmento |
-| 3 | Rodar a pré-checagem (somente leitura) | execute_sql | 9/9 ok |
+| 3 | Rodar a pré-checagem (somente leitura) | execute_sql | 10/10 ok |
 | 4 🔒 | Reconciliar o histórico | SQL Editor ou execute_sql, arquivo exato | hash `c9924f1…` |
 | 5 | `supabase db push --dry-run` (opcional, se houver CLI conectado) | CLI | lista **só** `20261103120000` |
-| 6 | Pré-checagem de novo | execute_sql | 9/9 ok, hash pós |
+| 6 | Pré-checagem de novo | execute_sql | 10/10 ok, hash pós |
 | 7 🔒 | Aplicar a migration pelo **conteúdo exato do arquivo** numa única execução (SQL Editor ou execute_sql). **Não** usar `apply_migration` (cria outra versão) nem `db push` | operador | COMMIT sem erro |
-| 8 🔒 | Registrar a versão: `supabase/ops/20261103_register_positions_segments_version.sql` | execute_sql | 63 linhas, `20261103120000` presente |
+| 8 🔒 | Registrar a versão: `supabase/ops/20261103_register_positions_segments_version.sql` (verifica a impressão digital `33d122ef…/28`, o catálogo 6/84 e as tabelas novas) | execute_sql | 63 linhas, `20261103120000` presente |
 | 9 | Verificação pós-publicação (§5) | execute_sql e navegador | todos ok |
 
 Por que o frontend vai **antes**:
@@ -115,6 +126,29 @@ pré-condição.
   ser aprovada (D9).
 - ACL: as 3 RPCs recriadas herdam as permissões da assinatura antiga **neste
   ambiente**.
+
+### Corpos de função: o que muda byte a byte
+
+Doze funções existentes são **substituídas** por `CREATE OR REPLACE`. Em
+Production, 9 delas têm texto diferente do repositório (as migrations
+encurtadas, sem comentários), mas o conteúdo **normalizado** (sem comentários
+e espaços) é idêntico nas 12. Isso foi conferido por função em 2026-11-04 e
+está travado na pré-checagem. Depois da migration, Production passa a ter
+exatamente os corpos do repositório, com comentários. O rollback também
+restaura as versões do repositório: o resultado é equivalente ao estado
+anterior, mas não idêntico byte a byte.
+
+### Superfície pública nova em `get_current_commercial_formation`
+
+A função é `STABLE SECURITY DEFINER SET search_path TO 'public'`, com os
+mesmos atributos da versão em Production. O diff do corpo só acrescenta
+`accepts_segment`, `requires_segment` e `segment {code, name}` da posição
+ocupada (pedido vivo ou reserva vigente). Não saem empresa, valores nem
+identificadores. **Ponto de decisão:** o nome do segmento de uma reserva
+**ainda não paga** fica visível para quem consulta a vitrine. A vitrine usa
+isso para desabilitar o segmento já ocupado. A alternativa é expor só pedidos
+vivos e deixar a reserva ser recusada pelo servidor
+(`segment_already_in_exclusivity`).
 
 ## 4. Verificação do passo 2 (frontend novo, backend antigo)
 
@@ -162,7 +196,10 @@ não oferece.
   - C: rollback idêntico (funções, ACL, colunas, constraints, índices, gatilhos e dados);
   - D: rollback recusado com o modelo novo em uso;
   - E: ACL de Production preservada na ida e na volta.
-- Aplicação em consulta única (modo SQL Editor/execute_sql) ensaiada: 6/84, 2 auditorias.
+- Aplicação em consulta única (modo SQL Editor/execute_sql) ensaiada: 6/84, 2
+  auditorias, mesma impressão digital (`33d122ef…/28`) que via `psql -f`.
+- Registro da versão: aborta sem reconciliação, com função adulterada
+  (search_path trocado) e na repetição. Grava somente com a impressão correta.
 - Frontend: typecheck, Vitest (inclui `commercialSegments.spec.tsx`), build,
   build:worker e validate.
 

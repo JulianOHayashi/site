@@ -48,6 +48,15 @@ WITH h AS (
          AND pg_catalog.to_regclass('public.commercial_segment_requests') IS NULL
          AND pg_catalog.to_regprocedure('public.create_commercial_checkout_intent(uuid,text,text,uuid)') IS NULL
   UNION ALL
+  -- Deriva: as 12 funções que a migration SUBSTITUI têm de ser, fora
+  -- comentários e espaços, as mesmas da auditoria de 2026-11-04 (Production
+  -- e repositório deram o mesmo valor). Se alguém corrigiu uma delas direto em
+  -- Production, a migration apagaria a correção: aqui isso PARA a publicação.
+  SELECT 'funcoes substituidas sem deriva (normalizado)', f.v, f.v = '154f4fa1723ab7d1e508d108fc24c491/12'
+    FROM (SELECT pg_catalog.md5(pg_catalog.string_agg(p.oid::pg_catalog.regprocedure::text||':'||pg_catalog.md5(pg_catalog.regexp_replace(pg_catalog.regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '\s+', '', 'g')), ',' ORDER BY p.oid::pg_catalog.regprocedure::text))||'/'||count(*) v
+            FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname = 'public' AND p.proname IN ('admin_register_manual_commercial_order','build_app_provisioning_payload','calculate_niche_contract_pricing','cci_resposta_intencao','commercial_build_instrument_snapshot','create_commercial_checkout_intent','finalize_commercial_order_from_intent','get_current_commercial_formation','get_my_commercial_future_interest','get_my_company_commercial_summary','is_fidelized_context','join_my_commercial_future_queue')) f
+  UNION ALL
   SELECT 'restricao cfr_unico presente', '',
          EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname = 'cfr_unico')
   UNION ALL
