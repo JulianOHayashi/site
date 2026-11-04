@@ -71,10 +71,10 @@ q bdflow_upgrade_a "create schema supabase_migrations; create table supabase_mig
 tr '|' '\n' < "$HIST" | sed 's/^ *//;s/ *$//' | grep . | awk -F: '{printf "insert into supabase_migrations.schema_migrations(version,name) values (%c%s%c,%c%s%c);\n",39,$1,39,39,$2,39}' | psql_db bdflow_upgrade_a
 set +e; psql_db bdflow_upgrade_a < "$REG" >/dev/null 2>&1; RC_SEM=$?; set -e     # sem reconciliar: tem de abortar
 psql_db bdflow_upgrade_a < supabase/ops/20261103_reconcile_migration_history.sql >/dev/null
-# adulteração: uma função com search_path diferente muda a impressão digital
+# adulteração: uma função com search_path diferente diverge do manifesto
 q bdflow_upgrade_a "alter function public.list_commercial_segments() set search_path = public" >/dev/null
 set +e; SAIDA_ADULT=$(psql_db bdflow_upgrade_a < "$REG" 2>&1); RC_ADULT=$?; set -e
-echo "$SAIDA_ADULT" | grep -o 'impressao digital[^(]*' | head -1
+echo "$SAIDA_ADULT" | grep -o 'registro_abortado: [^:]*' | head -1 || true
 q bdflow_upgrade_a "alter function public.list_commercial_segments() set search_path = pg_catalog" >/dev/null
 psql_db bdflow_upgrade_a < "$REG" >/dev/null
 set +e; psql_db bdflow_upgrade_a < "$REG" >/dev/null 2>&1; RC_DUP=$?; set -e     # segunda vez: tem de abortar

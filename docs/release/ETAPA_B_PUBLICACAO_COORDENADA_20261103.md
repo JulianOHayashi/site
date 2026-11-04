@@ -6,25 +6,26 @@
 
 Branch: `feat/commercial-positions-segments-20261103` (base `main` = `86a73b3`).
 Migration: `supabase/migrations/20261103120000_commercial_positions_segments.sql`
-— revisão final: blob git `2d9fd44f639f4e0e32bdd8884dbaf4de0f5bb688`,
-sha256 `3a6436a3f9645545bb201be70c99bff02e87d261cc977f2cfaedb568cf1af3b1`.
+— revisão de 2026-11-04 (após a auditoria independente): blob git
+`e6fc749187b72fe24d954cd4d85cc1c6024b7c8c`, sha256
+`d1b0fdbe6a55201cb96fd1799777a42bf8c6e6bd1364d41c8387641b7b7302f4`.
 
-> **Sobre o sha256.** No patch (`git format-patch`) o arquivo aparece **duas
-> vezes**: criado no commit 1/5 (blob `8a7a495…`, sha256 `8dfad66c…`) e
-> alterado no 3/5 (preservação de ACL). O sha256 aplicável é o da revisão
-> final, que é o que fica na árvore do HEAD. Para conferir:
+> **O sha256 mudou** em relação à revisão auditada (`3a6436a3…`, blob
+> `2d9fd44f…`) por duas mudanças pedidas na auditoria: a vitrine pública só
+> divulga o segmento de venda confirmada, e a seção Z aborta a migration
+> inteira se o arquivo chegar ao servidor alterado (CRLF ou client_encoding
+> diferente de UTF-8). Conferir com
 > `git show <HEAD>:supabase/migrations/20261103120000_commercial_positions_segments.sql | sha256sum`.
-> O registro de versão (§3, passo 8) **não confia** nesse texto: ele exige a
-> impressão digital das 28 funções criadas pela migration
-> (`33d122ef4ed5c0af806c9d27f61ba7fb/28`) e aborta se ela não bater.
+> O registro da versão (§3, passo 9) não confia nesse texto: compara o banco,
+> **função por função**, com o manifesto gerado do próprio arquivo (§6).
 
-## 1. Estado de Production revalidado (somente SELECT; 2026-11-03 e de novo em 2026-11-04)
+## 1. Estado de Production revalidado (somente SELECT; 2026-11-03, 2026-11-04 e após a reconciliação)
 
 `supabase/ops/20261103_precheck_readonly.sql` → 10/10 itens `ok = true` (snapshot de 2026-11-04):
 
 | Item | Valor |
 |---|---|
-| Histórico | 62 linhas, hash `f13ee66f…` (pré-reconciliação) |
+| Histórico | 62 linhas, hash `c9924f10…` — **já reconciliado** pelo responsável (confirmado só lendo em 2026-11-04); a versão `20261103120000` ainda não existe |
 | Catálogo | 6 nichos antigos ativos, 24 + 5×12 = 84 |
 | Calçados F/M | só a GV nº 1 (`forming`), duas oportunidades `available` |
 | Referências a calçados F/M | 0 |
@@ -81,12 +82,13 @@ Production). **PASS:** ida, segunda execução recusada, reversão exata e
 | 1 🔒 | Merge do PR em `main` e deploy do **frontend** | Vercel | autorização |
 | 2 | Verificar o frontend com o backend antigo (§4) | navegador | vitrine com 6 nichos antigos, sem seletor de segmento |
 | 3 | Rodar a pré-checagem (somente leitura) | execute_sql | 10/10 ok |
-| 4 🔒 | Reconciliar o histórico | SQL Editor ou execute_sql, arquivo exato | hash `c9924f1…` |
+| 4 ✅ | Reconciliar o histórico — **já feito**; não repetir (o script recusaria: a pré-condição exige `f13ee66f…`) | — | hash `c9924f1…` confirmado |
 | 5 | `supabase db push --dry-run` (opcional, se houver CLI conectado) | CLI | lista **só** `20261103120000` |
 | 6 | Pré-checagem de novo | execute_sql | 10/10 ok, hash pós |
-| 7 🔒 | Aplicar a migration pelo **conteúdo exato do arquivo** numa única execução (SQL Editor ou execute_sql). **Não** usar `apply_migration` (cria outra versão) nem `db push` | operador | COMMIT sem erro |
-| 8 🔒 | Registrar a versão: `supabase/ops/20261103_register_positions_segments_version.sql` (verifica a impressão digital `33d122ef…/28`, o catálogo 6/84 e as tabelas novas) | execute_sql | 63 linhas, `20261103120000` presente |
-| 9 | Verificação pós-publicação (§5) | execute_sql e navegador | todos ok |
+| 7 🔒 | Aplicar a migration pelo **conteúdo exato do arquivo** (UTF-8, LF) numa única execução: SQL Editor, execute_sql ou `psql -f` com `client_encoding` UTF8. **Não** usar `apply_migration` (cria outra versão) nem `db push` | operador | COMMIT sem erro; `transporte_corrompido` = arquivo alterado no caminho, nada foi aplicado |
+| 8 | Diagnóstico somente leitura: `supabase/ops/20261104_fingerprint_diagnostico.sql` | execute_sql | **zero linhas** |
+| 9 🔒 | Registrar a versão: `supabase/ops/20261103_register_positions_segments_version.sql` (manifesto por função, objetos, catálogo) | execute_sql | 63 linhas, `20261103120000` presente |
+| 10 | Verificação pós-publicação (§5) | execute_sql e navegador | todos ok |
 
 Por que o frontend vai **antes**:
 
@@ -98,11 +100,12 @@ Por que o frontend vai **antes**:
 
 O frontend **antigo** com o backend **novo** falha fechado: o parser rejeita os
 códigos `footwear` e `others` e mostra erro na vitrine. Por isso a migration
-vem depois e a janela entre os passos 7 e 9 deve ser curta.
+vem depois e a janela entre os passos 7 e 10 deve ser curta.
 
-Os passos 7 e 8 são duas transações. Se o 8 falhar depois do 7, o banco já
-está correto: basta corrigir a causa e repetir o 8, que é idempotente por
-pré-condição.
+Os passos 7 e 9 são duas transações. Se o 9 recusar depois do 7, a mensagem
+diz qual função ou objeto diverge e de que forma (o passo 8 mostra o mesmo em
+tabela). Nada é gravado no histórico até o banco bater com o arquivo; não
+há registro parcial.
 
 ### O que a migration faz em Production (impacto real)
 
@@ -138,17 +141,17 @@ exatamente os corpos do repositório, com comentários. O rollback também
 restaura as versões do repositório: o resultado é equivalente ao estado
 anterior, mas não idêntico byte a byte.
 
-### Superfície pública nova em `get_current_commercial_formation`
+### Vitrine pública (`get_current_commercial_formation`)
 
-A função é `STABLE SECURITY DEFINER SET search_path TO 'public'`, com os
-mesmos atributos da versão em Production. O diff do corpo só acrescenta
-`accepts_segment`, `requires_segment` e `segment {code, name}` da posição
-ocupada (pedido vivo ou reserva vigente). Não saem empresa, valores nem
-identificadores. **Ponto de decisão:** o nome do segmento de uma reserva
-**ainda não paga** fica visível para quem consulta a vitrine. A vitrine usa
-isso para desabilitar o segmento já ocupado. A alternativa é expor só pedidos
-vivos e deixar a reserva ser recusada pelo servidor
-(`segment_already_in_exclusivity`).
+Atributos iguais aos da versão em Production (`STABLE SECURITY DEFINER SET
+search_path TO 'public'`). Acrescenta `accepts_segment`, `requires_segment`
+e `segment {code, name}`, e o segmento só aparece com **venda confirmada**:
+oportunidade `contracted` e pedido com `payment_status = 'confirmed'`. Reserva,
+pedido em rascunho e pagamento pendente não divulgam a identidade comercial.
+Empresa, CNPJ, valores e identificadores do pedido nunca saem (testado na
+suíte 270). A duplicidade continua barrada no servidor na reserva
+(`segment_already_in_exclusivity`). O frontend avisa que a disponibilidade é
+confirmada na reserva e mostra a recusa sem liberar a contratação.
 
 ## 4. Verificação do passo 2 (frontend novo, backend antigo)
 
@@ -177,31 +180,34 @@ não oferece.
 
 ## 6. Estratégia de testes (executada localmente; ver relatório)
 
-- Suíte SQL `270_commercial_positions_segments.sql`: 72 checks, cobrindo
-  catálogo, D2, RLS, solicitação só por owner, decisão só por admin,
-  unicidade de segmento por exclusividade (sequencial; a corrida simultânea
-  entre duas sessões **não** foi ensaiada: a proteção é o advisory lock na
-  reserva mais os índices únicos em pedidos e pré-compras, que valem mesmo
-  sob corrida), Supermercado nunca, snapshot imutável, fidelidade por
-  identidade, preço preservado, provisionamento e instrumento falhando fechado.
-- Testes mutantes no SQL e no frontend: as mutações sobreviventes viraram testes.
-- Não-regressão da suíte SQL auxiliar: assinaturas de FAIL e ERROR idênticas às
-  do `main` (as 15 suítes que já falhavam no `main` continuam iguais, por
-  fixtures antigas; nenhuma falha nova).
+Todos executados de verdade em **PostgreSQL 17.6** (a versão do staging) e
+em PostgreSQL 16.15, em bancos descartáveis:
+
+- Suíte SQL `270_commercial_positions_segments.sql`: 77 checks (PG17.6 e
+  PG16), incluindo a vitrine sem segmento de reserva e de pagamento pendente.
+- Registro da versão (`scripts/db-test/register-version-check.sh`): 17/17 nos
+  dois motores. Aceita a migration aplicada por `psql -f` e em consulta única,
+  com search_path de sessão vazio, `extensions` ou `public`, e deixa 63
+  versões. Recusa, sem gravar nada: histórico não reconciliado, corpo alterado,
+  atributo alterado, sobrecarga extra, índice ausente, migration que falhou
+  (D2), arquivo com CRLF e client_encoding LATIN1 (nesses dois a própria
+  migration aborta inteira).
+- Concorrência real (`scripts/db-test/segment-concurrency-check.sh`): 12/12
+  nos dois motores, com sessões psql paralelas: espera observada em
+  `pg_locks`, commit/rollback, 10 rodadas simultâneas, reserva expirada,
+  índice único de pedido sob INSERT concorrente, zero deadlocks. Mutação sem
+  a trava consultiva: as duas reservas passam (o teste pega).
 - Ensaio de upgrade sobre o estado de Production
-  (`scripts/db-test/upgrade-positions-segments-check.sh`):
-  - A: upgrade;
-  - A2: registro da versão;
-  - B: abort pelo D2;
-  - C: rollback idêntico (funções, ACL, colunas, constraints, índices, gatilhos e dados);
-  - D: rollback recusado com o modelo novo em uso;
-  - E: ACL de Production preservada na ida e na volta.
-- Aplicação em consulta única (modo SQL Editor/execute_sql) ensaiada: 6/84, 2
-  auditorias, mesma impressão digital (`33d122ef…/28`) que via `psql -f`.
-- Registro da versão: aborta sem reconciliação, com função adulterada
-  (search_path trocado) e na repetição. Grava somente com a impressão correta.
-- Frontend: typecheck, Vitest (inclui `commercialSegments.spec.tsx`), build,
-  build:worker e validate.
+  (`scripts/db-test/upgrade-positions-segments-check.sh`), nos dois motores:
+  A upgrade; A2 registro; B abort pelo D2; C rollback idêntico (funções, ACL,
+  colunas, constraints, índices, gatilhos e dados); D rollback recusado com o
+  modelo novo em uso; E ACL de Production preservada.
+- Não-regressão da suíte SQL auxiliar (PG16): assinaturas de FAIL e ERROR
+  idênticas às do `main` (as 15 suítes que já falhavam no `main` continuam
+  iguais, por fixtures antigas; nenhuma falha nova).
+- Frontend × backend real: `formationCompatibilidadeBackend.spec.ts` usa a
+  resposta de Production (backend antigo) e a do PG17.6 migrado (backend novo).
+- Frontend: typecheck, Vitest, build, build:worker e validate.
 
 ## 7. Rollback
 

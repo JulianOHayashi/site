@@ -101,7 +101,12 @@ export interface CommercialOpportunity {
   acceptsSegment: boolean;
   /** A posição só existe com segmento (Outros). */
   requiresSegment: boolean;
-  /** Segmento que ocupa a posição agora, se houver. */
+  /**
+   * Segmento que ocupa a posição, SÓ quando a venda está confirmada
+   * (contratada e paga). Reserva em andamento não aparece aqui: a
+   * ausência NÃO significa que o segmento está livre — quem decide é o
+   * servidor na reserva.
+   */
   segment: OccupyingSegment | null;
 }
 

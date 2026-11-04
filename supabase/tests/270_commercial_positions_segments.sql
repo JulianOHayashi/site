@@ -259,6 +259,16 @@ select tests.check('substituicao mantem 12 unidades e nao cria posicao nova',
     and (select bool_and(nominal_quantity = 12) from public.commercial_checkout_intents
           where exclusivity_id = :'excl270' and segment_id is not null));
 
+-- Vitrine pública com CINCO reservas vivas de segmento: nenhuma identidade
+-- comercial é divulgada (só a venda confirmada divulga; ver seção 13).
+select public.get_current_commercial_formation('ES','Viana') as f_res \gset
+select tests.check('vitrine publica nao divulga segmento de reserva nao paga',
+    (select count(*) from jsonb_array_elements((:'f_res')::jsonb -> 'opportunities') o
+      where o ? 'segment' and jsonb_typeof(o->'segment') = 'null') = 6
+    and (select count(*) from public.commercial_checkout_intents
+          where exclusivity_id = :'excl270' and segment_id is not null
+            and status in ('draft','awaiting_contract') and reserved_until > now()) = 5);
+
 -- ---------------------------------------------------------------------------
 -- 8. Nenhuma posição vendida duas vezes
 -- ---------------------------------------------------------------------------
@@ -478,6 +488,36 @@ select tests.check('fidelidade de segmento vale em qualquer posicao elegivel, nu
     public.is_fidelized_context('27010008000195','ES','Viana','pharmacy', (:'s_pap')::uuid)
     and public.is_fidelized_context('27010008000195','ES','Viana','footwear', (:'s_pap')::uuid)
     and not public.is_fidelized_context('27010008000195','ES','Viana','others', (:'s_mat')::uuid));
+-- Vitrine pública: pedido ASSINADO com pagamento PENDENTE ainda não divulga
+-- o segmento; depois da confirmação do pagamento, divulga só código e nome.
+update public.commercial_exclusivities set is_current = false where id = :'excl270';
+update public.commercial_exclusivities set is_current = true where id = :'excl2701';
+select public.get_current_commercial_formation('ES','Viana') as f_pend \gset
+select tests.check('vitrine: pedido assinado com pagamento pendente nao divulga o segmento',
+    (select o->'segment' = 'null'::jsonb and o->>'status' <> 'contracted'
+       from jsonb_array_elements((:'f_pend')::jsonb -> 'opportunities') o
+      where o->>'niche_code' = 'others'));
+select ((:'r_man_seg')::jsonb ->> 'order_id') as ord_seg \gset
+select case when pricing_rule_version >= 3 then smallflags_total_remuneration_cents
+            else bdflow_due_cents end as due_seg
+  from public.commercial_exclusivity_orders where id = :'ord_seg' \gset
+select tests.impersonate('authenticated', :'uid_adm');
+select public.admin_confirm_manual_bdflow_payment((:'ord_seg')::uuid, (:'due_seg')::bigint,
+  'ref-270-seg', 'teste 270: confirmacao de pagamento') as r_conf \gset
+reset role;
+select public.get_current_commercial_formation('ES','Viana') as f_conf \gset
+select tests.check('pagamento do pedido de segmento confirmado',
+    (:'r_conf')::jsonb ->> 'ok' = 'true');
+select tests.check('vitrine: venda confirmada divulga somente codigo e nome do segmento',
+    (select o->'segment' = '{"code": "papelaria", "name": "Papelaria"}'::jsonb
+            and o->>'status' = 'contracted'
+       from jsonb_array_elements((:'f_conf')::jsonb -> 'opportunities') o
+      where o->>'niche_code' = 'others'));
+select tests.check('vitrine: nenhum dado empresarial ou financeiro do pedido',
+    position('27010008000195' in (:'f_conf')::text) = 0
+    and position((:'c8')::text in (:'f_conf')::text) = 0
+    and position(:'ord_seg' in (:'f_conf')::text) = 0
+    and position('Titular 270-8' in (:'f_conf')::text) = 0);
 select tests.check_raises('identidade de fidelidade e imutavel',
     $sql$update public.commercial_fidelity_records set fidelity_identity = 'pharmacy'
          where cnpj = '27010008000195' and fidelity_identity = 'segment:papelaria'$sql$,

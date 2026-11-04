@@ -146,6 +146,9 @@ export default function SeletorSegmento({
           {catalogo.fase === "ok" && catalogo.lista.length > 0 && (
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">Segmentos disponíveis</legend>
+              <p className="text-xs text-tinta/60" data-testid="aviso-disponibilidade-segmento">
+                A disponibilidade do segmento nesta exclusividade é confirmada no momento da reserva.
+              </p>
               {catalogo.lista.map((s) => {
                 const ocupado = ocupados.has(s.code);
                 return (

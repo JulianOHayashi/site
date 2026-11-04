@@ -342,6 +342,22 @@ describe("detalhe da oportunidade", () => {
     expect((screen.getByRole("radio", { name: /Papelaria/ }) as HTMLInputElement).disabled).toBe(false);
   });
 
+  it("reserva de outra empresa sem segmento público: vitrine não quebra e avisa que o servidor confirma", async () => {
+    // A formação pública não divulga o segmento de reserva não paga
+    // (segment: null mesmo com a posição reservada).
+    respostaFormacao = formacao(ATUAL, (code) => ({
+      accepts_segment: ELEGIVEIS.has(code), requires_segment: code === "others",
+      segment: null,
+      ...(code === "pharmacy" ? { status: "reserved" } : {}),
+    }));
+    detalhe("others");
+    const pet = await screen.findByRole("radio", { name: /Pet shop/ });
+    expect((pet as HTMLInputElement).disabled).toBe(false);
+    expect(screen.getByTestId("aviso-disponibilidade-segmento").textContent)
+      .toMatch(/confirmada no momento da reserva/);
+    expect(chamadas("create_commercial_checkout_intent")).toHaveLength(0);
+  });
+
   it("solicitação de segmento não listado não reserva nada", async () => {
     detalhe("others");
     fireEvent.click(await screen.findByRole("button", { name: "Meu segmento não está na lista" }));
@@ -418,6 +434,10 @@ describe("checkout com segmento", () => {
     );
     checkout(`/checkout?nicho=pharmacy&segmento=${SEG_PAP}`);
     fireEvent.click(await screen.findByRole("button", { name: "Reservar por 30 minutos" }));
-    expect(await screen.findByText("Esse segmento já ocupa outra posição desta exclusividade.")).toBeDefined();
+    expect(await screen.findByText(
+      "Esse segmento já está contratado ou reservado em outra posição desta exclusividade. Escolha outro segmento ou aguarde."
+    )).toBeDefined();
+    // a recusa não vira reserva: nada de resumo de reserva nem passo de contrato
+    expect(screen.queryByTestId("segmento-reservado")).toBeNull();
   });
 });

@@ -251,7 +251,7 @@ const MENSAGENS: Record<string, string> = {
   segment_required: "Escolha o segmento da sua empresa para a posição Outros.",
   segment_not_approved: "Esse segmento não está disponível para contratação.",
   segment_already_in_exclusivity:
-    "Esse segmento já ocupa outra posição desta exclusividade.",
+    "Esse segmento já está contratado ou reservado em outra posição desta exclusividade. Escolha outro segmento ou aguarde.",
   supermarket_not_substitutable: "A posição Supermercado não pode ser substituída.",
   position_not_substitutable: "Esta posição não aceita segmento de Outros.",
   reservation_segment_mismatch:

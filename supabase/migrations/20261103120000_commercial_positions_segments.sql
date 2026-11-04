@@ -1572,22 +1572,21 @@ begin
              'sort_order',          n.sort_order,
              'accepts_segment',     o.niche_code in ('pharmacy','womens_clothing','mens_clothing','footwear','others'),
              'requires_segment',    o.niche_code = 'others',
-             -- Segmento que ocupa a posição (pedido vivo ou reserva viva).
-             -- Somente nome e código públicos; empresa e valores não saem.
-             'segment',             coalesce(
-               (select jsonb_build_object('code', x.segment_code_snapshot,
-                                          'name', x.segment_name_snapshot)
-                  from public.commercial_exclusivity_orders x
-                 where x.opportunity_id = o.id and x.status <> 'cancelled'
-                   and x.segment_id is not null
-                 limit 1),
-               (select jsonb_build_object('code', y.segment_code_snapshot,
-                                          'name', y.segment_name_snapshot)
-                  from public.commercial_checkout_intents y
-                 where y.opportunity_id = o.id and y.segment_id is not null
-                   and y.status in ('draft','awaiting_contract')
-                   and y.reserved_until > now()
-                 limit 1))
+             -- Segmento que ocupa a posição: SÓ com venda confirmada
+             -- (oportunidade contratada e pagamento do pedido confirmado).
+             -- Reserva, termos aceitos ou pagamento pendente não divulgam a
+             -- identidade comercial; quem barra a duplicidade é a reserva
+             -- (commercial_resolve_position_segment). Só nome e código
+             -- públicos do segmento: empresa, CNPJ e valores não saem.
+             'segment',             (select jsonb_build_object('code', x.segment_code_snapshot,
+                                                               'name', x.segment_name_snapshot)
+                                       from public.commercial_exclusivity_orders x
+                                      where x.opportunity_id = o.id
+                                        and o.status = 'contracted'
+                                        and x.status <> 'cancelled'
+                                        and x.payment_status = 'confirmed'
+                                        and x.segment_id is not null
+                                      limit 1)
            ) order by n.sort_order
          )
     into v_opportunities
@@ -2681,5 +2680,28 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_archive_commercial_segment(uuid) FROM PUBLIC, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_archive_commercial_segment(uuid) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Z. INTEGRIDADE DO TRANSPORTE. O arquivo é UTF-8 com LF. Se chegou ao
+--    servidor alterado (client_encoding errado, conversão para CRLF), os
+--    corpos e os rótulos gravados não são os revisados: aborta tudo.
+--    Os literais de comparação são ASCII puro, imunes à codificação.
+-- ---------------------------------------------------------------------------
+DO $integridade$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.commercial_niches WHERE code = 'footwear')
+     AND (SELECT pg_catalog.convert_to(display_name, 'UTF8') FROM public.commercial_niches
+           WHERE code = 'footwear') <> '\x43616cc3a761646f73'::bytea THEN
+    RAISE EXCEPTION 'transporte_corrompido: rotulo Calcados gravado com bytes inesperados (client_encoding deve ser UTF8)';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+              WHERE n.nspname = 'public'
+                AND p.proname IN ('commercial_resolve_position_segment', 'get_current_commercial_formation',
+                                  'create_commercial_checkout_intent', 'list_commercial_segments')
+                AND (pg_catalog.strpos(p.prosrc, pg_catalog.chr(13)) > 0
+                     OR pg_catalog.strpos(p.prosrc, pg_catalog.chr(195) || pg_catalog.chr(167)) > 0)) THEN
+    RAISE EXCEPTION 'transporte_corrompido: corpo de funcao com CR ou acentuacao convertida duas vezes';
+  END IF;
+END $integridade$;
 
 COMMIT;
