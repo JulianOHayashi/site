@@ -64,6 +64,20 @@ echo "ativos=$A_ATIVOS posicoes=$A_POS legados_em_oportunidade=$A_LEG auditoria=
   || { echo "UPGRADE_A=FAIL"; exit 1; }
 echo "UPGRADE_A=PASS"
 
+echo "== Cenario A2: registro da versao 20261103120000 no historico =="
+REG=supabase/ops/20261103_register_positions_segments_version.sql
+HIST=scripts/db-test/fixtures-prod-migration-history-20261103.txt
+q bdflow_upgrade_a "create schema supabase_migrations; create table supabase_migrations.schema_migrations (version text primary key, statements text[], name text, created_by text, idempotency_key text, rollback text[])" >/dev/null
+tr '|' '\n' < "$HIST" | sed 's/^ *//;s/ *$//' | grep . | awk -F: '{printf "insert into supabase_migrations.schema_migrations(version,name) values (%c%s%c,%c%s%c);\n",39,$1,39,39,$2,39}' | psql_db bdflow_upgrade_a
+set +e; psql_db bdflow_upgrade_a < "$REG" >/dev/null 2>&1; RC_SEM=$?; set -e     # sem reconciliar: tem de abortar
+psql_db bdflow_upgrade_a < supabase/ops/20261103_reconcile_migration_history.sql >/dev/null
+psql_db bdflow_upgrade_a < "$REG" >/dev/null
+set +e; psql_db bdflow_upgrade_a < "$REG" >/dev/null 2>&1; RC_DUP=$?; set -e     # segunda vez: tem de abortar
+A2=$(q bdflow_upgrade_a "select count(*)||'/'||count(*) filter (where version='20261103120000') from supabase_migrations.schema_migrations")
+echo "sem_reconciliar_rc=$RC_SEM registrado=$A2 repeticao_rc=$RC_DUP"
+[ "$RC_SEM" -ne 0 ] && [ "$A2" = "63/1" ] && [ "$RC_DUP" -ne 0 ] || { echo "REGISTER_A2=FAIL"; exit 1; }
+echo "REGISTER_A2=PASS"
+
 echo "== Cenario B: oportunidade de calcados reservada -> migration aborta =="
 montar_estado_production bdflow_upgrade_b
 q bdflow_upgrade_b "update commercial_opportunities set status='reserved', reserved_until=now()+interval '10 minutes' where niche_code='mens_footwear'" >/dev/null
