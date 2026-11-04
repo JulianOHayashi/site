@@ -145,8 +145,10 @@ não oferece.
 
 - Suíte SQL `270_commercial_positions_segments.sql`: 72 checks, cobrindo
   catálogo, D2, RLS, solicitação só por owner, decisão só por admin,
-  unicidade de segmento por exclusividade (inclusive a corrida entre posições
-  via advisory lock), Supermercado nunca, snapshot imutável, fidelidade por
+  unicidade de segmento por exclusividade (sequencial; a corrida simultânea
+  entre duas sessões **não** foi ensaiada: a proteção é o advisory lock na
+  reserva mais os índices únicos em pedidos e pré-compras, que valem mesmo
+  sob corrida), Supermercado nunca, snapshot imutável, fidelidade por
   identidade, preço preservado, provisionamento e instrumento falhando fechado.
 - Testes mutantes no SQL e no frontend: as mutações sobreviventes viraram testes.
 - Não-regressão da suíte SQL auxiliar: assinaturas de FAIL e ERROR idênticas às
