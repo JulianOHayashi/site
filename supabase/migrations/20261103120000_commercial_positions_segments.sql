@@ -31,6 +31,36 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------------
+-- 0. PERMISSÕES PRESERVADAS. Três RPCs mudam de assinatura (DROP + CREATE).
+--    Em vez de impor as permissões do repositório, a migration copia as que
+--    cada uma tem NESTE banco: em Production, por exemplo, a reserva pública
+--    (create_commercial_checkout_intent) está hoje fechada para authenticated,
+--    e esta migration não a reabre.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE _acl_preservada ON COMMIT DROP AS
+SELECT v.nome, r.rolname,
+       pg_catalog.has_function_privilege(r.oid, v.antiga::regprocedure, 'EXECUTE') AS pode
+  FROM (VALUES
+    ('create_commercial_checkout_intent',
+     'public.create_commercial_checkout_intent(uuid,text,text)'),
+    ('admin_register_manual_commercial_order',
+     'public.admin_register_manual_commercial_order(uuid,uuid,text,timestamp with time zone,text,date,text,text,text,text,integer)'),
+    ('join_my_commercial_future_queue',
+     'public.join_my_commercial_future_queue(uuid,text)')) AS v(nome, antiga)
+ CROSS JOIN pg_catalog.pg_roles r
+ WHERE r.rolname IN ('anon','authenticated','service_role');
+
+CREATE OR REPLACE FUNCTION pg_temp.reaplicar_acl(p_nome text, p_nova text)
+RETURNS void LANGUAGE plpgsql AS $acl$
+DECLARE r record;
+BEGIN
+  EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role', p_nova);
+  FOR r IN SELECT rolname FROM _acl_preservada WHERE nome = p_nome AND pode LOOP
+    EXECUTE pg_catalog.format('GRANT EXECUTE ON FUNCTION %s TO %I', p_nova, r.rolname);
+  END LOOP;
+END $acl$;
+
+-- ---------------------------------------------------------------------------
 -- A. CATÁLOGO DE NICHOS / POSIÇÕES (D1)
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.commercial_niches
@@ -849,8 +879,8 @@ BEGIN
   RETURN public.cci_resposta_intencao(v_viva, false);
 END;
 $function$;
-REVOKE ALL ON FUNCTION public.create_commercial_checkout_intent(uuid, text, text, uuid) FROM PUBLIC, anon, service_role;
-GRANT EXECUTE ON FUNCTION public.create_commercial_checkout_intent(uuid, text, text, uuid) TO authenticated;
+SELECT pg_temp.reaplicar_acl('create_commercial_checkout_intent',
+  'public.create_commercial_checkout_intent(uuid,text,text,uuid)');
 
 CREATE OR REPLACE FUNCTION public.cci_resposta_intencao(p_i commercial_checkout_intents, p_ja boolean)
  RETURNS jsonb
@@ -1334,8 +1364,8 @@ BEGIN
     'contract_economics_version', v_econ_versao);
 END;
 $function$;
-REVOKE ALL ON FUNCTION public.admin_register_manual_commercial_order(uuid, uuid, text, timestamp with time zone, text, date, text, text, text, text, integer, uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.admin_register_manual_commercial_order(uuid, uuid, text, timestamp with time zone, text, date, text, text, text, text, integer, uuid) TO authenticated, service_role;
+SELECT pg_temp.reaplicar_acl('admin_register_manual_commercial_order',
+  'public.admin_register_manual_commercial_order(uuid,uuid,text,timestamp with time zone,text,date,text,text,text,text,integer,uuid)');
 
 -- ---------------------------------------------------------------------------
 -- K. PREÇO: categoria explícita (D3). Valores inalterados.
@@ -1845,8 +1875,8 @@ BEGIN
     'first_possible_exclusivity_sequence', v_next.sequence_number + 1);
 END;
 $function$;
-REVOKE ALL ON FUNCTION public.join_my_commercial_future_queue(uuid, text, uuid) FROM PUBLIC, anon, service_role;
-GRANT EXECUTE ON FUNCTION public.join_my_commercial_future_queue(uuid, text, uuid) TO authenticated;
+SELECT pg_temp.reaplicar_acl('join_my_commercial_future_queue',
+  'public.join_my_commercial_future_queue(uuid,text,uuid)');
 
 CREATE OR REPLACE FUNCTION public.get_my_commercial_future_interest(p_company_id uuid, p_niche_code text)
  RETURNS jsonb

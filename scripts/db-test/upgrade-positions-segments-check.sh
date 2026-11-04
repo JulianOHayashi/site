@@ -79,3 +79,55 @@ echo "rc=$RC nichos=$B_NICHOS tabela_segmentos=$B_TAB"
 echo "UPGRADE_B=PASS (abortou sem alterar nada)"
 
 echo "drop database bdflow_upgrade_a with (force); drop database bdflow_upgrade_b with (force);" | psql_db postgres
+
+echo "== Cenario C: migration -> rollback volta exatamente ao estado anterior =="
+RB=supabase/rollback/20261103120000_commercial_positions_segments_rollback.sql
+HASH_SQL="select md5(string_agg(f||':'||h, ',' order by f)) from (select p.oid::regprocedure::text f, md5(pg_get_functiondef(p.oid)) h from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f') x"
+# A ACL é comparada como CONJUNTO (a ordem dos itens em proacl não é semântica).
+ACL_SQL="select md5(string_agg(x, ',' order by x)) from (select p.oid::regprocedure::text||':'||coalesce((select string_agg(a::text, ',' order by a::text) from unnest(p.proacl) a),'') x from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public') t"
+SCHEMA_SQL="select md5(string_agg(x, ',' order by x)) from (select table_name||'.'||column_name||':'||data_type x from information_schema.columns where table_schema='public') t"
+CONS_SQL="select md5(string_agg(x, ',' order by x)) from (select conrelid::regclass||'.'||conname||':'||pg_get_constraintdef(oid) x from pg_constraint where connamespace='public'::regnamespace) t"
+IDX_SQL="select md5(string_agg(x, ',' order by x)) from (select indexname||':'||indexdef x from pg_indexes where schemaname='public') t"
+TRG_SQL="select md5(string_agg(x, ',' order by x)) from (select tgrelid::regclass||'.'||tgname||':'||tgfoid::regproc x from pg_trigger where not tgisinternal) t"
+DADOS_SQL="select (select string_agg(code||':'||sort_order||':'||is_active, ',' order by code) from commercial_niches)||' | '||(select string_agg(niche_code||':'||status, ',' order by niche_code) from commercial_opportunities)"
+montar_estado_production bdflow_upgrade_c
+ANTES="$(q bdflow_upgrade_c "$HASH_SQL")/$(q bdflow_upgrade_c "$ACL_SQL")/$(q bdflow_upgrade_c "$SCHEMA_SQL")/$(q bdflow_upgrade_c "$CONS_SQL")/$(q bdflow_upgrade_c "$IDX_SQL")/$(q bdflow_upgrade_c "$TRG_SQL")"
+DADOS_ANTES="$(q bdflow_upgrade_c "$DADOS_SQL")"
+psql_db bdflow_upgrade_c < "$NOVA" >/dev/null
+psql_db bdflow_upgrade_c < "$RB" >/dev/null
+DEPOIS="$(q bdflow_upgrade_c "$HASH_SQL")/$(q bdflow_upgrade_c "$ACL_SQL")/$(q bdflow_upgrade_c "$SCHEMA_SQL")/$(q bdflow_upgrade_c "$CONS_SQL")/$(q bdflow_upgrade_c "$IDX_SQL")/$(q bdflow_upgrade_c "$TRG_SQL")"
+DADOS_DEPOIS="$(q bdflow_upgrade_c "$DADOS_SQL")"
+echo "funcoes/acl/colunas/constraints/indices/gatilhos antes=$ANTES"
+echo "funcoes/acl/colunas/constraints/indices/gatilhos depois=$DEPOIS"
+echo "dados antes:  $DADOS_ANTES"
+echo "dados depois: $DADOS_DEPOIS"
+[ "$ANTES" = "$DEPOIS" ] && [ "$DADOS_ANTES" = "$DADOS_DEPOIS" ] || { echo "ROLLBACK_C=FAIL"; exit 1; }
+echo "ROLLBACK_C=PASS"
+echo "drop database bdflow_upgrade_c with (force);" | psql_db postgres
+
+echo "== Cenario D: modelo novo ja em uso -> rollback recusa =="
+montar_estado_production bdflow_upgrade_d
+psql_db bdflow_upgrade_d < "$NOVA" >/dev/null
+q bdflow_upgrade_d "update commercial_opportunities set status='reserved', reserved_until=now()+interval '10 minutes' where niche_code='others'" >/dev/null
+set +e
+SAIDA=$(psql_db bdflow_upgrade_d < "$RB" 2>&1); RC=$?
+set -e
+echo "$SAIDA" | grep -o 'rollback_bloqueado[^"]*' | head -1
+D_SEG=$(q bdflow_upgrade_d "select count(*) from pg_tables where tablename='commercial_segments'")
+[ "$RC" -ne 0 ] && [ "$D_SEG" = "1" ] || { echo "ROLLBACK_D=FAIL"; exit 1; }
+echo "ROLLBACK_D=PASS (recusou sem alterar nada)"
+echo "drop database bdflow_upgrade_d with (force);" | psql_db postgres
+
+echo "== Cenario E: permissao de Production preservada (reserva fechada para authenticated) =="
+montar_estado_production bdflow_upgrade_e
+q bdflow_upgrade_e "revoke execute on function public.create_commercial_checkout_intent(uuid,text,text) from authenticated" >/dev/null
+ACL_ANTES=$(q bdflow_upgrade_e "select has_function_privilege('authenticated','public.create_commercial_checkout_intent(uuid,text,text)','EXECUTE')||'/'||has_function_privilege('authenticated','public.join_my_commercial_future_queue(uuid,text)','EXECUTE')||'/'||has_function_privilege('service_role','public.admin_register_manual_commercial_order(uuid,uuid,text,timestamp with time zone,text,date,text,text,text,text,integer)','EXECUTE')")
+psql_db bdflow_upgrade_e < "$NOVA" >/dev/null
+ACL_DEPOIS=$(q bdflow_upgrade_e "select has_function_privilege('authenticated','public.create_commercial_checkout_intent(uuid,text,text,uuid)','EXECUTE')||'/'||has_function_privilege('authenticated','public.join_my_commercial_future_queue(uuid,text,uuid)','EXECUTE')||'/'||has_function_privilege('service_role','public.admin_register_manual_commercial_order(uuid,uuid,text,timestamp with time zone,text,date,text,text,text,text,integer,uuid)','EXECUTE')")
+psql_db bdflow_upgrade_e < "$RB" >/dev/null
+ACL_VOLTA=$(q bdflow_upgrade_e "select has_function_privilege('authenticated','public.create_commercial_checkout_intent(uuid,text,text)','EXECUTE')||'/'||has_function_privilege('authenticated','public.join_my_commercial_future_queue(uuid,text)','EXECUTE')||'/'||has_function_privilege('service_role','public.admin_register_manual_commercial_order(uuid,uuid,text,timestamp with time zone,text,date,text,text,text,text,integer)','EXECUTE')")
+echo "reserva/fila/manual antes=$ACL_ANTES depois=$ACL_DEPOIS rollback=$ACL_VOLTA"
+[ "$ACL_ANTES" = "false/true/true" ] && [ "$ACL_DEPOIS" = "$ACL_ANTES" ] && [ "$ACL_VOLTA" = "$ACL_ANTES" ] \
+  || { echo "ACL_E=FAIL"; exit 1; }
+echo "ACL_E=PASS"
+echo "drop database bdflow_upgrade_e with (force);" | psql_db postgres
