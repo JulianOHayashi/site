@@ -405,9 +405,9 @@ describe("COMERCIAL V2 UI — resumo agregado da formação", () => {
     expect(fonte).not.toMatch(/12_?999_?400|8_?391_?600|8_?349_?012|99_?393|109_?900/);
   });
 
-  it("está montado na página pública de oportunidades", () => {
+  it("não é montado na página pública de oportunidades (decisão de 2026-11-05)", () => {
     const fonte = lerFonte("src/pages/Oportunidades.tsx");
-    expect(fonte).toContain("<ResumoFormacao />");
+    expect(fonte).not.toContain("ResumoFormacao");
   });
 
   it("não anuncia mais a contratação como fase futura", () => {
