@@ -11,8 +11,8 @@ export const FORMACAO_REFERENCIA = [
   { nome: "Farmácia", unidades: 12 },
   { nome: "Roupas femininas", unidades: 12 },
   { nome: "Roupas masculinas", unidades: 12 },
-  { nome: "Calçados femininos", unidades: 12 },
-  { nome: "Calçados masculinos", unidades: 12 },
+  { nome: "Calçados", unidades: 12 },
+  { nome: "Outros", unidades: 12 },
 ] as const;
 
 export const TOTAL_UNIDADES_REFERENCIA = FORMACAO_REFERENCIA.reduce(

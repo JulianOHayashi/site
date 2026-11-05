@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import ReferenciaOperacional from "../components/commercial/ReferenciaOperacional";
 import PainelPreco from "../components/commercial/PainelPreco";
+import SeletorSegmento from "../components/commercial/SeletorSegmento";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { fetchCurrentFormation } from "../services/commercialService";
 import { obterVinculosParceiro } from "../services/partnerApplicationService";
@@ -11,22 +12,37 @@ import {
   joinFutureQueue,
   type FutureInterest,
 } from "../services/commercialFutureInterestService";
+import { mensagemSegmento } from "../services/commercialSegmentService";
 import {
   nicheByCode,
   nicheCodeFromSlug,
   canonicalSlugFromLegacy,
+  isLegacyNicheCode,
 } from "../domain/commercial/niches";
 import {
   OPPORTUNITY_STATUS_LABEL,
   EXCLUSIVITY_STATUS_LABEL,
 } from "../domain/commercial/status";
-import type { CommercialFormationResponse } from "../domain/commercial/types";
+import type {
+  CommercialFormationResponse,
+  CommercialSegment,
+} from "../domain/commercial/types";
+
+const SEGMENT_ERRORS = new Set([
+  "segment_required",
+  "segment_not_approved",
+  "supermarket_not_substitutable",
+  "position_not_substitutable",
+  "company_already_waitlisted_other_segment",
+]);
 
 type Estado =
   | { fase: "loading" }
   | { fase: "erro" }
   | { fase: "codigo_invalido" }
   | { fase: "nao_encontrada" }
+  // Link antigo de calçados F/M depois da unificação: leva a Calçados.
+  | { fase: "redirecionar_calcados" }
   | { fase: "ok"; dados: CommercialFormationResponse };
 
 /**
@@ -44,6 +60,7 @@ export default function OportunidadeDetalhe() {
   const [ownerCompanyId, setOwnerCompanyId] = useState<string | null>(null);
   const [future, setFuture] = useState<FutureInterest>({ tipo: "none" });
   const [futureBusy, setFutureBusy] = useState(false);
+  const [segmento, setSegmento] = useState<CommercialSegment | null>(null);
 
   const carregar = useCallback(async () => {
     if (!codigo) {
@@ -64,7 +81,12 @@ export default function OportunidadeDetalhe() {
       }
       const existe = dados.opportunities.some((o) => o.nicheCode === codigo);
       if (!existe) {
-        setEstado({ fase: "nao_encontrada" });
+        const temCalcados = dados.opportunities.some((o) => o.nicheCode === "footwear");
+        setEstado(
+          isLegacyNicheCode(codigo) && temCalcados
+            ? { fase: "redirecionar_calcados" }
+            : { fase: "nao_encontrada" }
+        );
         return;
       }
       setEstado({ fase: "ok", dados });
@@ -113,6 +135,7 @@ export default function OportunidadeDetalhe() {
     const r = await joinFutureQueue({
       companyId: ownerCompanyId,
       nicheCode: codigo,
+      segmentId: segmento?.id ?? null,
     });
     setFutureBusy(false);
     setFuture(r);
@@ -124,6 +147,9 @@ export default function OportunidadeDetalhe() {
   // Sem loop: o slug de destino já é canônico e cai em nicheCodeFromSlug.
   if (redirecionarPara) {
     return <Navigate to={`/oportunidades/${redirecionarPara}`} replace />;
+  }
+  if (estado.fase === "redirecionar_calcados") {
+    return <Navigate to="/oportunidades/footwear" replace />;
   }
 
   return (
@@ -179,6 +205,13 @@ export default function OportunidadeDetalhe() {
           const opp = estado.dados.opportunities.find(
             (o) => o.nicheCode === meta.code
           )!;
+          // Segmentos que já ocupam OUTRAS posições (dado público da formação).
+          const ocupados = new Set(
+            estado.dados.opportunities
+              .filter((o) => o.id !== opp.id && o.segment)
+              .map((o) => o.segment!.code)
+          );
+          const segmentoPendente = opp.requiresSegment && !segmento;
           return (
             <>
               <header className="mt-4 flex items-center gap-3">
@@ -207,6 +240,12 @@ export default function OportunidadeDetalhe() {
                     {opp.contractedQuantity} unidades
                   </span>
                 </div>
+                {opp.segment && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-tinta/60">Segmento</span>
+                    <span className="font-semibold">{opp.segment.name}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-tinta/60">Exclusividade</span>
                   <span className="font-semibold">
@@ -266,12 +305,14 @@ export default function OportunidadeDetalhe() {
                           <button
                             type="button"
                             onClick={registrarInteresseFuturo}
-                            disabled={futureBusy || future.tipo === "erro"}
+                            disabled={futureBusy || future.tipo === "erro" || segmentoPendente}
                             className="btn-primary w-full disabled:opacity-50"
                           >
                             {futureBusy
                               ? "Registrando..."
-                              : "Registrar interesse na próxima exclusividade"}
+                              : segmentoPendente
+                                ? "Escolha o segmento para registrar interesse"
+                                : "Registrar interesse na próxima exclusividade"}
                           </button>
                         )}
 
@@ -281,7 +322,9 @@ export default function OportunidadeDetalhe() {
                               ? "A oportunidade atual voltou a ficar disponível; use o checkout normal."
                               : future.codigo === "company_already_preordered_next_exclusivity"
                                 ? "Esta empresa já possui uma pré-compra ativa em outro nicho da próxima exclusividade."
-                                : "Não foi possível registrar o interesse agora."}
+                                : SEGMENT_ERRORS.has(future.codigo)
+                                  ? mensagemSegmento(future.codigo)
+                                  : "Não foi possível registrar o interesse agora."}
                           </p>
                         )}
                       </div>
@@ -294,7 +337,21 @@ export default function OportunidadeDetalhe() {
                 )}
               </div>
 
-              <PainelPreco nicheCode={meta.code} />
+              {opp.acceptsSegment && (
+                <SeletorSegmento
+                  oportunidade={opp}
+                  ocupados={ocupados}
+                  ownerCompanyId={ownerCompanyId}
+                  valor={segmento}
+                  onChange={setSegmento}
+                />
+              )}
+
+              <PainelPreco
+                nicheCode={meta.code}
+                segmentId={segmento?.id ?? null}
+                segmentoPendente={segmentoPendente}
+              />
 
               <div className="mt-6">
                 <ReferenciaOperacional />

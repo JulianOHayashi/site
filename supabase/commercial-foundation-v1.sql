@@ -389,7 +389,8 @@ begin
   if v_exc_id is null then
     raise exception 'Exclusividade seq 1 ausente ao semear oportunidades.';
   end if;
-  for n in select code, contracted_quantity from public.commercial_niches loop
+  -- Só posições ATIVAS (migration 20261103120000: calçados F/M são históricos).
+  for n in select code, contracted_quantity from public.commercial_niches where is_active loop
     select * into cur from public.commercial_opportunities
       where exclusivity_id = v_exc_id and niche_code = n.code;
     if not found then

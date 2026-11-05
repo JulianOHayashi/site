@@ -194,7 +194,16 @@ export function fundingForSettlementMode(
   };
 }
 
-/** Formação completa de referência (seis nichos, não fidelizada). */
+/**
+ * Formação completa de referência (seis nichos, não fidelizada).
+ *
+ * Os CÓDIGOS aqui espelham o contrato v2 com o App (sete benefícios
+ * operacionais, com calçados F/M) e alimentam a matriz de resíduos de
+ * `domain/operational`. Pela decisão D8 da auditoria 14 eles NÃO mudam
+ * unilateralmente com a unificação comercial de Calçados/Outros: isso só
+ * acontece com o contrato v3 acordado com o App. Os VALORES não dependem
+ * disso — toda posição de 12 unidades usa a categoria comum.
+ */
 export const FORMATION_NICHES: ReadonlyArray<{ code: string; quantity: number }> = [
   { code: "supermarket", quantity: 24 },
   { code: "pharmacy", quantity: 12 },

@@ -23,7 +23,17 @@ import {
  * Se o retorno não for íntegro, nada é exibido — nenhum número é inventado para
  * preencher a tela.
  */
-export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
+export default function PainelPreco({
+  nicheCode,
+  segmentId = null,
+  segmentoPendente = false,
+}: {
+  nicheCode: string;
+  /** Segmento de Outros escolhido para a posição (o servidor valida). */
+  segmentId?: string | null;
+  /** Posição Outros sem segmento escolhido: não há o que contratar ainda. */
+  segmentoPendente?: boolean;
+}) {
   const [estado, setEstado] = useState<
     | { fase: "carregando" }
     | { fase: "indisponivel" }
@@ -129,7 +139,7 @@ export default function PainelPreco({ nicheCode }: { nicheCode: string }) {
         histórico da empresa, não escolhida na contratação.
       </p>
 
-      <Cta nicheCode={nicheCode} />
+      <Cta nicheCode={nicheCode} segmentId={segmentId} segmentoPendente={segmentoPendente} />
     </div>
   );
 }
@@ -224,10 +234,36 @@ function Composicao({ titulo, p }: { titulo: string; p: NichePricing }) {
   );
 }
 
-function Cta({ nicheCode }: { nicheCode?: string }) {
+function Cta({
+  nicheCode,
+  segmentId = null,
+  segmentoPendente = false,
+}: {
+  nicheCode?: string;
+  segmentId?: string | null;
+  segmentoPendente?: boolean;
+}) {
   const destino = nicheCode
-    ? `/checkout?nicho=${encodeURIComponent(nicheCode)}`
+    ? `/checkout?nicho=${encodeURIComponent(nicheCode)}` +
+      (segmentId ? `&segmento=${encodeURIComponent(segmentId)}` : "")
     : "/parceiros/cadastro";
+
+  if (nicheCode && segmentoPendente) {
+    return (
+      <>
+        <button
+          type="button"
+          disabled
+          className="btn-primary mt-5 inline-block w-full text-center opacity-50"
+        >
+          Escolha o segmento para continuar
+        </button>
+        <p className="mt-2 text-center text-xs text-tinta/60">
+          A posição Outros só pode ser contratada com um segmento definido.
+        </p>
+      </>
+    );
+  }
 
   return (
     <>

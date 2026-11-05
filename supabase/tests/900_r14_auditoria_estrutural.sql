@@ -75,6 +75,12 @@ insert into esperado_anon_exec values
   -- mesma razao das duas acima: e a vitrine publica. Nao le identidade, nao
   -- escreve, e nao devolve dado de empresa alguma.
   ('get_public_formation_economics'),
+  -- Catalogo publico de segmentos aprovados para Outros e substituicoes
+  -- (migration 20261103120000). Exposicao anon INTENCIONAL: a vitrine mostra
+  -- os segmentos que podem ser contratados. Somente leitura, STABLE,
+  -- search_path fixo; devolve apenas nome, codigo, descricao e sobreposicao
+  -- declarada — nenhum dado de empresa, pedido ou solicitacao.
+  ('list_commercial_segments'),
   -- Area legal publica: devolve UMA versao exata de documento legal, publicada
   -- ou arquivada. A exposicao anon e INTENCIONAL e declarada na migration
   -- 20261005120000 (REVOKE de PUBLIC seguido de GRANT explicito a anon): o Site

@@ -119,10 +119,12 @@ select tests.check('P0-A: cobranca em dinheiro = economico nos 12 casos v1.4',
 select tests.check('exatamente seis nichos canonicos ativos',
   (select count(*) from public.commercial_niches where is_active) = 6);
 
+-- Migration 20261103120000 (D1): Calcados unificado e Outros substituem os
+-- dois calcados; womens_footwear/mens_footwear continuam como historicos.
 select tests.check('os seis codigos canonicos sao exatamente os esperados',
   (select array_agg(code order by code) from public.commercial_niches where is_active)
-  = array['mens_clothing','mens_footwear','pharmacy','supermarket',
-          'womens_clothing','womens_footwear']::text[]);
+  = array['footwear','mens_clothing','others','pharmacy','supermarket',
+          'womens_clothing']::text[]);
 
 select tests.check('supermarket resolve para a matriz supermarket, 24 unidades',
   (select (p->>'niche_category') = 'supermarket'

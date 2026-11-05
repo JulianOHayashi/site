@@ -40,6 +40,15 @@ import { fetchPublicPricing } from "../services/commercialService";
  * condição fundadora, que é a de quem ainda não tem histórico.
  */
 
+const ERROS_SEGMENTO = new Set([
+  "segment_required",
+  "segment_not_approved",
+  "segment_already_in_exclusivity",
+  "supermarket_not_substitutable",
+  "position_not_substitutable",
+  "reservation_segment_mismatch",
+]);
+
 const ROTULO_MODO: Record<BenefitSettlementMode, string> = {
   direct_benefits: "Benefícios diretos",
   cash: "Dinheiro real",
@@ -50,6 +59,17 @@ import {
   type ReservaComercial,
 } from "../services/commercialReservationService";
 import { obterVinculosParceiro } from "../services/partnerApplicationService";
+import {
+  listarSegmentos,
+  mensagemSegmento,
+} from "../services/commercialSegmentService";
+import type { CommercialSegment } from "../domain/commercial/types";
+import {
+  isFormationNicheCode,
+  positionAcceptsSegment,
+  positionRequiresSegment,
+  slugByCode,
+} from "../domain/commercial/niches";
 import { obterDisponibilidadePagamento } from "../services/paymentAvailabilityService";
 import EtapasContratacao from "./comercial/EtapasContratacao";
 
@@ -66,6 +86,15 @@ export default function RevisaoContratacao() {
   // valores materiais vêm da autoridade pública do servidor. Um nicho explícito
   // desconhecido falha fechado — nunca cai silenciosamente em supermercado.
   const nichoParam = params.get("nicho");
+  // Segmento de Outros escolhido na oportunidade. Só a ESCOLHA vem da URL; se
+  // ele está aprovado, livre e cabe na posição é decidido pelo servidor.
+  const segmentoParam = params.get("segmento");
+  const [segmento, setSegmento] = useState<
+    | { fase: "nenhum" }
+    | { fase: "carregando" }
+    | { fase: "invalido" }
+    | { fase: "ok"; segmento: CommercialSegment }
+  >(segmentoParam ? { fase: "carregando" } : { fase: "nenhum" });
   const [precos, setPrecos] = useState<
     | { fase: "carregando" }
     | { fase: "indisponivel" }
@@ -106,6 +135,37 @@ export default function RevisaoContratacao() {
   }, [nichoParam, precos]);
 
   const composicao = nicho?.founding ?? null;
+
+  useEffect(() => {
+    if (!segmentoParam) return;
+    let vivo = true;
+    void listarSegmentos().then((r) => {
+      if (!vivo) return;
+      const achado =
+        r.tipo === "ok" ? r.segmentos.find((x) => x.id === segmentoParam) : undefined;
+      setSegmento(achado ? { fase: "ok", segmento: achado } : { fase: "invalido" });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [segmentoParam]);
+
+  // Bloqueios de APRESENTAÇÃO (o servidor repete todos): Outros sem segmento,
+  // segmento numa posição que não o aceita (Supermercado) ou segmento inválido.
+  const codigoNicho = nicho && isFormationNicheCode(nicho.nicheCode) ? nicho.nicheCode : null;
+  const bloqueioSegmento: string | null = !codigoNicho
+    ? null
+    : segmento.fase === "carregando"
+      ? "carregando"
+      : segmento.fase === "invalido"
+        ? "segment_not_approved"
+        : segmento.fase === "ok" && !positionAcceptsSegment(codigoNicho)
+          ? codigoNicho === "supermarket"
+            ? "supermarket_not_substitutable"
+            : "position_not_substitutable"
+          : segmento.fase === "nenhum" && positionRequiresSegment(codigoNicho)
+            ? "segment_required"
+            : null;
 
   // O checkout só abre quando o runtime server-side confirma que o provedor
   // está configurado. Qualquer falha nessa consulta bloqueia (fail-closed).
@@ -158,17 +218,19 @@ export default function RevisaoContratacao() {
 
   const reservar = useCallback(async () => {
     if (!empresa || !nicho || reservando || disponibilidadePagamento !== "disponivel") return;
+    if (bloqueioSegmento) return;
     setReservando(true);
     setFalhaReserva(null);
     const r = await reservarOportunidade({
       companyId: empresa,
       nicheCode: nicho.nicheCode,
       benefitSettlementMode: modo,
+      segmentId: segmento.fase === "ok" ? segmento.segmento.id : null,
     });
     setReservando(false);
     if (r.tipo === "ok") setReserva(r.reserva);
     else setFalhaReserva(r.codigo);
-  }, [disponibilidadePagamento, empresa, modo, nicho, reservando]);
+  }, [bloqueioSegmento, disponibilidadePagamento, empresa, modo, nicho, reservando, segmento]);
 
   return (
     <>
@@ -201,6 +263,12 @@ export default function RevisaoContratacao() {
           <p className="mt-1 text-xs text-tinta/60">
             Nicho contratado integralmente — {nicho.nominalQuantity} unidades.
           </p>
+          {segmento.fase === "ok" && (
+            <p className="mt-2 rounded-xl bg-superficie2 p-3 text-sm" data-testid="segmento-escolhido">
+              Posição: <strong>{nicho.displayName}</strong> · Segmento efetivo:{" "}
+              <strong>{segmento.segmento.name}</strong> · {nicho.nominalQuantity} unidades
+            </p>
+          )}
 
           <dl className="mt-4 divide-y divide-tinta/10">
             <Linha
@@ -411,16 +479,35 @@ export default function RevisaoContratacao() {
         ) : reserva ? (
           // Contrato e pagamento só aparecem DEPOIS da reserva viva, e todos
           // os valores vêm da resposta do servidor.
+          <>
+          {reserva.segmentName && (
+            <p className="mt-6 text-sm" data-testid="segmento-reservado">
+              Segmento reservado: <strong>{reserva.segmentName}</strong>
+            </p>
+          )}
           <EtapasContratacao
             intentId={reserva.intentId}
             amountCents={reserva.totalMonetaryFundingRequiredCents}
             fidelizado={reserva.fidelized}
           />
+          </>
+        ) : perfilComercial === "owner" && empresa && bloqueioSegmento && bloqueioSegmento !== "carregando" ? (
+          <section className="card mt-6 p-6" role="alert">
+            <p className="font-semibold">{mensagemSegmento(bloqueioSegmento)}</p>
+            {codigoNicho && (
+              <Link
+                to={`/oportunidades/${slugByCode(codigoNicho)}`}
+                className="btn-secondary mt-4 inline-block"
+              >
+                Voltar à oportunidade
+              </Link>
+            )}
+          </section>
         ) : perfilComercial === "owner" && empresa ? (
           <>
             <button
               onClick={reservar}
-              disabled={reservando}
+              disabled={reservando || bloqueioSegmento === "carregando"}
               className="btn-primary mt-4 w-full disabled:opacity-50"
             >
               {reservando ? "Reservando..." : "Reservar por 30 minutos"}
@@ -438,7 +525,9 @@ export default function RevisaoContratacao() {
                       ? "Esta empresa já possui um nicho contratado nesta exclusividade. Cada CNPJ pode contratar apenas um nicho por exclusividade."
                       : falhaReserva === "region_not_operating"
                         ? "Ainda não operamos na cidade cadastrada para a sua empresa."
-                        : "Não foi possível reservar agora. Nada foi cobrado."}
+                        : ERROS_SEGMENTO.has(falhaReserva)
+                          ? mensagemSegmento(falhaReserva)
+                          : "Não foi possível reservar agora. Nada foi cobrado."}
               </div>
             )}
           </>

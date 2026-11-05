@@ -1,12 +1,17 @@
-import { isCommercialNicheCode } from "../domain/commercial/niches";
+import {
+  isFormationNicheCode,
+  positionAcceptsSegment,
+  positionRequiresSegment,
+} from "../domain/commercial/niches";
 import type {
   CommercialFormationResponse,
   CommercialOpportunity,
   CommercialExclusivityStatus,
   CommercialOpportunityStatus,
-  CommercialNicheCode,
+  FormationNicheCode,
   CommercialRegion,
   CommercialExclusivity,
+  OccupyingSegment,
 } from "../domain/commercial/types";
 
 /**
@@ -35,23 +40,31 @@ export class CommercialError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Contrato canônico da Fase 1 (usado só para VALIDAR — o backend é a autoridade)
+// Contrato canônico (usado só para VALIDAR — o backend é a autoridade)
+//
+// Seis posições, 84 unidades. A resposta tem de corresponder EXATAMENTE a um
+// dos dois conjuntos abaixo — nunca a uma mistura deles:
+//   * ATUAL (migration 20261103120000): Calçados unificado + Outros;
+//   * ANTERIOR: calçados F/M. Aceito só para que esta versão do site possa ir
+//     ao ar ANTES da migration sem derrubar a vitrine. Depois da migration o
+//     servidor não devolve mais esse conjunto.
 // ---------------------------------------------------------------------------
-export const EXPECTED_QUANTITY_BY_CODE: Record<CommercialNicheCode, number> = {
-  supermarket: 24,
-  pharmacy: 12,
-  womens_clothing: 12,
-  mens_clothing: 12,
-  womens_footwear: 12,
-  mens_footwear: 12,
+type Esperado = { quantity: number; sortOrder: number };
+export const EXPECTED_POSITIONS_CURRENT: Readonly<Record<string, Esperado>> = {
+  supermarket: { quantity: 24, sortOrder: 1 },
+  pharmacy: { quantity: 12, sortOrder: 2 },
+  womens_clothing: { quantity: 12, sortOrder: 3 },
+  mens_clothing: { quantity: 12, sortOrder: 4 },
+  footwear: { quantity: 12, sortOrder: 5 },
+  others: { quantity: 12, sortOrder: 6 },
 };
-export const EXPECTED_SORT_ORDER_BY_CODE: Record<CommercialNicheCode, number> = {
-  supermarket: 1,
-  pharmacy: 2,
-  womens_clothing: 3,
-  mens_clothing: 4,
-  womens_footwear: 5,
-  mens_footwear: 6,
+export const EXPECTED_POSITIONS_LEGACY: Readonly<Record<string, Esperado>> = {
+  supermarket: { quantity: 24, sortOrder: 1 },
+  pharmacy: { quantity: 12, sortOrder: 2 },
+  womens_clothing: { quantity: 12, sortOrder: 3 },
+  mens_clothing: { quantity: 12, sortOrder: 4 },
+  womens_footwear: { quantity: 12, sortOrder: 5 },
+  mens_footwear: { quantity: 12, sortOrder: 6 },
 };
 export const EXPECTED_OPPORTUNITY_COUNT = 6;
 export const EXPECTED_TOTAL_UNITS = 84;
@@ -165,6 +178,16 @@ function parseExclusivity(
 }
 
 // ---------------------------------------------------------------------------
+// Segmento ocupante (público: só código e nome)
+// ---------------------------------------------------------------------------
+function parseOccupyingSegment(raw: unknown): OccupyingSegment | null {
+  if (raw === undefined || raw === null) return null;
+  const s = asRecord(raw);
+  if (!nonEmptyString(s.code) || !nonEmptyString(s.name)) fail();
+  return { code: s.code, name: s.name };
+}
+
+// ---------------------------------------------------------------------------
 // Oportunidades (seção 10)
 // ---------------------------------------------------------------------------
 function parseOpportunities(
@@ -174,7 +197,17 @@ function parseOpportunities(
   if (!Array.isArray(raw)) fail();
   if (raw.length !== EXPECTED_OPPORTUNITY_COUNT) fail();
 
-  const codigosVistos = new Set<CommercialNicheCode>();
+  // O conjunto é decidido pela PRIMEIRA posição que só existe num deles; a
+  // partir daí toda posição tem de pertencer ao mesmo conjunto.
+  const codigosBrutos = raw.map((item) => asRecord(item).niche_code);
+  const temAtual = codigosBrutos.some((c) => c === "footwear" || c === "others");
+  const temLegado = codigosBrutos.some(
+    (c) => c === "womens_footwear" || c === "mens_footwear"
+  );
+  if (temAtual && temLegado) fail(); // mistura nunca é válida
+  const esperado = temLegado ? EXPECTED_POSITIONS_LEGACY : EXPECTED_POSITIONS_CURRENT;
+
+  const codigosVistos = new Set<FormationNicheCode>();
   const ordensVistas = new Set<number>();
   let soma = 0;
 
@@ -190,7 +223,9 @@ function parseOpportunities(
     }
 
     const nicheCode = o.niche_code;
-    if (!isCommercialNicheCode(nicheCode)) fail();
+    if (!isFormationNicheCode(nicheCode)) fail();
+    const regra = esperado[nicheCode];
+    if (!regra) fail();
     if (codigosVistos.has(nicheCode)) fail(); // duplicidade de código
     codigosVistos.add(nicheCode);
 
@@ -198,16 +233,27 @@ function parseOpportunities(
 
     const qty = o.contracted_quantity;
     if (!isPositiveInteger(qty)) fail();
-    if (qty !== EXPECTED_QUANTITY_BY_CODE[nicheCode]) fail();
+    if (qty !== regra.quantity) fail();
     soma += qty;
 
     if (!isOpportunityStatus(o.status)) fail();
 
     const sortOrder = o.sort_order;
     if (!isPositiveInteger(sortOrder)) fail();
-    if (sortOrder !== EXPECTED_SORT_ORDER_BY_CODE[nicheCode]) fail(); // ordem canônica
+    if (sortOrder !== regra.sortOrder) fail(); // ordem canônica
     if (ordensVistas.has(sortOrder)) fail(); // duplicidade de ordem
     ordensVistas.add(sortOrder);
+
+    // Chaves de segmento são ADITIVAS: o backend anterior não as envia. Quando
+    // vêm, precisam ser coerentes com a regra da posição; quando não vêm, a
+    // posição não aceita segmento (nada é presumido a favor do usuário).
+    const aceita = o.accepts_segment;
+    const exige = o.requires_segment;
+    if (aceita !== undefined && typeof aceita !== "boolean") fail();
+    if (exige !== undefined && typeof exige !== "boolean") fail();
+    if (aceita === true && !positionAcceptsSegment(nicheCode)) fail();
+    if (exige === true && !positionRequiresSegment(nicheCode)) fail();
+    const segment = parseOccupyingSegment(o.segment);
 
     return {
       id: o.id,
@@ -217,6 +263,9 @@ function parseOpportunities(
       contractedQuantity: qty,
       status: o.status,
       sortOrder,
+      acceptsSegment: aceita === true,
+      requiresSegment: exige === true,
+      segment,
     };
   });
 

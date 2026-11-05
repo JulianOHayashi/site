@@ -27,7 +27,7 @@ returning id as excl230 \gset
 
 insert into public.commercial_opportunities
   (exclusivity_id, niche_code, contracted_quantity, status)
-values ((:'excl230')::uuid, 'womens_footwear', 12, 'available')
+values ((:'excl230')::uuid, 'footwear', 12, 'available')
 returning id as opp230 \gset
 
 update public.commercial_exclusivities set is_current = false
@@ -121,7 +121,7 @@ commit;
 begin;
 select tests.impersonate('authenticated', :'uid_t');
 select public.create_commercial_checkout_intent(
-  (:'comp230')::uuid,'womens_footwear','direct_benefits') as r_i \gset
+  (:'comp230')::uuid,'footwear','direct_benefits') as r_i \gset
 commit;
 select ((:'r_i')::jsonb ->> 'intent_id') as int230 \gset
 
@@ -313,13 +313,13 @@ select tests.check_raises('valor e prazo do pagamento sao imutaveis',
 -- ---------------------------------------------------------------------------
 insert into public.commercial_opportunities
   (exclusivity_id, niche_code, contracted_quantity, status)
-values ((:'excl230')::uuid, 'mens_footwear', 12, 'available')
+values ((:'excl230')::uuid, 'mens_clothing', 12, 'available')
 returning id as opp_late \gset
 
 begin;
 select tests.impersonate('authenticated', :'uid_tb');
 select public.create_commercial_checkout_intent(
-  (:'comp230b')::uuid,'mens_footwear','direct_benefits') as r_il \gset
+  (:'comp230b')::uuid,'mens_clothing','direct_benefits') as r_il \gset
 commit;
 select ((:'r_il')::jsonb ->> 'intent_id') as int_late \gset
 

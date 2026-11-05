@@ -83,7 +83,10 @@ const ETAPAS: Etapa[] = [
         Uma exclusividade comercial reúne seis nichos. Cada nicho é contratado
         integralmente por uma empresa — as unidades de um nicho não são
         vendidas separadamente, e cada CNPJ contrata um único nicho por
-        exclusividade.
+        exclusividade. A posição Outros é ocupada por um segmento comercial
+        autorizado pela SmallFlags, e esse segmento também pode ocupar a posição
+        de Farmácia, Roupas femininas, Roupas masculinas ou Calçados — nunca a de
+        Supermercado.
       </p>
     ),
     extra: (

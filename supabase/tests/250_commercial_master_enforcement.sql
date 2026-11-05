@@ -304,7 +304,7 @@ select tests.check('resolvedor: a linha historica segue INTACTA e legivel',
 -- PORTÃO 1: sem Mestre elegível não se reserva inventário escasso.
 select tests.impersonate('authenticated', :'uid_t');
 select public.create_commercial_checkout_intent(
-  (:'comp250')::uuid, 'womens_footwear', 'direct_benefits') as r_res \gset
+  (:'comp250')::uuid, 'footwear', 'direct_benefits') as r_res \gset
 select tests.check('PORTAO 1: vinculo ausente impede reservar inventario escasso',
     ((:'r_res')::jsonb ->> 'ok') = 'false'
     and ((:'r_res')::jsonb ->> 'reason') = 'master_agreement_requires_canonical_relink');

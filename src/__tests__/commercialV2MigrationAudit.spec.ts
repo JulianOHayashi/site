@@ -258,8 +258,9 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // 20261008140000 retira SELECT direto de anon/authenticated em
     // legal_documents; leitura publica so por RPC autorizada. 20261027154258 publica
     // os quatro documentos finais do onboarding; a migration seguinte move os
-    // aceites para depois do cadastro. Total = 62.
-    expect(arquivos.length).toBe(62);
+    // aceites para depois do cadastro. 20261103120000 separa posição comercial
+    // de segmento (Calçados unificado, Outros e substituição). Total = 63.
+    expect(arquivos.length).toBe(63);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {

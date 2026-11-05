@@ -25,8 +25,11 @@ VALUES
     ('pharmacy',          'Farmácia',              12, 2, true),
     ('womens_clothing',   'Roupas femininas',      12, 3, true),
     ('mens_clothing',     'Roupas masculinas',     12, 4, true),
-    ('womens_footwear',   'Calçados femininos',    12, 5, true),
-    ('mens_footwear',     'Calçados masculinos',   12, 6, true);
+    ('footwear',          'Calçados',              12, 5, true),
+    ('others',            'Outros',                12, 6, true),
+    -- Históricos (migration 20261103120000): mantidos para FKs, inativos.
+    ('womens_footwear',   'Calçados femininos',    12, 105, false),
+    ('mens_footwear',     'Calçados masculinos',   12, 106, false);
 
 INSERT INTO public.commercial_regions
     (id, uf, name, slug, is_active)

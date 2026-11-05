@@ -35,6 +35,21 @@ psql_db "$DB_NAME" < scripts/db-test/shim-supabase.sql
 echo "== migrations =="
 for f in supabase/migrations/*.sql; do
   echo "   -> $f"
+  # A publicação jurídica de 27/10 exige um site_admin existente (em
+  # Production ele existe). O banco local nasce sem nenhum, então o harness
+  # cria um admin de fixture IMEDIATAMENTE antes dela. Só local.
+  case "$f" in
+    *20261027154258_onboarding_legal_publication_v1.sql)
+      psql_db "$DB_NAME" <<'SQL'
+insert into auth.users (id, email)
+  values ('00000000-0000-4000-8000-00000000ad00', 'harness-admin@local.invalid')
+  on conflict (id) do nothing;
+insert into public.site_admins (user_id)
+  select '00000000-0000-4000-8000-00000000ad00'
+   where not exists (select 1 from public.site_admins);
+SQL
+      ;;
+  esac
   # Filtro exclusivo do harness: comenta a extensão supabase_vault.
   sed 's/^CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";/-- [harness local] supabase_vault indisponivel fora da imagem Supabase/' "$f" \
     | psql_db "$DB_NAME"

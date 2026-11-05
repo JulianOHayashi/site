@@ -37,6 +37,7 @@ import AceitarConviteManager from "./pages/parceiros/AceitarConviteManager";
 import SolicitacaoStatus from "./pages/parceiros/SolicitacaoStatus";
 import ProvisionalGuard from "./components/ProvisionalGuard";
 import AdminSolicitacoes from "./pages/admin/AdminSolicitacoes";
+import AdminSegmentos from "./pages/admin/AdminSegmentos";
 import QuemSomos from "./pages/institucional/QuemSomos";
 import ComoFunciona from "./pages/institucional/ComoFunciona";
 import TrabalheConosco from "./pages/institucional/TrabalheConosco";
@@ -112,6 +113,14 @@ export default function App() {
           element={
             <AdminGuard>
               <AdminSolicitacoes />
+            </AdminGuard>
+          }
+        />
+        <Route
+          path="/admin/segmentos"
+          element={
+            <AdminGuard>
+              <AdminSegmentos />
             </AdminGuard>
           }
         />

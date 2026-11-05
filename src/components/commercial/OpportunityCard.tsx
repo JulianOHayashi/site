@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import type { CommercialOpportunity } from "../../domain/commercial/types";
 import {
   nicheByCode,
-  isNicheCode,
+  isFormationNicheCode,
   slugByCode,
 } from "../../domain/commercial/niches";
 import {
@@ -23,7 +23,7 @@ export default function OpportunityCard({
 }: {
   opportunity: CommercialOpportunity;
 }) {
-  const meta = isNicheCode(opportunity.nicheCode)
+  const meta = isFormationNicheCode(opportunity.nicheCode)
     ? nicheByCode(opportunity.nicheCode)
     : null;
   const nome = meta?.displayName ?? opportunity.displayName;
@@ -56,7 +56,21 @@ export default function OpportunityCard({
           <dt className="text-tinta/60">Quantidade</dt>
           <dd className="font-bold">{opportunity.contractedQuantity} unidades</dd>
         </div>
+        {opportunity.segment && (
+          <div className="flex justify-between">
+            <dt className="text-tinta/60">Segmento</dt>
+            <dd className="font-semibold">{opportunity.segment.name}</dd>
+          </div>
+        )}
       </dl>
+
+      {opportunity.acceptsSegment && !opportunity.segment && (
+        <p className="mt-3 text-xs text-tinta/60">
+          {opportunity.requiresSegment
+            ? "Posição para um segmento comercial autorizado pela SmallFlags."
+            : "Também pode ser ocupada por um segmento de Outros."}
+        </p>
+      )}
 
       <p className="mt-3 rounded-xl bg-papel2 px-3 py-2 text-xs text-tinta/70">
         Nicho contratado integralmente — não há venda de unidades avulsas.

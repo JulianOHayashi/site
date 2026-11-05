@@ -29,6 +29,9 @@ export default function Admin() {
             <Link to="/admin/solicitacoes" className="btn-primary">
             Solicitações de parceria
           </Link>
+          <Link to="/admin/segmentos" className="btn-primary">
+            Segmentos de Outros
+          </Link>
           <Link to="/oportunidades" className="btn-primary">
               Ver oportunidades
             </Link>
