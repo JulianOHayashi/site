@@ -116,7 +116,14 @@ export default function AdminSolicitacoes() {
             {itens.map((s) => (
               <li key={s.application_id} className="card p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="text-lg font-bold">{s.legal_name}</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-bold">{s.legal_name}</h2>
+                    {s.is_qa_fixture ? (
+                      <span className="rounded-full border border-borda px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-tinta/70" aria-label="Empresa de QA">
+                        QA
+                      </span>
+                    ) : null}
+                  </div>
                   <span className="text-sm text-tinta/60">{s.cnpj}</span>
                 </div>
                 <p className="mt-1 text-sm text-tinta/60">

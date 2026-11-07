@@ -722,6 +722,7 @@ export type SolicitacaoAdmin = {
   company_review_status: string;
   authority_review_status: string;
   created_at: string;
+  is_qa_fixture?: boolean;
   representative: { id: string; full_name: string; authority_status: string } | null;
 };
 
