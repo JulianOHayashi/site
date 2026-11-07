@@ -4,6 +4,13 @@ import Header from "../components/Header";
 import { supabase, supabaseConfigurado } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { safeInternalDestination } from "../lib/safeInternalDestination";
+import { useCaptchaAuth } from "../components/seguranca/useCaptchaAuth";
+import {
+  MENSAGEM_CAPTCHA_INDISPONIVEL,
+  MENSAGEM_CAPTCHA_PENDENTE,
+  mensagemSeguraDeAuth,
+  opcoesComCaptcha,
+} from "../lib/captcha";
 
 /**
  * /parceiros/acesso — acesso da conta provisória de uma solicitação.
@@ -26,6 +33,7 @@ export default function ParceirosAcesso() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const captcha = useCaptchaAuth("login_provisorio");
 
   useEffect(() => {
     if (!carregando && session) navigate(destino, { replace: true });
@@ -33,21 +41,27 @@ export default function ParceirosAcesso() {
 
   const entrar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || enviando) return;
+    // Sem CAPTCHA válido, nada é enviado ao Auth.
+    if (!captcha.pronto) {
+      setErro(captcha.bloqueado ? MENSAGEM_CAPTCHA_INDISPONIVEL : MENSAGEM_CAPTCHA_PENDENTE);
+      return;
+    }
 
     setErro(null);
     setEnviando(true);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password: senha,
+      options: opcoesComCaptcha(captcha.consumir()),
     });
     setEnviando(false);
 
     if (error) {
       setErro(
-        error.message.includes("Invalid login")
+        error.code === "invalid_credentials" || error.message.includes("Invalid login")
           ? "E-mail ou senha incorretos."
-          : "Não foi possível entrar. Tente novamente."
+          : mensagemSeguraDeAuth(error, "Não foi possível entrar. Tente novamente.")
       );
       return;
     }
@@ -106,6 +120,8 @@ export default function ParceirosAcesso() {
             />
           </div>
 
+          {captcha.widget}
+
           {erro && (
             <p className="aviso-erro font-medium">
               {erro}
@@ -114,7 +130,7 @@ export default function ParceirosAcesso() {
 
           <button
             type="submit"
-            disabled={!supabaseConfigurado || enviando}
+            disabled={!supabaseConfigurado || enviando || !captcha.pronto}
             className="btn-primary w-full"
           >
             {enviando ? "Aguarde..." : "Entrar para acompanhar"}

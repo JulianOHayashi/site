@@ -11,6 +11,15 @@ import {
   type TermosEstado,
 } from "../../services/partnerApplicationService";
 import { emailValido } from "../../lib/onboardingValidacao";
+import { useCaptchaAuth } from "../../components/seguranca/useCaptchaAuth";
+import {
+  ehErroDeCaptcha,
+  MENSAGEM_CAPTCHA_FALHOU,
+  MENSAGEM_CAPTCHA_INDISPONIVEL,
+  MENSAGEM_CAPTCHA_PENDENTE,
+  mensagemSeguraDeAuth,
+  opcoesComCaptcha,
+} from "../../lib/captcha";
 import RecuperarAcesso from "./RecuperarAcesso";
 
 /**
@@ -59,6 +68,7 @@ export default function ConfirmarEmail() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const captcha = useCaptchaAuth("cadastro_provisorio");
   const [termos, setTermos] = useState<TermosEstado>({ tipo: "carregando" });
   const [aceitos, setAceitos] = useState<Set<string>>(new Set());
   const claimRef = useRef<string | null>(claimDaUrl);
@@ -124,20 +134,46 @@ export default function ConfirmarEmail() {
     if (!supabase || !claimToken || enviando) return;
     if (!emailValido(email)) { setMensagem("Informe um e-mail válido."); return; }
     if (senha.length < 8) { setMensagem("A senha precisa ter ao menos 8 caracteres."); return; }
+    // Sem CAPTCHA válido, nada é enviado ao Auth.
+    if (!captcha.pronto) {
+      setMensagem(captcha.bloqueado ? MENSAGEM_CAPTCHA_INDISPONIVEL : MENSAGEM_CAPTCHA_PENDENTE);
+      return;
+    }
 
     setEnviando(true);
     setMensagem("");
     const normalizado = email.trim().toLowerCase();
+    const generica = "Não foi possível criar ou acessar a conta com esses dados.";
 
-    const cadastro = await supabase.auth.signUp({ email: normalizado, password: senha });
+    const cadastro = await supabase.auth.signUp({
+      email: normalizado,
+      password: senha,
+      options: opcoesComCaptcha(captcha.consumir()),
+    });
 
     let temSessao = Boolean(cadastro.data?.session);
     if (cadastro.error) {
-      // Conta possivelmente já existente: tentamos entrar.
-      const login = await supabase.auth.signInWithPassword({ email: normalizado, password: senha });
+      if (ehErroDeCaptcha(cadastro.error)) {
+        setEnviando(false);
+        setMensagem(MENSAGEM_CAPTCHA_FALHOU);
+        return;
+      }
+      // Conta possivelmente já existente: tentamos entrar. O token anterior
+      // já foi gasto; o login usa um token NOVO ou não acontece.
+      const tokenLogin = await captcha.proximoToken();
+      if (tokenLogin === null) {
+        setEnviando(false);
+        setMensagem(MENSAGEM_CAPTCHA_PENDENTE);
+        return;
+      }
+      const login = await supabase.auth.signInWithPassword({
+        email: normalizado,
+        password: senha,
+        options: opcoesComCaptcha(tokenLogin),
+      });
       if (login.error) {
         setEnviando(false);
-        setMensagem("Não foi possível criar ou acessar a conta com esses dados.");
+        setMensagem(mensagemSeguraDeAuth(login.error, generica));
         return;
       }
       temSessao = Boolean(login.data?.session);
@@ -253,8 +289,9 @@ export default function ConfirmarEmail() {
               <input id="senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
                      className="w-full rounded-xl border border-borda px-4 py-2.5" />
             </div>
+            {captcha.widget}
             {mensagem ? <p className="text-sm text-vermelho" role="alert">{mensagem}</p> : null}
-            <button type="submit" disabled={enviando} className="btn-primary w-full">
+            <button type="submit" disabled={enviando || !captcha.pronto} className="btn-primary w-full">
               {enviando ? "Criando..." : "Continuar"}
             </button>
           </form>
