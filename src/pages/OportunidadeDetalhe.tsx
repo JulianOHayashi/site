@@ -259,9 +259,11 @@ export default function OportunidadeDetalhe() {
               <div className="card mt-4 p-6">
                 <h2 className="text-lg font-bold">Sobre esta oportunidade</h2>
                 <p className="mt-2 text-sm text-tinta/70">
-                  {meta.shortDescription} O nicho é contratado integralmente,
-                  com {opp.contractedQuantity} unidades — não há venda de
-                  unidades avulsas.
+                  {meta.shortDescription} A divulgação prevista é publicidade visual
+                  por meio de bandeiras publicitárias instaladas sobre veículos,
+                  sujeita às condições técnicas e autorizações aplicáveis.
+                  O nicho é contratado integralmente, com {opp.contractedQuantity}
+                  unidades — não há venda de unidades avulsas.
                 </p>
                 {opp.status === "available" ? (
                   <p className="mt-3 aviso-atencao text-tinta/70">
