@@ -51,8 +51,10 @@ const ETAPAS: Etapa[] = [
     conteudo: (
       <p>
         As oportunidades comerciais são organizadas por região e por nicho.
-        A página de oportunidades mostra o status da exclusividade, o progresso
-        da formação comercial e, quando definido, o início previsto da operação.
+        As empresas anunciam suas marcas em bandeiras publicitárias instaladas
+        sobre veículos de divulgadores. A página de oportunidades mostra o
+        status da exclusividade, o progresso da formação comercial e, quando
+        definido, o início previsto da operação.
       </p>
     ),
     extra: (
@@ -102,11 +104,14 @@ const ETAPAS: Etapa[] = [
       <p>
         A gestão comercial continua no Site e no Portal do Parceiro. A jornada
         operacional dos divulgadores é administrada pelo SmallFlags App. Cada
-        divulgador é um microempreendedor individual que usa o próprio veículo
-        para divulgação sonora em vias públicas — a SmallFlags não é dona dos
-        veículos nem empregadora. Pelo App, o divulgador também acessa os
-        benefícios oferecidos pelas empresas parceiras, que são resgatados no
-        estabelecimento de cada empresa.
+        divulgador é um microempreendedor individual que utiliza o próprio
+        veículo para exibir bandeiras publicitárias na parte superior,
+        quando a instalação e a circulação forem seguras e permitidas.
+        A bandeira de referência mede 49 × 30,5 cm, sem substituir as
+        especificações técnicas de fixação ou as autorizações necessárias.
+        A SmallFlags não é dona dos veículos nem empregadora. Pelo App,
+        o divulgador também acessa benefícios das empresas parceiras,
+        resgatados nos estabelecimentos, em atividade distinta da publicidade.
       </p>
     ),
   },
