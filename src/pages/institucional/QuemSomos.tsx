@@ -18,8 +18,8 @@ import { Link } from "react-router-dom";
  * do divulgador) sem expor detalhes internos de integração.
  *
  * VOCABULÁRIO: o divulgador é um MEI independente que usa veículo PRÓPRIO
- * para divulgação sonora em VIA PÚBLICA. A SmallFlags não é dona dos veículos
- * nem empregadora. O resgate de benefício é outra atividade, e acontece no
+ * para publicidade visual com BANDEIRA INSTALADA SOBRE O VEÍCULO. A SmallFlags
+ * não é dona dos veículos nem empregadora. O resgate de benefício é outra atividade, e acontece no
  * estabelecimento da empresa parceira.
  */
 export default function QuemSomos() {
@@ -30,9 +30,10 @@ export default function QuemSomos() {
         titulo="Empresas, tecnologia e operação conectadas em um único ecossistema."
         texto={
           <p>
-            A SmallFlags organiza uma estrutura comercial para empresas parceiras e
-            a conecta a um aplicativo dedicado aos divulgadores.
-            Cada parte tem sua responsabilidade — e as duas trabalham juntas.
+            A SmallFlags organiza publicidade visual em veículos por meio de bandeiras
+            publicitárias instaladas sobre os veículos dos divulgadores.
+            O Site gerencia a parceria com anunciantes e o App acompanha a
+            operação dos divulgadores.
           </p>
         }
       />
@@ -48,12 +49,15 @@ export default function QuemSomos() {
         }
       >
         <p className="max-w-2xl text-lg leading-8 text-tinta/80">
-          Empresas parceiras participam de oportunidades comerciais organizadas
-          por região e por nicho, dentro de uma exclusividade comercial. Do outro
-          lado, divulgadores — microempreendedores individuais, cada um com seu
-          próprio veículo — fazem divulgação sonora em vias públicas e acompanham
-          tudo pelo aplicativo, onde também acessam os benefícios oferecidos pelas
-          empresas parceiras.
+          Empresas anunciantes contratam oportunidades comerciais organizadas
+          por região e por nicho. A publicidade é visual: divulgadores
+          — microempreendedores individuais que utilizam seus próprios veículos —
+          exibem bandeiras publicitárias instaladas sobre eles, quando a
+          instalação e a circulação estiverem autorizadas e forem seguras.
+          O modelo de bandeira de referência mede 49 cm de largura por 30,5 cm
+          de altura; a especificação de montagem depende de validação técnica.
+          Pelo aplicativo, os divulgadores também acessam benefícios oferecidos
+          pelas empresas parceiras, em atividade separada da publicidade.
         </p>
       </Secao>
 
