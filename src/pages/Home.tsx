@@ -82,13 +82,14 @@ export default function Home() {
             <div className="lg:col-span-7">
               <p className="rotulo-marca entrar">Oportunidades comerciais SmallFlags</p>
               <h1 className="display t-hero entrar entrar-2 mt-6 max-w-[16ch]">
-                Oportunidades comerciais por região e{" "}
-                <span className="texto-marca">por nicho.</span>
+                Publicidade em veículos com{" "}
+                <span className="texto-marca">bandeiras.</span>
               </h1>
               <p className="entrar entrar-3 mt-7 max-w-xl text-lg leading-8 text-tinta/70">
-                Cada oportunidade é a contratação integral de um nicho dentro de uma
-                exclusividade comercial da região. A {REGIAO_ATIVA.nome} ({REGIAO_ATIVA.uf})
-                é a primeira região ativa.
+                A SmallFlags conecta empresas anunciantes à publicidade visual
+                por meio de bandeiras instaladas sobre veículos de divulgadores.
+                As oportunidades comerciais são organizadas por nicho e região.
+                A {REGIAO_ATIVA.nome} ({REGIAO_ATIVA.uf}) é a primeira região ativa.
               </p>
               <div className="entrar entrar-4 mt-10 flex flex-wrap gap-3">
                 <Link to="/oportunidades" className="btn-primary px-6">
@@ -221,8 +222,8 @@ export default function Home() {
             <p className="mt-4 max-w-sm leading-7 text-tinta/65">
               Dois ambientes com responsabilidades separadas. O Site cuida da relação
               comercial; o App cuida da jornada do divulgador — o microempreendedor
-              individual que faz divulgação sonora em vias públicas com o próprio
-              veículo.
+              individual que exibe bandeiras publicitárias instaladas sobre seu
+              veículo, observadas as condições de segurança e autorizações aplicáveis.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/quem-somos" className="btn-secondary">
@@ -250,8 +251,8 @@ export default function Home() {
               <p className="rotulo text-tinta/60">Ainda não é parceira</p>
               <h3 className="mt-3 text-2xl leading-snug">Conheça a parceria SmallFlags</h3>
               <p className="mt-3 flex-1 leading-7 text-tinta/65">
-                Entenda o modelo comercial, os requisitos e envie a solicitação da sua
-                empresa.
+                Anuncie sua marca em bandeiras instaladas sobre veículos. Conheça
+                as condições comerciais e solicite a análise da sua empresa.
               </p>
               <Link to="/parceiros" className="btn-primary mt-8 self-start">
                 Área de parceiros
