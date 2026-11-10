@@ -14,12 +14,14 @@
  * 1. O divulgador é um MEI independente e usa VEÍCULO PRÓPRIO. A SmallFlags
  *    não é dona do veículo, não é empregadora e não é transportadora. Nada
  *    aqui pode sugerir frota, vínculo trabalhista ou subordinação.
- * 2. Duas coisas distintas: a divulgação sonora acontece em VIA PÚBLICA; o
- *    resgate de benefício acontece NO ESTABELECIMENTO da empresa parceira.
+ * 2. Duas coisas distintas: a publicidade visual com bandeira sobre o veículo
+ *    ocorre nos locais permitidos; o resgate de benefício acontece NO
+ *    ESTABELECIMENTO da empresa parceira.
  *    Não são a mesma atividade e não devem aparecer na mesma frase como se
  *    fossem.
- * 3. Nada de garantia jurídica. A regulamentação de publicidade sonora é
- *    municipal e varia; o texto descreve o modelo, não promete conformidade.
+ * 3. Nada de garantia jurídica. Publicidade em veículos, instalações e
+ *    circulação podem exigir autorizações municipais e cumprimento das
+ *    regras de trânsito; o texto não promete conformidade automática.
  */
 
 type Trilha = {
@@ -52,7 +54,7 @@ const TRILHAS: Trilha[] = [
     dominioRotulo: "Domínio operacional",
     dominio: "Divulgação e benefícios",
     itens: [
-      "Divulgação sonora em via pública, com veículo próprio do MEI",
+      "Publicidade visual com bandeira instalada sobre o veículo do MEI",
       "Acesso aos benefícios das empresas parceiras",
       "Confirmação do uso pelo próprio divulgador",
     ],
@@ -139,8 +141,8 @@ export default function RelacaoSiteApp({ tom = "claro" }: { tom?: "claro" | "esc
         >
           Na validação do uso de um benefício, no estabelecimento da empresa parceira: o
           divulgador apresenta o QR code do App, a empresa registra a solicitação pelo Portal
-          do Parceiro e o divulgador confirma o uso no próprio App. A divulgação em via
-          pública é outra atividade, e acontece fora deste encontro. Cada ambiente decide o
+          do Parceiro e o divulgador confirma o uso no próprio App. A publicidade visual no
+          veículo é outra atividade, e acontece fora deste encontro. Cada ambiente decide o
           que é seu.
         </p>
       </div>

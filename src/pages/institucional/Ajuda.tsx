@@ -159,6 +159,27 @@ const CATEGORIAS: Categoria[] = [
         ),
       },
       {
+        pergunta: "Que tipo de publicidade a SmallFlags realiza?",
+        resposta: (
+          <>
+            A SmallFlags organiza publicidade visual em veículos: bandeiras
+            publicitárias são instaladas sobre veículos de divulgadores, em
+            regiões comerciais específicas. Não se trata de publicidade sonora.
+          </>
+        ),
+      },
+      {
+        pergunta: "Qual é o tamanho da bandeira publicitária?",
+        resposta: (
+          <>
+            O modelo visual de referência tem 49 cm de largura e 30,5 cm de
+            altura. A produção e a instalação no veículo dependem de
+            especificação técnica e verificação de segurança, além das
+            autorizações locais eventualmente exigidas.
+          </>
+        ),
+      },
+      {
         pergunta: "Onde a operação está disponível?",
         resposta: (
           <>

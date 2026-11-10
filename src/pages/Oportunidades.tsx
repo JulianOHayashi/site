@@ -142,9 +142,10 @@ export default function Oportunidades() {
                 Oportunidades comerciais
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-tinta/60">
-                Cada nicho é contratado integralmente. Abra uma oportunidade
-                para revisar as condições e, como titular autenticado, avançar
-                ao checkout e reservar o nicho.
+                As oportunidades destinam-se à publicidade visual por meio de
+                bandeiras instaladas sobre veículos de divulgadores. Cada nicho
+                é contratado integralmente. Abra uma oportunidade para revisar
+                as condições e, como titular autenticado, avançar ao checkout.
               </p>
               {estado.dados.exclusivity.plannedStartAt && (
                 <p className="mt-2 text-sm font-semibold">
