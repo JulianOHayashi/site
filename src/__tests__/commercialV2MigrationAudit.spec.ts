@@ -213,7 +213,7 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 60 migrations", () => {
+  it("exatamente 64 migrations", () => {
     // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada;
     // 20260908120000 endurece o snapshot de provisionamento; 20260909120000
     // acrescenta a RPC de autoridade de uso de beneficio; 20260915120000
@@ -259,8 +259,10 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // legal_documents; leitura publica so por RPC autorizada. 20261027154258 publica
     // os quatro documentos finais do onboarding; a migration seguinte move os
     // aceites para depois do cadastro. 20261103120000 separa posição comercial
-    // de segmento (Calçados unificado, Outros e substituição). Total = 63.
-    expect(arquivos.length).toBe(63);
+    // de segmento (Calçados unificado, Outros e substituição). 20261110120000
+    // prepara os contratos V2 de publicidade visual em veículos (autoridade da
+    // especificação técnica, sem ativar nada). Total = 64.
+    expect(arquivos.length).toBe(64);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {
