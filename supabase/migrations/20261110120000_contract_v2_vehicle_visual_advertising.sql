@@ -9,7 +9,8 @@
 -- 1. commercial_advertising_specs: autoridade versionada da especificação
 --    técnica da peça publicitária (anexo técnico). Nasce VAZIA. Uma linha só
 --    pode ser 'approved' com responsável técnico, registro profissional e hash
---    do laudo; aprovada, é imutável (só pode ser arquivada). No máximo uma
+--    do laudo; nasce sempre draft; aprovada, é imutável (só pode ser
+--    arquivada, sem alterar nenhum outro campo). No máximo uma
 --    aprovada por modalidade. Nenhuma RPC aprova: exige ato administrativo
 --    deliberado, como a promoção de modelo de instrumento.
 -- 2. commercial_instrument_templates ganha `advertising_modality` e
@@ -73,7 +74,11 @@ CREATE UNIQUE INDEX cas_uma_aprovada_por_modalidade_uidx
   WHERE lifecycle_status = 'approved';
 
 ALTER TABLE public.commercial_advertising_specs ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.commercial_advertising_specs FROM PUBLIC, anon, authenticated;
+-- Os privilégios padrão do schema public (Production: postgres concede
+-- arwdDxtm a service_role) dariam INSERT/UPDATE/DELETE/TRUNCATE ao
+-- service_role, que ignora RLS. Esta autoridade só é LIDA pelo servidor:
+-- revoga tudo de todos e concede apenas SELECT ao service_role.
+REVOKE ALL ON public.commercial_advertising_specs FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON public.commercial_advertising_specs TO service_role;
 
 COMMENT ON TABLE public.commercial_advertising_specs IS
@@ -82,42 +87,104 @@ COMMENT ON TABLE public.commercial_advertising_specs IS
   'aprovada e imutavel (so arquiva). Dimensoes sao REFERENCIA da arte, nao '
   'homologacao do conjunto instalado.';
 
+-- Máquina de estados (única fonte da garantia; nenhuma RPC a contorna):
+--   INSERT               -> só 'draft' (aprovar é sempre uma TRANSIÇÃO)
+--   draft    -> draft    edição livre, exceto id e created_at
+--   draft    -> approved ato administrativo; cas_aprovacao_completa valida
+--   approved -> archived to_jsonb(NEW) = to_jsonb(OLD) excluídos SOMENTE
+--                        lifecycle_status e archived_at; archived_at não
+--                        anterior a approved_at
+--   draft    -> archived recusado (rascunho nunca aprovado é apagado)
+--   approved -> draft/approved, archived -> * : recusados
+--   DELETE               -> só 'draft'; TRUNCATE: gatilho de instrução abaixo
+--
+-- Por que to_jsonb: a comparação cobre TODAS as colunas, inclusive as que
+-- forem acrescentadas no futuro (falha fechada: coluna nova nasce protegida).
+-- Tipos atuais: uuid e text viram string JSON exata; integer vira número
+-- (igualdade numérica exata); timestamptz vira string ISO 8601 com
+-- microssegundos, renderizada para OLD e NEW na MESMA sessão (mesmo
+-- TimeZone), logo instantes iguais geram texto igual e qualquer diferença,
+-- até 1 µs, gera texto diferente; NULL vira JSON null, distinto de ''.
+-- `jsonb - text` remove só a chave nomeada. IS DISTINCT FROM em jsonb compara
+-- estrutura e valores, sem depender da ordem das chaves.
 CREATE FUNCTION public.commercial_advertising_specs_protect()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path TO 'pg_catalog'
 AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.lifecycle_status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'advertising_spec_transicao_invalida: especificacao nasce draft (recebido %)',
+        NEW.lifecycle_status;
+    END IF;
+    RETURN NEW;
+  END IF;
+
   IF TG_OP = 'DELETE' THEN
-    IF OLD.lifecycle_status <> 'draft' THEN
+    IF OLD.lifecycle_status IS DISTINCT FROM 'draft' THEN
       RAISE EXCEPTION 'advertising_spec_imutavel: % nao pode ser apagada', OLD.lifecycle_status;
     END IF;
     RETURN OLD;
   END IF;
+
+  -- UPDATE. Identidade primária e auditoria nunca mudam, em nenhum estado.
+  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'advertising_spec_imutavel: id e created_at nao podem ser alterados';
+  END IF;
+
   IF OLD.lifecycle_status = 'archived' THEN
     RAISE EXCEPTION 'advertising_spec_imutavel: versao arquivada';
   END IF;
+
   IF OLD.lifecycle_status = 'approved' THEN
-    -- Única transição permitida: approved -> archived, sem tocar no conteúdo.
-    IF NEW.lifecycle_status <> 'archived'
-       OR (NEW.spec_code, NEW.spec_version, NEW.modality, NEW.artwork_reference_width_mm,
-           NEW.artwork_reference_height_mm, NEW.source_hash, NEW.technical_responsible_name,
-           NEW.technical_responsible_registration, NEW.technical_report_hash,
-           NEW.approved_by, NEW.approved_at)
-          IS DISTINCT FROM
-          (OLD.spec_code, OLD.spec_version, OLD.modality, OLD.artwork_reference_width_mm,
-           OLD.artwork_reference_height_mm, OLD.source_hash, OLD.technical_responsible_name,
-           OLD.technical_responsible_registration, OLD.technical_report_hash,
-           OLD.approved_by, OLD.approved_at) THEN
+    IF NEW.lifecycle_status IS DISTINCT FROM 'archived' THEN
       RAISE EXCEPTION 'advertising_spec_imutavel: versao aprovada so pode ser arquivada';
     END IF;
+    IF (to_jsonb(NEW) - 'lifecycle_status' - 'archived_at')
+         IS DISTINCT FROM
+       (to_jsonb(OLD) - 'lifecycle_status' - 'archived_at') THEN
+      RAISE EXCEPTION 'advertising_spec_imutavel: arquivamento so altera lifecycle_status e archived_at';
+    END IF;
+    IF NEW.archived_at < OLD.approved_at THEN
+      RAISE EXCEPTION 'advertising_spec_transicao_invalida: arquivamento anterior a aprovacao';
+    END IF;
+    RETURN NEW;
   END IF;
-  RETURN NEW;
+
+  IF OLD.lifecycle_status = 'draft' THEN
+    IF NEW.lifecycle_status IS NULL OR NEW.lifecycle_status NOT IN ('draft', 'approved') THEN
+      RAISE EXCEPTION 'advertising_spec_transicao_invalida: rascunho so permanece draft ou e aprovado (recebido %)',
+        NEW.lifecycle_status;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'advertising_spec_transicao_invalida: estado de origem desconhecido %', OLD.lifecycle_status;
 END $$;
 REVOKE ALL ON FUNCTION public.commercial_advertising_specs_protect() FROM PUBLIC, anon, authenticated, service_role;
 CREATE TRIGGER cas_protect
-  BEFORE UPDATE OR DELETE ON public.commercial_advertising_specs
+  BEFORE INSERT OR UPDATE OR DELETE ON public.commercial_advertising_specs
   FOR EACH ROW EXECUTE FUNCTION public.commercial_advertising_specs_protect();
+
+-- TRUNCATE não dispara gatilho de linha: recusa se apagaria versão aprovada
+-- ou arquivada (vale também para o dono da tabela).
+CREATE FUNCTION public.commercial_advertising_specs_protect_truncate()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'pg_catalog'
+AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.commercial_advertising_specs
+              WHERE lifecycle_status IS DISTINCT FROM 'draft') THEN
+    RAISE EXCEPTION 'advertising_spec_imutavel: TRUNCATE apagaria versao aprovada ou arquivada';
+  END IF;
+  RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION public.commercial_advertising_specs_protect_truncate() FROM PUBLIC, anon, authenticated, service_role;
+CREATE TRIGGER cas_protect_truncate
+  BEFORE TRUNCATE ON public.commercial_advertising_specs
+  FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_advertising_specs_protect_truncate();
 
 -- ---------------------------------------------------------------------------
 -- 2. Modelos de instrumento: modalidade e exigência de especificação

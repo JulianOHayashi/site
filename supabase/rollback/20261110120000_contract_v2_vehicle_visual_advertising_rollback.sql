@@ -274,7 +274,9 @@ ALTER TABLE public.commercial_instrument_templates
   DROP CONSTRAINT cit_modalidade_valida,
   DROP COLUMN requires_advertising_spec,
   DROP COLUMN advertising_modality;
+DROP TRIGGER cas_protect_truncate ON public.commercial_advertising_specs;
 DROP TRIGGER cas_protect ON public.commercial_advertising_specs;
 DROP TABLE public.commercial_advertising_specs;
+DROP FUNCTION public.commercial_advertising_specs_protect_truncate();
 DROP FUNCTION public.commercial_advertising_specs_protect();
 COMMIT;

@@ -204,6 +204,7 @@ describe("Contratos V2 — a migration preparatória não ativa nada", () => {
     const recriadas = [...MIGRATION.matchAll(/CREATE (?:OR REPLACE )?FUNCTION public\.([a-z_]+)/g)].map((m) => m[1]);
     expect(recriadas.sort()).toEqual([
       "commercial_advertising_specs_protect",
+      "commercial_advertising_specs_protect_truncate",
       "commercial_build_instrument_snapshot",
       "commercial_order_effective_activity",
     ]);

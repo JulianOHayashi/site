@@ -44,7 +44,8 @@ anterior.
 
 | Passo | Ação |
 |---|---|
-| 3.1 🔒 | Inserir a especificação em `commercial_advertising_specs` já como `approved`, com responsável, registro, hash do laudo, `approved_by` e `approved_at` (o CHECK recusa a falta de qualquer um). `source_hash` = SHA-256 do Anexo Técnico aprovado. |
+| 3.1 🔒 | Inserir a especificação em `commercial_advertising_specs` como `draft` (o gatilho recusa inserção já aprovada ou arquivada). `source_hash` = SHA-256 do Anexo Técnico aprovado. Conferir o rascunho. |
+| 3.1b 🔒 | Aprovar com um único `UPDATE` `draft → approved`, preenchendo responsável, registro, hash do laudo, `approved_by` e `approved_at` (o CHECK recusa a falta de qualquer um). Depois disso a linha é imutável: correção exige nova versão e arquivamento da anterior. |
 | 3.2 | Conferir que existe uma única especificação aprovada para `vehicle_roof_visual_flag` |
 
 ## 4. Modelos de instrumento V2 (depois de §2 e §3)

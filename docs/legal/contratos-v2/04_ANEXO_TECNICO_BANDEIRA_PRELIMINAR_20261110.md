@@ -12,8 +12,8 @@
   versão revisada precisa ser:
   - assinada por responsável técnico habilitado, com registro profissional e
     laudo;
-  - registrada em `commercial_advertising_specs` com `lifecycle_status =
-    'approved'`, por ato administrativo deliberado.
+  - registrada em `commercial_advertising_specs` como `draft` e aprovada pela
+    transição `draft → approved`, por ato administrativo deliberado.
 
 ## 1. O que está definido hoje
 
@@ -72,5 +72,6 @@ A versão aprovada é registrada em `commercial_advertising_specs` com:
   `technical_report_hash`;
 - `approved_by` e `approved_at`.
 
-Depois de aprovada, a versão é imutável e só pode ser arquivada. **Nenhuma
+Depois de aprovada, a versão é imutável: só pode ser arquivada, e o
+arquivamento não altera nenhum outro campo. **Nenhuma
 versão foi registrada nesta branch.**

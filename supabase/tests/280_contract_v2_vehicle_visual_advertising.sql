@@ -41,57 +41,237 @@ select tests.check('anon e authenticated nao leem especificacoes; funcoes intern
 select tests.mk_user('admin280@teste.local') as uid_admin \gset
 insert into public.site_admins (user_id) values ((:'uid_admin')::uuid) on conflict do nothing;
 
+-- Privilégios: ninguém escreve; service_role só lê (os privilégios padrão do
+-- schema dariam arwdDxtm ao service_role, que ignora RLS).
+select tests.check('especificacoes: service_role so LE; anon, authenticated e service_role nao escrevem',
+    has_table_privilege('service_role', 'public.commercial_advertising_specs', 'SELECT')
+    and not exists (
+      select 1 from unnest(array['anon', 'authenticated', 'service_role']) r,
+                    unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) p
+       where has_table_privilege(r, 'public.commercial_advertising_specs', p)));
+select tests.check('especificacoes: PUBLIC sem nenhum privilegio na tabela',
+    not exists (select 1 from pg_class c, aclexplode(c.relacl) a
+                 where c.oid = 'public.commercial_advertising_specs'::regclass
+                   and a.grantee = 0));
+select tests.check('gatilhos de protecao nao sao executaveis por anon, authenticated ou service_role',
+    not exists (
+      select 1 from unnest(array['anon', 'authenticated', 'service_role']) r,
+                    unnest(array['public.commercial_advertising_specs_protect()',
+                                 'public.commercial_advertising_specs_protect_truncate()']) f
+       where to_regprocedure(f) is null
+          or has_function_privilege(r, to_regprocedure(f), 'EXECUTE')));
+select tests.check('gatilho de linha cobre INSERT, UPDATE e DELETE; TRUNCATE tem gatilho proprio',
+    (select count(*) = 2 from pg_trigger
+      where tgrelid = 'public.commercial_advertising_specs'::regclass and not tgisinternal
+        and tgname in ('cas_protect', 'cas_protect_truncate') and tgenabled = 'O')
+    and (select (tgtype & 4) <> 0 and (tgtype & 8) <> 0 and (tgtype & 16) <> 0
+           from pg_trigger where tgname = 'cas_protect'
+            and tgrelid = 'public.commercial_advertising_specs'::regclass)
+    and (select (tgtype & 32) <> 0 from pg_trigger where tgname = 'cas_protect_truncate'
+            and tgrelid = 'public.commercial_advertising_specs'::regclass));
+
 select tests.check_raises('modalidade fora da lista e recusada',
   $sql$insert into public.commercial_advertising_specs
         (spec_code, spec_version, modality, artwork_reference_width_mm,
          artwork_reference_height_mm, source_hash)
        values ('QA', '1', 'sound_car', 490, 305, repeat('a', 64))$sql$,
   'cas_modality_valida');
-select tests.check_raises('aprovar sem responsavel tecnico e laudo e recusado',
-  $sql$insert into public.commercial_advertising_specs
-        (spec_code, spec_version, modality, artwork_reference_width_mm,
-         artwork_reference_height_mm, source_hash, lifecycle_status,
-         approved_by, approved_at)
-       values ('QA', '1', 'vehicle_roof_visual_flag', 490, 305, repeat('a', 64),
-               'approved', gen_random_uuid(), now())$sql$,
-  'cas_aprovacao_completa');
-
-begin;
-insert into public.commercial_advertising_specs
-  (spec_code, spec_version, modality, artwork_reference_width_mm,
-   artwork_reference_height_mm, source_hash, lifecycle_status,
-   technical_responsible_name, technical_responsible_registration,
-   technical_report_hash, approved_by, approved_at, notes)
-values ('[QA FICTICIO] ESPEC-BANDEIRA', '0.0-qa', 'vehicle_roof_visual_flag', 490, 305,
-        encode(extensions.digest('[QA FICTICIO] anexo tecnico', 'sha256'), 'hex'),
-        'approved', '[QA FICTICIO] Responsavel', '[QA] REGISTRO-0000',
-        encode(extensions.digest('[QA FICTICIO] laudo', 'sha256'), 'hex'),
-        (:'uid_admin')::uuid, now(), 'QA: nao representa homologacao real')
-returning id as spec_qa \gset
-select tests.check_raises('segunda especificacao aprovada para a mesma modalidade e recusada',
+select tests.check_raises('especificacao nao nasce aprovada: aprovar e sempre transicao de draft',
   $sql$insert into public.commercial_advertising_specs
         (spec_code, spec_version, modality, artwork_reference_width_mm,
          artwork_reference_height_mm, source_hash, lifecycle_status,
          technical_responsible_name, technical_responsible_registration,
          technical_report_hash, approved_by, approved_at)
-       values ('[QA FICTICIO] OUTRA', '0.1', 'vehicle_roof_visual_flag', 490, 305, repeat('b', 64),
+       values ('QA', '1', 'vehicle_roof_visual_flag', 490, 305, repeat('a', 64),
                'approved', 'x', 'y', repeat('c', 64), gen_random_uuid(), now())$sql$,
+  'advertising_spec_transicao_invalida');
+select tests.check_raises('especificacao nao nasce arquivada',
+  $sql$insert into public.commercial_advertising_specs
+        (spec_code, spec_version, modality, artwork_reference_width_mm,
+         artwork_reference_height_mm, source_hash, lifecycle_status,
+         technical_responsible_name, technical_responsible_registration,
+         technical_report_hash, approved_by, approved_at, archived_at)
+       values ('QA', '1', 'vehicle_roof_visual_flag', 490, 305, repeat('a', 64),
+               'archived', 'x', 'y', repeat('c', 64), gen_random_uuid(), now(), now())$sql$,
+  'advertising_spec_transicao_invalida');
+
+begin;
+insert into public.commercial_advertising_specs
+  (spec_code, spec_version, modality, artwork_reference_width_mm,
+   artwork_reference_height_mm, source_hash, notes)
+values ('[QA FICTICIO] ESPEC-BANDEIRA', '0.0-qa', 'vehicle_roof_visual_flag', 490, 305,
+        encode(extensions.digest('[QA FICTICIO] anexo tecnico', 'sha256'), 'hex'),
+        'QA: rascunho')
+returning id as spec_qa \gset
+
+-- RASCUNHO: continua editável (sem regressão), mas identidade e auditoria não.
+update public.commercial_advertising_specs
+   set notes = 'QA: rascunho editado', artwork_reference_width_mm = 500,
+       spec_version = '0.0-qa-b'
+ where id = (:'spec_qa')::uuid;
+select tests.check('rascunho continua editavel (conteudo, versao e notas)',
+    (select notes = 'QA: rascunho editado' and artwork_reference_width_mm = 500
+            and spec_version = '0.0-qa-b' and lifecycle_status = 'draft'
+       from public.commercial_advertising_specs where id = (:'spec_qa')::uuid));
+update public.commercial_advertising_specs
+   set artwork_reference_width_mm = 490, spec_version = '0.0-qa', notes = 'QA: nao representa homologacao real'
+ where id = (:'spec_qa')::uuid;
+select tests.check_raises('rascunho: id nao pode ser alterado',
+  format($sql$update public.commercial_advertising_specs set id = gen_random_uuid() where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('rascunho: created_at nao pode ser alterado',
+  format($sql$update public.commercial_advertising_specs set created_at = created_at - interval '1 day' where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('rascunho nao vai direto para arquivada (contornaria a aprovacao)',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(),
+                    technical_responsible_name = 'x', technical_responsible_registration = 'y',
+                    technical_report_hash = repeat('c', 64), approved_by = gen_random_uuid(),
+                    approved_at = now()
+              where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_transicao_invalida');
+select tests.check_raises('aprovar sem responsavel tecnico e laudo e recusado',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'approved', approved_by = gen_random_uuid(), approved_at = now()
+              where id = %L$sql$, :'spec_qa'),
+  'cas_aprovacao_completa');
+
+-- APROVAÇÃO: transição draft -> approved com responsável e laudo.
+update public.commercial_advertising_specs
+   set lifecycle_status = 'approved',
+       technical_responsible_name = '[QA FICTICIO] Responsavel',
+       technical_responsible_registration = '[QA] REGISTRO-0000',
+       technical_report_hash = encode(extensions.digest('[QA FICTICIO] laudo', 'sha256'), 'hex'),
+       approved_by = (:'uid_admin')::uuid, approved_at = now() - interval '1 hour'
+ where id = (:'spec_qa')::uuid;
+select tests.check('draft -> approved com responsavel tecnico e laudo e permitido',
+    (select lifecycle_status = 'approved' from public.commercial_advertising_specs
+      where id = (:'spec_qa')::uuid));
+
+insert into public.commercial_advertising_specs
+  (spec_code, spec_version, modality, artwork_reference_width_mm,
+   artwork_reference_height_mm, source_hash)
+values ('[QA FICTICIO] OUTRA', '0.1', 'vehicle_roof_visual_flag', 490, 305, repeat('b', 64))
+returning id as spec_qa2 \gset
+select tests.check_raises('segunda especificacao aprovada para a mesma modalidade e recusada',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'approved', technical_responsible_name = 'x',
+                    technical_responsible_registration = 'y', technical_report_hash = repeat('c', 64),
+                    approved_by = gen_random_uuid(), approved_at = now()
+              where id = %L$sql$, :'spec_qa2'),
   'cas_uma_aprovada_por_modalidade_uidx');
+
+-- APROVADA: imutável fora do arquivamento.
 select tests.check_raises('conteudo de especificacao aprovada nao muda',
   format($sql$update public.commercial_advertising_specs set artwork_reference_width_mm = 600
                where id = %L$sql$, :'spec_qa'),
   'advertising_spec_imutavel');
+select tests.check_raises('aprovada nao volta para rascunho',
+  format($sql$update public.commercial_advertising_specs set lifecycle_status = 'draft'
+               where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('aprovada: notas nao mudam sem arquivar',
+  format($sql$update public.commercial_advertising_specs set notes = 'x' where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
 select tests.check_raises('especificacao aprovada nao e apagada',
   format($sql$delete from public.commercial_advertising_specs where id = %L$sql$, :'spec_qa'),
   'advertising_spec_imutavel');
+select tests.check_raises('especificacao aprovada nao e truncada',
+  $sql$truncate public.commercial_advertising_specs$sql$,
+  'advertising_spec_imutavel');
+
+-- CONTRAPROVAS DO ARQUIVAMENTO: approved -> archived com outro campo junto.
+select tests.check_raises('approved -> archived alterando id: REJEITADO',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(), id = gen_random_uuid()
+              where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('approved -> archived alterando notes: REJEITADO',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(), notes = 'alterada no arquivamento'
+              where id = %L$sql$, :'spec_qa'),
+  'arquivamento so altera lifecycle_status e archived_at');
+select tests.check_raises('approved -> archived anulando notes (texto -> NULL): REJEITADO',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(), notes = null
+              where id = %L$sql$, :'spec_qa'),
+  'arquivamento so altera lifecycle_status e archived_at');
+select tests.check_raises('approved -> archived alterando created_at: REJEITADO',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(),
+                    created_at = created_at + interval '1 microsecond'
+              where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('approved -> archived alterando approved_at em 1 microssegundo: REJEITADO (to_jsonb preserva precisao)',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(),
+                    approved_at = approved_at + interval '1 microsecond'
+              where id = %L$sql$, :'spec_qa'),
+  'arquivamento so altera lifecycle_status e archived_at');
+select tests.check_raises('approved -> archived alterando dimensao: REJEITADO',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(), artwork_reference_height_mm = 306
+              where id = %L$sql$, :'spec_qa'),
+  'arquivamento so altera lifecycle_status e archived_at');
+select tests.check_raises('approved -> archived com archived_at anterior a aprovacao: REJEITADO',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = approved_at - interval '1 second'
+              where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_transicao_invalida');
+
+-- Falha fechada para colunas futuras: coluna nova nasce protegida.
+savepoint coluna_futura;
+alter table public.commercial_advertising_specs add column qa_coluna_futura text;
+select tests.check_raises('coluna acrescentada no futuro tambem e protegida no arquivamento',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'archived', archived_at = now(), qa_coluna_futura = 'x'
+              where id = %L$sql$, :'spec_qa'),
+  'arquivamento so altera lifecycle_status e archived_at');
+rollback to savepoint coluna_futura;
+
+-- PERMITIDO: arquivar sem tocar em nenhum outro campo.
+select to_jsonb(s) - 'lifecycle_status' - 'archived_at' as antes_arquivar
+  from public.commercial_advertising_specs s where id = (:'spec_qa')::uuid \gset
 update public.commercial_advertising_specs
    set lifecycle_status = 'archived', archived_at = now() where id = (:'spec_qa')::uuid;
-select tests.check('aprovada so pode ir para arquivada, preservando o conteudo',
-    (select lifecycle_status = 'archived' and artwork_reference_width_mm = 490
-       from public.commercial_advertising_specs where id = (:'spec_qa')::uuid));
-select tests.check_raises('arquivada e definitiva',
+select tests.check('approved -> archived sem alterar campos protegidos: PERMITIDO e conteudo identico',
+    (select lifecycle_status = 'archived' and archived_at is not null
+            and (to_jsonb(s) - 'lifecycle_status' - 'archived_at') = (:'antes_arquivar')::jsonb
+       from public.commercial_advertising_specs s where id = (:'spec_qa')::uuid));
+
+-- ARQUIVADA: definitiva.
+select tests.check_raises('arquivada: notes nao muda',
   format($sql$update public.commercial_advertising_specs set notes = 'x' where id = %L$sql$, :'spec_qa'),
   'advertising_spec_imutavel');
+select tests.check_raises('arquivada: nao volta para aprovada',
+  format($sql$update public.commercial_advertising_specs
+                set lifecycle_status = 'approved', archived_at = null where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('arquivada: archived_at nao muda',
+  format($sql$update public.commercial_advertising_specs set archived_at = now() + interval '1 day'
+               where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('arquivada: nao e apagada',
+  format($sql$delete from public.commercial_advertising_specs where id = %L$sql$, :'spec_qa'),
+  'advertising_spec_imutavel');
+select tests.check_raises('arquivada: nao e truncada',
+  $sql$truncate public.commercial_advertising_specs$sql$,
+  'advertising_spec_imutavel');
+
+-- RASCUNHO: apagar continua possível; TRUNCATE só com rascunhos.
+delete from public.commercial_advertising_specs where id = (:'spec_qa2')::uuid;
+select tests.check('rascunho pode ser apagado',
+    (select count(*) = 0 from public.commercial_advertising_specs where id = (:'spec_qa2')::uuid));
+rollback;
+
+begin;
+insert into public.commercial_advertising_specs
+  (spec_code, spec_version, modality, artwork_reference_width_mm,
+   artwork_reference_height_mm, source_hash)
+values ('[QA FICTICIO] SO-RASCUNHO', '0.0', 'vehicle_roof_visual_flag', 490, 305, repeat('f', 64));
+truncate public.commercial_advertising_specs;
+select tests.check('TRUNCATE com apenas rascunhos e permitido',
+    (select count(*) = 0 from public.commercial_advertising_specs));
 rollback;
 
 -- ---------------------------------------------------------------------------
@@ -193,15 +373,17 @@ select tests.check('especificacao em RASCUNHO nao habilita emissao',
 
 insert into public.commercial_advertising_specs
   (spec_code, spec_version, modality, artwork_reference_width_mm,
-   artwork_reference_height_mm, source_hash, lifecycle_status,
-   technical_responsible_name, technical_responsible_registration,
-   technical_report_hash, approved_by, approved_at)
+   artwork_reference_height_mm, source_hash)
 values ('[QA FICTICIO] ESPEC-BANDEIRA', '0.0-qa', 'vehicle_roof_visual_flag', 490, 305,
-        encode(extensions.digest('[QA FICTICIO] anexo tecnico', 'sha256'), 'hex'),
-        'approved', '[QA FICTICIO] Responsavel', '[QA] REGISTRO-0000',
-        encode(extensions.digest('[QA FICTICIO] laudo', 'sha256'), 'hex'),
-        (:'uid_admin')::uuid, now())
+        encode(extensions.digest('[QA FICTICIO] anexo tecnico', 'sha256'), 'hex'))
 returning id as spec_qa, source_hash as spec_hash \gset
+update public.commercial_advertising_specs
+   set lifecycle_status = 'approved',
+       technical_responsible_name = '[QA FICTICIO] Responsavel',
+       technical_responsible_registration = '[QA] REGISTRO-0000',
+       technical_report_hash = encode(extensions.digest('[QA FICTICIO] laudo', 'sha256'), 'hex'),
+       approved_by = (:'uid_admin')::uuid, approved_at = now()
+ where id = (:'spec_qa')::uuid;
 
 select public.commercial_build_instrument_snapshot((:'ord280')::uuid, (:'tpl_v2')::uuid) as r_v2 \gset
 select tests.check('V2 com especificacao aprovada individualiza o instrumento',

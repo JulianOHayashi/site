@@ -135,9 +135,21 @@ Migration aditiva `20261110120000_contract_v2_vehicle_visual_advertising.sql`
 - **`commercial_advertising_specs`:** autoridade versionada da especificação
   técnica, criada **vazia**.
   - A aprovação exige responsável técnico, registro profissional e hash do laudo.
-  - Uma versão aprovada é imutável; só pode ser arquivada.
+  - Máquina de estados imposta pelo gatilho `cas_protect` (INSERT, UPDATE e
+    DELETE) e por `cas_protect_truncate` (TRUNCATE):
+    - toda especificação **nasce `draft`**; aprovar é sempre a transição
+      `draft → approved`;
+    - o rascunho é editável, exceto `id` e `created_at`, e pode ser apagado;
+    - `draft → archived` direto é recusado;
+    - `approved → archived` só altera `lifecycle_status` e `archived_at`
+      (comparação `to_jsonb(NEW)` × `to_jsonb(OLD)` sem essas duas chaves,
+      que cobre também colunas futuras), e `archived_at` não pode ser anterior
+      a `approved_at`;
+    - aprovada e arquivada não são alteradas, apagadas nem truncadas.
   - Só uma versão aprovada por modalidade.
-  - Sem acesso para `anon` e `authenticated`.
+  - Sem acesso para `anon` e `authenticated`; `service_role` **só lê**. Os
+    privilégios padrão do schema `public` em Production dariam
+    INSERT/UPDATE/DELETE/TRUNCATE ao `service_role`, e a migration os revoga.
 - **`commercial_instrument_templates`:** ganha `advertising_modality` e
   `requires_advertising_spec` (padrão `false`). A v1.4 continua idêntica.
 - **`commercial_order_effective_activity`:** posição e atividade efetiva lidas
