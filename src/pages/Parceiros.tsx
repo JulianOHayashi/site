@@ -34,6 +34,8 @@ export default function Parceiros() {
             Torne sua empresa parceira SmallFlags.
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-tinta/70">
+            Divulgue sua marca por meio de bandeiras publicitárias instaladas sobre
+            veículos de divulgadores, em uma região comercial e nicho definidos.
             Solicite a análise da sua empresa para participar das oportunidades
             comerciais SmallFlags. O cadastro não cria acesso ao Portal do Parceiro
             imediatamente: primeiro a solicitação passa pela análise prevista.
