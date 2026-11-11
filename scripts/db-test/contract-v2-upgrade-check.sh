@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Ensaio LOCAL da migration 20261110120000 (contratos V2) e do seu rollback,
+# Ensaio LOCAL da migration 20261111000511 (contratos V2) e do seu rollback,
 # em bancos descartáveis. Rode com PGPORT=5433 para o PG17. Nunca remoto.
 #
 #   U1  base = main sem a migration (worktree do commit-base) -> aplica
@@ -13,7 +13,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 RAIZ=$(pwd)
-NOVA=supabase/migrations/20261110120000_contract_v2_vehicle_visual_advertising.sql
+NOVA=supabase/migrations/20261111000511_contract_v2_vehicle_visual_advertising.sql
 RB=supabase/rollback/20261110120000_contract_v2_vehicle_visual_advertising_rollback.sql
 BASE_REF=${BASE_REF:-97b74ef77cfe4b81eb332b11c47ff72083fd75aa}
 DB=cv2_upgrade

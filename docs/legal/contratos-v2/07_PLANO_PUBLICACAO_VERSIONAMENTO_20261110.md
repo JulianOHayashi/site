@@ -1,7 +1,6 @@
 # Plano de publicação e versionamento — Contratos V2
 
-> **Nada deste plano foi executado.** Cada passo com 🔒 exige autorização
-> expressa e só pode ser feito depois das aprovações indicadas.
+> **Etapa preparatória §1 executada em Production em 2026-11-10 (horário local), registrada no histórico do Supabase com a versão `20261111000511` (UTC).** As etapas jurídicas e operacionais §§2–5 NÃO foram executadas. Cada passo futuro com 🔒 exige aprovação e autorização específicas.
 
 ## 0. Pré-condições (todas obrigatórias)
 
@@ -13,7 +12,7 @@
 3. Cada município de operação tem autorização confirmada, ou a execução foi
    restrita aos municípios confirmados (D-J2, D-R*).
 4. Decisões D-N1 a D-N4 tomadas.
-5. A migration `20261110120000` foi aplicada em Production (ver §1).
+5. A migration preparatória foi aplicada em Production e registrada como `20261111000511` (ver §1); não reaplicar.
 
 ## 1. Migration preparatória (independe das aprovações; não ativa nada)
 
@@ -22,11 +21,11 @@
 | 1.1 | Revisão independente do PR | Aprovação |
 | 1.2 🔒 | Merge | Autorização |
 | 1.3 | Pré-checagem só leitura em Production: 63 migrations; md5 do construtor `a722d810fabc327f8fbfac9c008efced`; tabela `commercial_advertising_specs` inexistente; template v1.4 em draft | Todos ok |
-| 1.4 🔒 | Aplicar o arquivo exato `supabase/migrations/20261110120000_contract_v2_vehicle_visual_advertising.sql` numa única execução, com client_encoding UTF-8. **Não** usar `apply_migration`, que gera outra versão. | COMMIT sem erro |
-| 1.5 🔒 | Registrar a versão `20261110120000` em `supabase_migrations.schema_migrations`, com verificação prévia de que o construtor tem os fatos V2 e a tabela existe | 64 linhas |
-| 1.6 | Pós-checagem: tabela vazia; v1.4 com `requires_advertising_spec = false`; nenhum documento ou aceite novo; `commercial_signable_instrument_template` continua `unavailable` | Todos ok |
+| 1.4 CONCLUÍDO | O SQL idêntico ao arquivo Git foi executado uma vez em Production via Supabase `apply_migration`. O histórico recebeu automaticamente `20261111000511`; o arquivo Git foi renomeado para esse prefixo. **Não executar novamente.** | Aplicação retornou sucesso e objetos foram verificados |
+| 1.5 CONCLUÍDO | Registro criado pela ferramenta com `version = 20261111000511`, `name = contract_v2_vehicle_visual_advertising`; **não inserir registro adicional** para `20261110120000`. | Histórico consultado depois da aplicação |
+| 1.6 CONCLUÍDO | Tabela vazia, sem especificação aprovada; v1.4 continua draft com `requires_advertising_spec = false`; nenhum Acordo Mestre ou Termos publicados; nenhum pedido; nenhum modelo signable; gatilhos e permissões conferidos. | Consultas pós-aplicação PASS |
 
-**Rollback:** `supabase/rollback/20261110120000_contract_v2_vehicle_visual_advertising_rollback.sql`.
+**Rollback:** `supabase/rollback/20261110120000_contract_v2_vehicle_visual_advertising_rollback.sql` (nome histórico original, mantido; versão aplicada `20261111000511`).
 Ele só roda se a infraestrutura V2 não tiver sido usada. Ensaio:
 `scripts/db-test/contract-v2-upgrade-check.sh` devolve o catálogo idêntico ao
 anterior.
