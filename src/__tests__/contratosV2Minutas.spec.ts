@@ -19,7 +19,7 @@ const TERMOS = ler(`${DIR}/02_MINUTA_TERMOS_PEDIDO_COMERCIAL_V2_20261110.md`);
 const INSTR = ler(`${DIR}/03_MINUTA_INSTRUMENTO_INDIVIDUAL_V2_20261110.md`);
 const ANEXO = ler(`${DIR}/04_ANEXO_TECNICO_BANDEIRA_PRELIMINAR_20261110.md`);
 const MATRIZ = ler(`${DIR}/05_MATRIZ_REGULATORIA_GRANDE_VITORIA_20261110.md`);
-const MIGRATION = ler("supabase/migrations/20261110120000_contract_v2_vehicle_visual_advertising.sql");
+const MIGRATION = ler("supabase/migrations/20261111000511_contract_v2_vehicle_visual_advertising.sql");
 const CONTRATUAIS = { MESTRE, TERMOS, INSTR };
 
 /** Fatos que o construtor do snapshot (versão desta migration) emite. */
