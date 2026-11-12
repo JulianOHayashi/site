@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { previaIndividualSF15 } from "../../domain/pricing/previewSF15";
 import { fetchPublicPricing } from "../../services/commercialService";
 import {
   formatarCentavos,
@@ -78,6 +79,7 @@ export default function PainelPreco({
   }
 
   const { founding, fidelized, nominalQuantity } = estado.preco;
+  const previa = previaIndividualSF15(estado.preco);
   const usaFormulaHistorica = founding.pricingRuleVersion <= 2;
   const extras = usaFormulaHistorica
     ? Math.max(0, nominalQuantity - FOUNDING_BLOCK_UNITS)
@@ -113,6 +115,23 @@ export default function PainelPreco({
 
       <Composicao titulo="Condição fundadora (não fidelizada)" p={founding} />
       <Composicao titulo="Renovação fidelizada" p={fidelized} />
+
+      {previa && (
+        <section aria-label="Prévia não vigente por anunciante" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+          <h3 className="font-bold">Proposta SF-v1.5 · NÃO VIGENTE</h3>
+          <p className="mt-1 text-xs">Somente para avaliar a nova precificação desta oportunidade. Não é uma oferta contratável: o checkout continua utilizando o preço vigente informado pelo servidor.</p>
+          <div className="mt-3 flex justify-between gap-3 text-sm">
+            <span>Novo anunciante</span>
+            <strong className="tabular-nums">{formatarCentavos(previa.novoCentavos)}</strong>
+          </div>
+          <p className="mt-1 text-xs">Inclui uma única vez {formatarCentavos(previa.custoProducaoIncluidoCentavos)} para produzir {previa.bandeirasNovas} bandeiras.</p>
+          <div className="mt-3 flex justify-between gap-3 text-sm">
+            <span>Fidelizado com bandeiras reutilizáveis</span>
+            <strong className="tabular-nums">{formatarCentavos(previa.fidelizadoReutilizacaoCentavos)}</strong>
+          </div>
+          <p className="mt-1 text-xs">Reutilização depende de inspeção aprovada. Política de reposição de peças danificadas ainda não definida.</p>
+        </section>
+      )}
 
       <div className="mt-4 space-y-2 rounded-xl bg-papel2 p-4 text-sm">
         <p className="font-semibold">
