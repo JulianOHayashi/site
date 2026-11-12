@@ -5,7 +5,8 @@ import OpportunityCard from "../components/commercial/OpportunityCard";
 import FormationProgress from "../components/commercial/FormationProgress";
 import ReferenciaOperacional from "../components/commercial/ReferenciaOperacional";
 import { obterTerritorio } from "../lib/commercialTerritory";
-import { fetchCurrentFormation } from "../services/commercialService";
+import { fetchCurrentFormation, fetchPublicPricing } from "../services/commercialService";
+import type { PublicNichePricing } from "../domain/pricing/contractPricing";
 import type { CommercialFormationResponse } from "../domain/commercial/types";
 import { EXCLUSIVITY_STATUS_LABEL } from "../domain/commercial/status";
 
@@ -25,6 +26,7 @@ type Estado =
  */
 export default function Oportunidades() {
   const [estado, setEstado] = useState<Estado>({ fase: "loading" });
+  const [precosVigentes, setPrecosVigentes] = useState<PublicNichePricing[] | null>(null);
 
   const carregar = useCallback(async () => {
     const territorio = obterTerritorio();
@@ -69,6 +71,15 @@ export default function Oportunidades() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // Uma leitura autoritativa para todos os cards; em falha, omite preços e prévia.
+  useEffect(() => {
+    let ativo = true;
+    fetchPublicPricing()
+      .then((lista) => { if (ativo) setPrecosVigentes(lista); })
+      .catch(() => { if (ativo) setPrecosVigentes(null); });
+    return () => { ativo = false; };
+  }, []);
 
   return (
     <>
@@ -164,7 +175,11 @@ export default function Oportunidades() {
 
             <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {estado.dados.opportunities.map((o) => (
-                <OpportunityCard key={o.nicheCode} opportunity={o} />
+                <OpportunityCard
+                  key={o.nicheCode}
+                  opportunity={o}
+                  precoVigente={precosVigentes?.find((p) => p.nicheCode === o.nicheCode) ?? null}
+                />
               ))}
             </div>
 
