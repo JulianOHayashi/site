@@ -5,13 +5,8 @@ import {
   Secao,
 } from "../../components/institucional/Institucional";
 
-/**
- * /contato — página institucional de contato.
- *
- * Não existem canais de contato verificados no repositório; por isso esta
- * página NÃO publica telefone, WhatsApp, e-mail, endereço, horário ou redes
- * sociais. Ela direciona cada perfil para a jornada que já existe e não
- * coleta dados.
+/** /contato — canais informados pelo operador em 12/11/2026.
+ * Telefone não é presumido como WhatsApp, sem horário/endereço inventados.
  */
 
 const CAMINHOS = [
@@ -46,11 +41,11 @@ export default function Contato() {
     <PaginaInstitucional titulo="Contato">
       <Abertura
         rotulo="Contato"
-        titulo="Fale com a SmallFlags pelo caminho certo."
+        titulo="Entre em contato com a SmallFlags."
         texto={
           <p>
-            Para a maioria dos assuntos, o jeito mais rápido é seguir a jornada
-            correspondente abaixo.
+            Para atendimento na Grande Vitória, utilize os canais abaixo.
+            Para cadastro e acompanhamento de parceria, use também os acessos disponíveis nesta página.
           </p>
         }
       />
@@ -74,25 +69,44 @@ export default function Contato() {
 
       <Secao
         id="canais"
-        titulo="Canais de atendimento"
-        intro={<p>Telefone, e-mail e outros canais oficiais.</p>}
+        titulo="Canais de atendimento — Grande Vitória"
+        intro={<p>Entre em contato por e-mail ou telefone.</p>}
       >
-        <div className="rounded-3xl border border-dashed border-tinta/25 p-8">
-          <p className="text-lg font-semibold text-tinta">
-            Os canais oficiais de atendimento serão publicados nesta página.
-          </p>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-tinta/70">
-            Enquanto isso, as dúvidas mais comuns sobre parceria, oportunidades e
-            o Portal do Parceiro estão respondidas na{" "}
-            <Link
-              to="/ajuda"
-              className="font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8">
+            <h3 className="text-lg font-bold">E-mail</h3>
+            <a
+              href="mailto:grandevitoria@smallflags.com.br"
+              className="mt-3 inline-block break-all text-base font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
             >
-              Central de ajuda
-            </Link>
-            .
-          </p>
+              grandevitoria@smallflags.com.br
+            </a>
+            <p className="mt-2 text-sm text-tinta/65">
+              Canal de contato da SmallFlags na Grande Vitória.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8">
+            <h3 className="text-lg font-bold">Telefone</h3>
+            <a
+              href="tel:+5527998803900"
+              className="mt-3 inline-block text-base font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
+            >
+              (27) 99880-3900
+            </a>
+            <p className="mt-2 text-sm text-tinta/65">
+              Toque no número para iniciar uma chamada telefônica.
+            </p>
+          </div>
         </div>
+        <p className="mt-5 text-sm leading-6 text-tinta/70">
+          Para dúvidas frequentes, consulte a{" "}
+          <Link
+            to="/ajuda"
+            className="font-semibold text-tinta underline decoration-ciano decoration-2 underline-offset-4"
+          >
+            Central de ajuda
+          </Link>.
+        </p>
       </Secao>
     </PaginaInstitucional>
   );
