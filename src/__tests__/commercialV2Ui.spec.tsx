@@ -188,7 +188,8 @@ describe("SF-v1.4 UI — prévia individual SF-v1.5, sem os preços antigos", ()
     await waitFor(() => temTexto("R$ 32.939,00"));
     temTexto("R$ 28.176,00");
     expect(screen.queryByText("R$ 29.999,00")).toBeNull();
-    expect(screen.queryByText("R$ 23.854,32")).toBeNull();
+    temTexto("R$ 23.854,32"); // contraprestações potenciais ao App voltam a ser transparentes
+    temTexto("R$ 9.084,68"); // remuneração própria com QA, para o novo anunciante
     expect(screen.queryByRole("link", { name: /Solicitar contratação/i })).toBeNull();
   });
 
@@ -197,7 +198,8 @@ describe("SF-v1.4 UI — prévia individual SF-v1.5, sem os preços antigos", ()
     await waitFor(() => temTexto("R$ 22.939,00"));
     temTexto("R$ 16.188,00");
     expect(screen.queryByText("R$ 19.999,00")).toBeNull();
-    expect(screen.queryByText("R$ 11.927,16")).toBeNull();
+    temTexto("R$ 11.927,16"); // contraprestações potenciais ao App
+    temTexto("R$ 11.011,84"); // remuneração própria com QA, para o novo anunciante
   });
 
   it("a regra antiga de blocos permanece apenas em código histórico, nunca no preço público da SF-v1.4", () => {

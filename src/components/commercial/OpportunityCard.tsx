@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { formatarCentavos, type PublicNichePricing } from "../../domain/pricing/contractPricing";
 import { previaIndividualSF15 } from "../../domain/pricing/previewSF15";
+import { beneficiosPorOportunidade } from "../../domain/pricing/beneficiosAppPorOportunidade";
+import QuadroBeneficiosApp from "./QuadroBeneficiosApp";
 import type { CommercialOpportunity } from "../../domain/commercial/types";
 import {
   nicheByCode,
@@ -32,7 +34,8 @@ export default function OpportunityCard({
     : null;
   const nome = meta?.displayName ?? opportunity.displayName;
   const statusLabel = OPPORTUNITY_STATUS_LABEL[opportunity.status];
-  const previa = precoVigente ? previaIndividualSF15(precoVigente) : null;
+  const dadosBeneficios = precoVigente ? beneficiosPorOportunidade(precoVigente) : null;
+  const previa = dadosBeneficios?.estado === "previa" && precoVigente ? previaIndividualSF15(precoVigente) : null;
 
   return (
     <div className="card flex h-full flex-col p-6">
@@ -105,6 +108,8 @@ export default function OpportunityCard({
           <p className="mt-2 text-xs">Inclui 84 bandeiras novas por anunciante não fidelizado. Reutilização condicionada à inspeção. Valores ainda não disponíveis para contratação; o checkout está bloqueado até a ativação no servidor.</p>
         </div>
       )}
+
+      {dadosBeneficios && <QuadroBeneficiosApp dados={dadosBeneficios} compacto />}
 
       <p className="mt-3 rounded-xl bg-papel2 px-3 py-2 text-xs text-tinta/70">
         Nicho contratado integralmente — não há venda de unidades avulsas.
