@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { previaIndividualSF15 } from "../../domain/pricing/previewSF15";
+import { beneficiosPorOportunidade } from "../../domain/pricing/beneficiosAppPorOportunidade";
+import QuadroBeneficiosApp from "./QuadroBeneficiosApp";
 import { fetchPublicPricing } from "../../services/commercialService";
 import {
   formatarCentavos,
@@ -79,7 +81,8 @@ export default function PainelPreco({
   }
 
   const { founding, fidelized, nominalQuantity } = estado.preco;
-  const previa = previaIndividualSF15(estado.preco);
+  const dadosBeneficios = beneficiosPorOportunidade(estado.preco);
+  const previa = dadosBeneficios?.estado === "previa" ? previaIndividualSF15(estado.preco) : null;
 
   // Enquanto SF-v1.4 estiver ativa, nunca exibir ou contratar seus valores
   // históricos na vitrine. Exibe só a prévia individual, sem totais públicos.
@@ -96,6 +99,7 @@ export default function PainelPreco({
             <p className="mt-2 text-xs">A reutilização exige inspeção. Reposição de peças danificadas ainda não possui preço aprovado.</p>
           </div>
         ) : <p className="mt-3 text-sm text-tinta/70">Valores em atualização. Consulte a SmallFlags para informações.</p>}
+        {dadosBeneficios?.estado === "previa" && <QuadroBeneficiosApp dados={dadosBeneficios} />}
         <p className="mt-4 text-sm font-semibold text-tinta/75">Contratação temporariamente indisponível enquanto os novos preços não estiverem vigentes no Supabase.</p>
       </div>
     );
@@ -135,6 +139,12 @@ export default function PainelPreco({
 
       <Composicao titulo="Condição fundadora (não fidelizada)" p={founding} />
       <Composicao titulo="Renovação fidelizada" p={fidelized} />
+      {dadosBeneficios?.estado === "vigente" && (
+        <div className="mt-3 rounded-xl bg-papel2 p-4 text-sm">
+          <p className="font-semibold">Participações potenciais dos usuários do App</p>
+          <p className="mt-1 text-tinta/70">{dadosBeneficios.participacoesPotenciais} participações × {formatarCentavos(dadosBeneficios.valorPorParticipacaoCentavos)} = {formatarCentavos(dadosBeneficios.novo.contraprestacaoMEIsCentavos)} por oportunidade. Esses valores já integram os preços das duas condições; não são saldos garantidos.</p>
+        </div>
+      )}
 
       {previa && (
         <section aria-label="Prévia não vigente por anunciante" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
