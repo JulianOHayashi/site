@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import EmBreve from "./pages/EmBreve";
 import RevisaoContratacao from "./pages/RevisaoContratacao";
+import CheckoutPrecificacaoGuard from "./components/CheckoutPrecificacaoGuard";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import AdminGuard from "./components/AdminGuard";
@@ -96,7 +97,7 @@ export default function App() {
           path="/checkout"
           element={
             <CommercialTerritoryGuard>
-              <RevisaoContratacao />
+              <CheckoutPrecificacaoGuard><RevisaoContratacao /></CheckoutPrecificacaoGuard>
             </CommercialTerritoryGuard>
           }
         />
