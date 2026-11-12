@@ -29,7 +29,7 @@ const PAGINAS = [
   ["/quem-somos", QuemSomos, /ecossistema/i],
   ["/como-funciona", ComoFunciona, /como a smallflags funciona/i],
   ["/trabalhe-conosco", TrabalheConosco, /construa a smallflags/i],
-  ["/contato", Contato, /caminho certo/i],
+  ["/contato", Contato, /entre em contato com a smallflags/i],
   ["/ajuda", Ajuda, /central de ajuda/i],
 ] as const;
 
@@ -77,14 +77,18 @@ describe("rotas institucionais", () => {
 });
 
 describe("sem dados inventados", () => {
-  it("contato e trabalhe conosco não publicam telefone, e-mail ou endereço", () => {
-    for (const Pagina of [Contato, TrabalheConosco]) {
-      const { container } = montar("/", Pagina);
-      const texto = container.querySelector("main")!.textContent ?? "";
-      expect(texto).not.toMatch(/@|\(\d{2}\)|\d{4,5}-\d{4}|whatsapp|instagram|linkedin/i);
-      expect(container.querySelector('a[href^="mailto:"], a[href^="tel:"]')).toBeNull();
-      cleanup();
-    }
+  it("contato publica os canais fornecidos sem inventar outros", () => {
+    const { container } = montar("/contato", Contato);
+    expect(container.querySelector('a[href="mailto:grandevitoria@smallflags.com.br"]')).not.toBeNull();
+    expect(container.querySelector('a[href="tel:+5527998803900"]')).not.toBeNull();
+    expect(container.querySelector("main")!.textContent).not.toMatch(/whatsapp|instagram|linkedin/i);
+  });
+
+  it("trabalhe conosco não inventa canais, endereço ou horários", () => {
+    const { container } = montar("/trabalhe-conosco", TrabalheConosco);
+    const texto = container.querySelector("main")!.textContent ?? "";
+    expect(texto).not.toMatch(/@|\(\d{2}\)|\d{4,5}-\d{4}|whatsapp|instagram|linkedin/i);
+    expect(container.querySelector('a[href^="mailto:"], a[href^="tel:"]')).toBeNull();
   });
 
   it("trabalhe conosco não afirma vagas abertas", () => {
