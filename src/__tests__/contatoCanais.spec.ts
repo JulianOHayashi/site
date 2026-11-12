@@ -11,6 +11,16 @@ describe("canais de contato SmallFlags — Grande Vitória", () => {
     expect(fonte).toContain("(27) 99880-3900");
   });
 
+  it("reserva Instagram, TikTok e WhatsApp sem inventar links", () => {
+    for (const rede of ["Instagram", "TikTok", "WhatsApp"]) {
+      expect(fonte).toContain(`nome: "${rede}"`);
+    }
+    expect(fonte).toContain('id="redes-sociais"');
+    expect(fonte).toContain("Número de atendimento a confirmar.");
+    expect(fonte).not.toContain("https://www.instagram.com/");
+    expect(fonte).not.toContain("https://www.tiktok.com/");
+  });
+
   it("não presume WhatsApp nem horário de atendimento", () => {
     expect(fonte).not.toContain("wa.me/");
     expect(fonte).not.toContain("api.whatsapp.com");

@@ -108,6 +108,44 @@ export default function Contato() {
           </Link>.
         </p>
       </Secao>
+
+      <Secao
+        id="redes-sociais"
+        titulo="Redes sociais"
+        intro={
+          <p>
+            Reservamos este espaço para nossos canais oficiais. Os links serão
+            disponibilizados quando forem confirmados pela SmallFlags.
+          </p>
+        }
+      >
+        <ul className="grid gap-4 sm:grid-cols-3">
+          {[
+            { nome: "Instagram", descricao: "Perfil oficial a confirmar." },
+            { nome: "TikTok", descricao: "Perfil oficial a confirmar." },
+            { nome: "WhatsApp", descricao: "Número de atendimento a confirmar." },
+          ].map((rede) => (
+            <li
+              key={rede.nome}
+              className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-xl font-bold">{rede.nome}</h3>
+                <span className="rounded-full bg-papel2 px-3 py-1 text-xs font-semibold text-tinta/60">
+                  Em breve
+                </span>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-tinta/65">
+                {rede.descricao}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-5 text-sm leading-6 text-tinta/65">
+          Enquanto isso, utilize o e-mail e o telefone publicados nesta página.
+          O telefone de contato não está identificado como canal de WhatsApp.
+        </p>
+      </Secao>
     </PaginaInstitucional>
   );
 }

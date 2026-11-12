@@ -81,7 +81,13 @@ describe("sem dados inventados", () => {
     const { container } = montar("/contato", Contato);
     expect(container.querySelector('a[href="mailto:grandevitoria@smallflags.com.br"]')).not.toBeNull();
     expect(container.querySelector('a[href="tel:+5527998803900"]')).not.toBeNull();
-    expect(container.querySelector("main")!.textContent).not.toMatch(/whatsapp|instagram|linkedin/i);
+    const redes = container.querySelector("#redes-sociais");
+    expect(redes).not.toBeNull();
+    for (const nome of ["Instagram", "TikTok", "WhatsApp"]) {
+      expect(within(redes as HTMLElement).getByRole("heading", { name: nome })).toBeDefined();
+    }
+    expect(redes!.querySelectorAll('a[href], button')).toHaveLength(0);
+    expect(container.querySelector('a[href^="https://instagram.com"], a[href^="https://tiktok.com"], a[href*="wa.me"]')).toBeNull();
   });
 
   it("trabalhe conosco não inventa canais, endereço ou horários", () => {
