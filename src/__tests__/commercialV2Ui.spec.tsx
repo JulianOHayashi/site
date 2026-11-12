@@ -162,113 +162,48 @@ afterEach(() => cleanup());
 const montar = (ui: React.ReactElement, rota = "/") =>
   render(<MemoryRouter initialEntries={[rota]}>{ui}</MemoryRouter>);
 
-describe("COMERCIAL V2 UI — composição do supermercado em reais", () => {
-  it("mostra econômico, pool e parcela BDFlow com os centavos aprovados", async () => {
+describe("PREÇOS COMERCIAIS — histórico não exibido na vitrine", () => {
+  it("não publica preços da versão 2 nem link de contratação quando economia é histórica", async () => {
     montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => temTexto("R$ 35.587,00"));
-    temTexto("R$ 25.543,05");
-    temTexto("R$ 10.043,95");
+    await waitFor(() => expect(screen.getByText(/Novas condições comerciais/)).toBeDefined());
+    expect(screen.queryByText("R$ 35.587,00")).toBeNull();
+    expect(screen.queryByText("R$ 25.543,05")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Solicitar contratação/i })).toBeNull();
   });
 
-  it("o percentual aparece como aproximação declarada, ao lado do valor", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => temTexto("R$ 25.543,05"));
-    temTexto(/aprox\. 71,7763%/);
-  });
-
-  it("a formação de 12 + 12 unidades fica transparente", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => expect(screen.getByText("R$ 19.999,00")).toBeDefined());
-    expect(screen.getByText("R$ 15.588,00")).toBeDefined();
-    expect(screen.getByText(/12 primeiras unidades/)).toBeDefined();
-    expect(screen.getByText(/12 unidades adicionais/)).toBeDefined();
-  });
-
-  it("a composição fidelizada também é exibida, não só o total", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => expect(screen.getByText("R$ 31.176,00")).toBeDefined());
-    expect(screen.getByText("R$ 22.376,99")).toBeDefined();
-    expect(screen.getByText("R$ 8.799,01")).toBeDefined();
-  });
-
-  it("mostra Pix na condição fundadora e cartão na fidelizada", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => expect(screen.getByText("Pix")).toBeDefined());
-    expect(screen.getByText("Cartão de crédito")).toBeDefined();
-  });
-
-  it("apresenta os dois modos de liquidação", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => expect(screen.getByText(/Benefícios diretos/)).toBeDefined());
-    expect(screen.getByText(/Dinheiro real/)).toBeDefined();
-  });
-
-  it("leva a oportunidade ao checkout preservando o nicho", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    const link = await screen.findByRole("link", { name: /Solicitar contratação/i });
-    expect(link.getAttribute("href")).toBe("/checkout?nicho=supermarket");
-  });
-
-  it("o detalhe não afirma mais que reserva e pagamento on-line não existem", () => {
-    const fonte = semComentarios(lerFonte("src/pages/OportunidadeDetalhe.tsx"));
-    expect(fonte).not.toContain("sem reserva ou pagamento");
-    expect(fonte).toContain("avançar ao checkout");
-  });
-
-  it("não afirma mais, sem condição, que o pool nunca é pago em dinheiro", () => {
-    const fonte = semComentarios(lerFonte("src/components/commercial/PainelPreco.tsx"));
-    expect(fonte).not.toContain("não é pago à BDFlow");
-    expect(fonte).not.toContain("recebe apenas o valor devido");
-  });
-});
-
-describe("COMERCIAL V2 UI — nicho comum", () => {
-  it("mostra os centavos aprovados do nicho de 12 unidades", async () => {
+  it("versão 2 do nicho comum não exibe os preços antigos", async () => {
     montar(<PainelPreco nicheCode="pharmacy" />);
-    await waitFor(() => temTexto("R$ 19.999,00"));
-    temTexto("R$ 13.354,59");
-    temTexto("R$ 6.644,41");
-    temTexto(/aprox\. 66,7763%/);
+    await waitFor(() => expect(screen.getByText(/Valores em atualização/)).toBeDefined());
+    expect(screen.queryByText("R$ 19.999,00")).toBeNull();
   });
 });
 
-
-describe("SF-v1.4 UI — autoridade server-side sem fórmula V2", () => {
+describe("SF-v1.4 UI — prévia individual SF-v1.5, sem os preços antigos", () => {
   beforeEach(() => {
     rpcMock.mockResolvedValue({ data: RESPOSTA_V14, error: null });
   });
 
-  it("supermercado mostra 29.999 fundador e 28.176 fidelizado, nunca 35.587", async () => {
+  it("supermercado só mostra a nova proposta para não fidelizado e reutilização", async () => {
     montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => temTexto("R$ 29.999,00"));
+    await waitFor(() => temTexto("R$ 32.939,00"));
     temTexto("R$ 28.176,00");
-    expect(screen.queryByText("R$ 35.587,00")).toBeNull();
-    expect(screen.queryByText(/12 primeiras unidades/)).toBeNull();
-    expect(screen.queryByText(/12 unidades adicionais/)).toBeNull();
+    expect(screen.queryByText("R$ 29.999,00")).toBeNull();
+    expect(screen.queryByText("R$ 23.854,32")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Solicitar contratação/i })).toBeNull();
   });
 
-  it("nicho comum mostra 19.999 fundador e 16.188 fidelizado", async () => {
+  it("nicho comum mostra somente R$ 22.939 e R$ 16.188", async () => {
     montar(<PainelPreco nicheCode="pharmacy" />);
-    await waitFor(() => temTexto("R$ 19.999,00"));
+    await waitFor(() => temTexto("R$ 22.939,00"));
     temTexto("R$ 16.188,00");
+    expect(screen.queryByText("R$ 19.999,00")).toBeNull();
+    expect(screen.queryByText("R$ 11.927,16")).toBeNull();
   });
 
-  it("expõe MEI, QA, principal e remuneração total sem atribuir QA ao MEI", async () => {
-    montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => temTexto("R$ 23.854,32"));
-    temTexto("R$ 121,68");
-    temTexto("R$ 6.023,00");
-    temTexto("R$ 6.144,68");
-    expect(screen.getAllByText(/Parcela de QA da SmallFlags/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Remuneração contratual total da SmallFlags/).length).toBeGreaterThan(0);
-  });
-
-  it("a fórmula histórica só pode aparecer sob versão <= 2", () => {
+  it("a regra antiga de blocos permanece apenas em código histórico, nunca no preço público da SF-v1.4", () => {
     const fonte = semComentarios(lerFonte("src/components/commercial/PainelPreco.tsx"));
-    const guarda = fonte.indexOf("founding.pricingRuleVersion <= 2");
-    const uso = fonte.indexOf("FOUNDING_BLOCK_PRICE_CENTS", fonte.indexOf("export default function"));
-    expect(guarda).toBeGreaterThan(-1);
-    expect(uso).toBeGreaterThan(guarda);
+    expect(fonte).toContain("founding.pricingRuleVersion !== 4");
+    expect(fonte).toContain("previaIndividualSF15");
   });
 });
 

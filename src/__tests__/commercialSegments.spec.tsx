@@ -307,28 +307,29 @@ describe("detalhe da oportunidade", () => {
   it("Supermercado não oferece segmento", async () => {
     detalhe("supermarket");
     await screen.findByRole("heading", { name: "Supermercado" });
-    await screen.findByText("Solicitar contratação");
+    await screen.findByText(/Contratação temporariamente indisponível/);
+    expect(screen.queryByRole("link", { name: "Solicitar contratação" })).toBeNull();
     expect(screen.queryByTestId("seletor-segmento")).toBeNull();
     expect(chamadas("list_commercial_segments")).toHaveLength(0);
   });
 
-  it("Outros não avança sem segmento e leva o segmento ao checkout", async () => {
+  it("Outros permite escolher segmento, mas não avança com os preços antigos", async () => {
     detalhe("others");
-    expect(await screen.findByRole("button", { name: "Escolha o segmento para continuar" })).toHaveProperty("disabled", true);
-    fireEvent.click(await screen.findByRole("radio", { name: /Pet shop/ }));
-    const link = await screen.findByRole("link", { name: "Solicitar contratação" });
-    expect(link.getAttribute("href")).toBe(`/checkout?nicho=others&segmento=${SEG_PET}`);
+    await screen.findByRole("radio", { name: /Pet shop/ });
+    expect(screen.queryByRole("link", { name: "Solicitar contratação" })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Pet shop/ }));
     expect(screen.getByTestId("resumo-segmento").textContent).toMatch(/Outros.*Pet shop.*12 unidades/);
+    expect(screen.queryByRole("button", { name: "Escolha o segmento para continuar" })).toBeNull();
   });
 
-  it("posição elegível pode ser contratada como ela mesma ou como Outros", async () => {
+  it("posição elegível preserva a escolha como Outros sem oferecer checkout antigo", async () => {
     detalhe("pharmacy");
-    const link = await screen.findByRole("link", { name: "Solicitar contratação" });
-    expect(link.getAttribute("href")).toBe("/checkout?nicho=pharmacy");
+    await screen.findByRole("radio", { name: /como Outros/ });
+    expect(screen.queryByRole("link", { name: "Solicitar contratação" })).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: /como Outros/ }));
     fireEvent.click(await screen.findByRole("radio", { name: /Papelaria/ }));
-    expect(screen.getByRole("link", { name: "Solicitar contratação" }).getAttribute("href"))
-      .toBe(`/checkout?nicho=pharmacy&segmento=${SEG_PAP}`);
+    expect(screen.getByTestId("resumo-segmento").textContent).toMatch(/Papelaria/);
+    expect(screen.queryByRole("link", { name: "Solicitar contratação" })).toBeNull();
   });
 
   it("segmento que já ocupa outra posição aparece indisponível", async () => {

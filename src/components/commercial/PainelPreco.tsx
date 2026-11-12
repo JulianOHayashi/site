@@ -80,6 +80,26 @@ export default function PainelPreco({
 
   const { founding, fidelized, nominalQuantity } = estado.preco;
   const previa = previaIndividualSF15(estado.preco);
+
+  // Enquanto SF-v1.4 estiver ativa, nunca exibir ou contratar seus valores
+  // históricos na vitrine. Exibe só a prévia individual, sem totais públicos.
+  if (founding.pricingRuleVersion !== 4 || fidelized.pricingRuleVersion !== 4) {
+    return (
+      <div className="card mt-4 p-6">
+        <h2 className="text-lg font-bold">Novas condições comerciais</h2>
+        {previa ? (
+          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <p className="font-semibold">Valores SF-v1.5 em preparação · ainda não contratáveis</p>
+            <div className="mt-3 flex justify-between gap-3"><span>Novo anunciante</span><strong>{formatarCentavos(previa.novoCentavos)}</strong></div>
+            <p className="mt-1 text-xs">Inclui {formatarCentavos(previa.custoProducaoIncluidoCentavos)} para produção de {previa.bandeirasNovas} bandeiras.</p>
+            <div className="mt-3 flex justify-between gap-3"><span>Fidelizado com reutilização aprovada</span><strong>{formatarCentavos(previa.fidelizadoReutilizacaoCentavos)}</strong></div>
+            <p className="mt-2 text-xs">A reutilização exige inspeção. Reposição de peças danificadas ainda não possui preço aprovado.</p>
+          </div>
+        ) : <p className="mt-3 text-sm text-tinta/70">Valores em atualização. Consulte a SmallFlags para informações.</p>}
+        <p className="mt-4 text-sm font-semibold text-tinta/75">Contratação temporariamente indisponível enquanto os novos preços não estiverem vigentes no Supabase.</p>
+      </div>
+    );
+  }
   const usaFormulaHistorica = founding.pricingRuleVersion <= 2;
   const extras = usaFormulaHistorica
     ? Math.max(0, nominalQuantity - FOUNDING_BLOCK_UNITS)

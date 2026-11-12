@@ -77,11 +77,11 @@ export default function OpportunityCard({
         </p>
       )}
 
-      {precoVigente && (
+      {precoVigente?.founding.pricingRuleVersion === 4 && precoVigente?.fidelized.pricingRuleVersion === 4 && (
         <div className="mt-4 rounded-xl border border-tinta/15 p-3 text-sm">
           <p className="font-semibold">Preços vigentes · servidor</p>
           <div className="mt-2 flex justify-between gap-2">
-            <span className="text-tinta/70">Não fidelizado</span>
+            <span className="text-tinta/70">Novo anunciante</span>
             <strong className="tabular-nums">{formatarCentavos(precoVigente.founding.economicValueCents)}</strong>
           </div>
           <div className="mt-1 flex justify-between gap-2">
@@ -93,7 +93,7 @@ export default function OpportunityCard({
 
       {previa && (
         <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-          <p className="font-bold">Proposta SF-v1.5 · NÃO VIGENTE</p>
+          <p className="font-bold">Novos preços em preparação · SF-v1.5</p>
           <div className="mt-2 flex justify-between gap-2">
             <span>Novo anunciante</span>
             <strong className="tabular-nums">{formatarCentavos(previa.novoCentavos)}</strong>
@@ -102,7 +102,7 @@ export default function OpportunityCard({
             <span>Fidelizado com reutilização</span>
             <strong className="tabular-nums">{formatarCentavos(previa.fidelizadoReutilizacaoCentavos)}</strong>
           </div>
-          <p className="mt-2 text-xs">A proposta inclui 84 bandeiras novas por anunciante não fidelizado. Reutilização condicionada à inspeção. O checkout mantém os preços vigentes.</p>
+          <p className="mt-2 text-xs">Inclui 84 bandeiras novas por anunciante não fidelizado. Reutilização condicionada à inspeção. Valores ainda não disponíveis para contratação; o checkout está bloqueado até a ativação no servidor.</p>
         </div>
       )}
 
