@@ -43,6 +43,7 @@ import ComoFunciona from "./pages/institucional/ComoFunciona";
 import TrabalheConosco from "./pages/institucional/TrabalheConosco";
 import Contato from "./pages/institucional/Contato";
 import Ajuda from "./pages/institucional/Ajuda";
+import PreviaPrecosBandeiras from "./pages/PreviaPrecosBandeiras";
 import LegalIndice from "./pages/legal/LegalIndice";
 import LegalAcordoMestre from "./pages/legal/LegalAcordoMestre";
 
@@ -77,6 +78,8 @@ export default function App() {
         <Route path="/trabalhe-conosco" element={<TrabalheConosco />} />
         <Route path="/contato" element={<Contato />} />
         <Route path="/ajuda" element={<Ajuda />} />
+        {/* Prévia editorial isolada: valores SF-v1.5 NÃO vigentes, sem checkout. */}
+        <Route path="/previa/precos-bandeiras" element={<PreviaPrecosBandeiras />} />
 
         {/* Área legal pública: leitura, sem autenticação e sem escrita. */}
         <Route path="/legal" element={<LegalIndice />} />
