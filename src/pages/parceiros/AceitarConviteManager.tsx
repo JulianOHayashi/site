@@ -4,6 +4,13 @@ import Header from "../../components/Header";
 import { supabase, supabaseConfigurado } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
 import { emailValido } from "../../lib/onboardingValidacao";
+import { useCaptchaAuth } from "../../components/seguranca/useCaptchaAuth";
+import {
+  MENSAGEM_CAPTCHA_INDISPONIVEL,
+  MENSAGEM_CAPTCHA_PENDENTE,
+  mensagemSeguraDeAuth,
+  opcoesComCaptcha,
+} from "../../lib/captcha";
 
 /**
  * /parceiros/convite — aceite de convite de gerente.
@@ -71,6 +78,8 @@ export default function AceitarConviteManager() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erroLogin, setErroLogin] = useState<string | null>(null);
+  const [entrando, setEntrando] = useState(false);
+  const captcha = useCaptchaAuth("login_convite_manager");
   const jaTentou = useRef(false);
 
   // Captura o token e o remove da URL visível o quanto antes.
@@ -134,7 +143,7 @@ export default function AceitarConviteManager() {
 
   const entrar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || entrando) return;
     if (!emailValido(email)) {
       setErroLogin("Informe um e-mail válido.");
       return;
@@ -143,14 +152,22 @@ export default function AceitarConviteManager() {
       setErroLogin("Informe sua senha.");
       return;
     }
+    // Sem CAPTCHA válido, nada é enviado ao Auth.
+    if (!captcha.pronto) {
+      setErroLogin(captcha.bloqueado ? MENSAGEM_CAPTCHA_INDISPONIVEL : MENSAGEM_CAPTCHA_PENDENTE);
+      return;
+    }
     setErroLogin(null);
+    setEntrando(true);
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password: senha,
+      options: opcoesComCaptcha(captcha.consumir()),
     });
+    setEntrando(false);
     if (error) {
       // Não revela se o e-mail existe nem quem foi convidado.
-      setErroLogin("Não foi possível entrar com esses dados.");
+      setErroLogin(mensagemSeguraDeAuth(error, "Não foi possível entrar com esses dados."));
       return;
     }
     // A sessão nova dispara o efeito acima, que chama a mesma RPC com o
@@ -207,12 +224,13 @@ export default function AceitarConviteManager() {
                 className="w-full rounded-xl border border-borda px-4 py-2.5"
               />
             </div>
+            {captcha.widget}
             {erroLogin ? (
               <p className="text-sm text-vermelho" role="alert">
                 {erroLogin}
               </p>
             ) : null}
-            <button type="submit" className="btn-primary w-full">
+            <button type="submit" disabled={entrando || !captcha.pronto} className="btn-primary w-full">
               Entrar e aceitar
             </button>
           </form>
