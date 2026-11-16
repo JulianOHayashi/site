@@ -301,9 +301,18 @@ function Personalizacao({ companyId, orderId }: { companyId: string; orderId: st
         </div>
       </section>
 
-      <Link to="/portal/pedidos" className="btn-secondary inline-flex">
-        Voltar aos pedidos
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        {/* R4.2: depois da produção, a arte muda só por solicitação (próxima campanha). */}
+        <Link
+          to={`/portal/pedidos/${encodeURIComponent(orderId)}/alteracao-arte`}
+          className="btn-secondary inline-flex"
+        >
+          Solicitar alteração de frase ou arte
+        </Link>
+        <Link to="/portal/pedidos" className="btn-secondary inline-flex">
+          Voltar aos pedidos
+        </Link>
+      </div>
     </div>
   );
 }

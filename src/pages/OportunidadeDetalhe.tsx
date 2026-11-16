@@ -155,7 +155,7 @@ export default function OportunidadeDetalhe() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-3xl px-4 pb-24 pt-10">
+      <main className="mx-auto max-w-4xl px-4 pb-24 pt-10">
         <Link
           to="/oportunidades"
           className="text-sm font-medium text-ciano hover:underline"
@@ -214,62 +214,73 @@ export default function OportunidadeDetalhe() {
           const segmentoPendente = opp.requiresSegment && !segmento;
           return (
             <>
-              <header className="mt-4 flex items-center gap-3">
-                <span aria-hidden className="text-4xl">
-                  {meta.icon}
-                </span>
-                <div>
-                  <h1 className="text-3xl">{meta.displayName}</h1>
-                  <p className="text-sm text-tinta/60">
-                    {estado.dados.region?.regionName} · Exclusividade{" "}
-                    {estado.dados.exclusivity?.sequenceNumber}
-                  </p>
+              <header className="mt-4">
+                <div className="flex items-center gap-3">
+                  <span aria-hidden className="text-4xl leading-none">
+                    {meta.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <h1 className="text-3xl leading-tight sm:text-4xl">{meta.displayName}</h1>
+                    <p className="mt-1 text-sm text-tinta/60">
+                      {estado.dados.region?.regionName} · Exclusividade{" "}
+                      {estado.dados.exclusivity?.sequenceNumber}
+                    </p>
+                  </div>
                 </div>
+                <ul className="mt-4 flex flex-wrap gap-2 text-sm" aria-label="Resumo da oportunidade">
+                  <li className="rounded-full border border-borda bg-superficie px-3 py-1">
+                    <span className="font-semibold">{opp.contractedQuantity}</span> unidades comerciais
+                  </li>
+                  <li className="rounded-full border border-borda bg-superficie px-3 py-1">
+                    {OPPORTUNITY_STATUS_LABEL[opp.status]}
+                  </li>
+                  {opp.segment && (
+                    <li className="rounded-full border border-borda bg-superficie px-3 py-1">
+                      Segmento: <span className="font-semibold">{opp.segment.name}</span>
+                    </li>
+                  )}
+                  {estado.dados.exclusivity && (
+                    <li className="rounded-full border border-borda bg-superficie px-3 py-1">
+                      Exclusividade: {EXCLUSIVITY_STATUS_LABEL[estado.dados.exclusivity.status]}
+                    </li>
+                  )}
+                </ul>
+                <p className="mt-4 max-w-leitura text-sm text-tinta/70">
+                  {meta.shortDescription}{" "}
+                  Publicidade visual com bandeiras instaladas sobre veículos
+                  de motoristas participantes do SmallFlags App. A posição é contratada integralmente, com{" "}
+                  {opp.contractedQuantity} unidades comerciais.
+                </p>
               </header>
 
-              <div className="card mt-6 space-y-4 p-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-tinta/60">Status</span>
-                  <span className="rounded-full bg-papel2 px-3 py-1 text-sm font-semibold">
-                    {OPPORTUNITY_STATUS_LABEL[opp.status]}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-tinta/60">Quantidade</span>
-                  <span className="font-bold">
-                    {opp.contractedQuantity} unidades
-                  </span>
-                </div>
-                {opp.segment && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-tinta/60">Segmento</span>
-                    <span className="font-semibold">{opp.segment.name}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-tinta/60">Exclusividade</span>
-                  <span className="font-semibold">
-                    {estado.dados.exclusivity
-                      ? EXCLUSIVITY_STATUS_LABEL[estado.dados.exclusivity.status]
-                      : "—"}
-                  </span>
-                </div>
-              </div>
+              <PainelPreco
+                nicheCode={meta.code}
+                segmentId={segmento?.id ?? null}
+                segmentoPendente={segmentoPendente}
+                antesDaContratacao={
+                  opp.acceptsSegment ? (
+                    <SeletorSegmento
+                      oportunidade={opp}
+                      ocupados={ocupados}
+                      ownerCompanyId={ownerCompanyId}
+                      valor={segmento}
+                      onChange={setSegmento}
+                    />
+                  ) : null
+                }
+              />
 
-              <div className="card mt-4 p-6">
+              <div className="card mt-6 p-6">
                 <h2 className="text-lg font-bold">Sobre esta oportunidade</h2>
                 <p className="mt-2 text-sm text-tinta/70">
-                  {meta.shortDescription} A divulgação prevista é publicidade visual
-                  por meio de bandeiras publicitárias instaladas sobre veículos,
-                  sujeita às condições técnicas e autorizações aplicáveis.
-                  O nicho é contratado integralmente, com {opp.contractedQuantity}
-                  unidades — não há venda de unidades avulsas.
+                  A divulgação depende das condições técnicas da bandeira e das
+                  autorizações aplicáveis. Não há venda de unidades avulsas.
                 </p>
                 {opp.status === "available" ? (
                   <p className="mt-3 aviso-atencao text-tinta/70">
-                    Revise as condições comerciais abaixo. O titular autenticado
-                    pode avançar ao checkout para reservar a oportunidade por 30
-                    minutos e, após o aceite dos termos, iniciar o pagamento.
+                    Quando a contratação estiver disponível, o titular autenticado
+                    avança ao checkout para reservar a oportunidade por 30 minutos
+                    e, após o aceite dos termos, iniciar o pagamento.
                   </p>
                 ) : (
                   <div className="mt-3 aviso-atencao text-tinta/70">
@@ -338,22 +349,6 @@ export default function OportunidadeDetalhe() {
                   </div>
                 )}
               </div>
-
-              {opp.acceptsSegment && (
-                <SeletorSegmento
-                  oportunidade={opp}
-                  ocupados={ocupados}
-                  ownerCompanyId={ownerCompanyId}
-                  valor={segmento}
-                  onChange={setSegmento}
-                />
-              )}
-
-              <PainelPreco
-                nicheCode={meta.code}
-                segmentId={segmento?.id ?? null}
-                segmentoPendente={segmentoPendente}
-              />
 
               <div className="mt-6">
                 <ReferenciaOperacional />

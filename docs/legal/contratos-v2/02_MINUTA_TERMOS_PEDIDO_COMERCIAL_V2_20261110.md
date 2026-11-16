@@ -2,7 +2,8 @@
 
 **Termos Comerciais do Pedido — SmallFlags — Versão proposta V2**
 
-- Data da minuta: 2026-11-10.
+- Data da minuta: 2026-11-10. Revisada em 2026-11-12 (produção e reutilização
+  de bandeiras, SF-v1.5).
 - Status: **RASCUNHO**. Destina-se a uma versão futura de `legal_documents` do
   tipo `commercial_order_terms`.
 - **Não** deve ser publicado nem aceito antes de aprovação jurídica e de
@@ -47,6 +48,20 @@ composição exibida na revisão) são **calculados pelo servidor da SmallFlags*
 segundo a regra comercial vigente para a sua condição (fidelizado ou não
 fidelizado). A modalidade de pagamento é a escolhida na revisão. Estes Termos
 **não** alteram preço, forma de cálculo ou condição de fidelização.
+
+**5A. Bandeiras da sua marca.**
+- **Primeira contratação (não fidelizada):** exige fabricar
+  `{{flag_production_new_units}}` bandeiras novas com a sua arte. O custo
+  nominal dessa fabricação, `{{flag_production_charge_cents}}`, já está dentro
+  do valor do pedido e é considerado uma única vez. Ele não reduz a
+  contraprestação dos divulgadores nem a parcela de QA.
+- **Renovação fidelizada:** reutiliza as bandeiras já fabricadas para a sua
+  marca, sem nova fabricação, desde que uma inspeção de conservação aprove
+  todas as peças. Sem essa inspeção, a reserva não é liberada.
+- **Peças com problema:** se a inspeção encontrar peça danificada, perdida,
+  desgastada, inadequada, incompatível com nova arte ou insegura, a renovação
+  depende da política de reposição. **PENDENTE DE DECISÃO (D-N5).** Até lá,
+  não há cobrança de reposição nem promessa de reposição gratuita.
 
 **6. Condições técnicas e autorizações.**
 - A exibição depende de **especificação técnica aprovada** por responsável

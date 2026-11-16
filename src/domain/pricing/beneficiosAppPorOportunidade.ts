@@ -1,17 +1,33 @@
 import type { PublicNichePricing, NichePricing } from "./contractPricing";
 import { previaIndividualSF15 } from "./previewSF15";
 
-/** Exibição informativa por posição comercial; não cria preço ou cobrança.
- * "MEIs" = contraprestação POTENCIAL (App); QA = remuneração SmallFlags.
- * Um pool que contém QA nunca deve ser anunciado como benefício dos MEIs.
+/**
+ * Exibição informativa por posição comercial; não cria preço ou cobrança.
+ *
+ * Regra R3 (decisão comercial de 13/11/2026), aplicada à SF-v1.5:
+ *   * "MEIs" = contraprestação POTENCIAL dos participantes do App, igual nas
+ *     duas modalidades (em benefícios no direto, em dinheiro no DINHEIRO);
+ *   * a parcela principal da SmallFlags é a sua remuneração MONETÁRIA;
+ *   * a QA existe SÓ no benefício direto, em produtos para testes locais —
+ *     nunca em dinheiro, nunca dos participantes, inexistente no DINHEIRO.
+ * Um pool que contém QA nunca é anunciado como benefício dos MEIs.
  */
 export type ParcelaPorContratacao = {
+  /** Valor total na modalidade BENEFÍCIO DIRETO (referência da agenda). */
   valorEconomicoCentavos: number;
   contraprestacaoMEIsCentavos: number;
-  remuneracaoSmallFlagsCentavos: number;
-  qaSmallFlagsCentavos: number;
+  /** Parcela principal da SmallFlags, devida em dinheiro. */
   principalSmallFlagsCentavos: number;
+  /** Remuneração MONETÁRIA da SmallFlags (R3: igual à parcela principal). */
+  remuneracaoSmallFlagsCentavos: number;
+  /** QA em produtos para testes locais — só no benefício direto. */
+  qaEmProdutosCentavos: number;
   fabricacaoIncluidaCentavos: number | null;
+  /**
+   * Modalidade integralmente em DINHEIRO (sem QA). `null` = preço dessa
+   * modalidade ainda não aprovado: nada é estimado.
+   */
+  dinheiro: { valorEconomicoCentavos: number; ajusteCentavos: number } | null;
 };
 export type BeneficiosPorOportunidade = {
   estado: "previa" | "vigente";
@@ -29,8 +45,9 @@ const SUPERMERCADO = {
   qa: 12168,
   v15NovoEconomico: 3293900,
   v15FidelizadoEconomico: 2817600,
-  v15NovoSmallflags: 908468,
-  v15FidelizadoSmallflags: 432168,
+  // R3: parcela principal (dinheiro), sem a QA.
+  v15NovoPrincipal: 896300,
+  v15FidelizadoPrincipal: 420000,
 };
 const COMUM = {
   quantidadeComercial: 12,
@@ -39,12 +56,13 @@ const COMUM = {
   qa: 6084,
   v15NovoEconomico: 2293900,
   v15FidelizadoEconomico: 1618800,
-  v15NovoSmallflags: 1101184,
-  v15FidelizadoSmallflags: 426084,
+  v15NovoPrincipal: 1095100,
+  v15FidelizadoPrincipal: 420000,
 };
 const POSICOES_COMUNS = new Set(["pharmacy", "womens_clothing", "mens_clothing", "footwear", "others"]);
 
-function validaBloco(p: NichePricing, mei: number, qa: number): boolean {
+/** SF-v1.4 vigente (versão 3): interpretação histórica, QA monetária. */
+function validaBlocoV14(p: NichePricing, mei: number, qa: number): boolean {
   return p.meiConsiderationCents === mei &&
     p.smallflagsQaCents === qa &&
     p.smallflagsTotalRemunerationCents !== null &&
@@ -56,53 +74,96 @@ function validaBloco(p: NichePricing, mei: number, qa: number): boolean {
     p.fundingCashCents === p.economicValueCents;
 }
 
-function parcela(economico:number, mei:number, qa:number, remuneracao:number, fabricacao:number|null): ParcelaPorContratacao {
+/** SF-v1.5 vigente (versão 4): regra R3, composição por modalidade. */
+function validaBlocoR3(p: NichePricing, mei: number, qa: number): boolean {
+  const m = p.settlementModes;
+  if (p.qaPolicy !== "in_kind_direct_benefits_only" || !m) return false;
+  const d = m.directBenefits;
+  if (p.meiConsiderationCents !== mei || p.smallflagsQaCents !== qa) return false;
+  if (p.smallflagsMainFeeCents === null || p.smallflagsTotalRemunerationCents === null) return false;
+  if (p.smallflagsTotalRemunerationCents !== p.smallflagsMainFeeCents) return false;
+  if (d.meiConsiderationCents !== mei || d.qaInKindCents !== qa || d.qaCashCents !== 0) return false;
+  if (d.ordinaryParticipationValueCents !== VALOR_POR_PARTICIPACAO) return false;
+  if (p.economicValueCents !== mei + p.smallflagsMainFeeCents + qa) return false;
+  if (p.fundingDirectBenefitsCents !== p.smallflagsMainFeeCents) return false;
+  if (m.cash) {
+    const c = m.cash;
+    if (c.meiCashCents !== mei || c.qaInKindCents !== 0 || c.qaCashCents !== 0) return false;
+    if (c.smallflagsMainFeeCents !== p.smallflagsMainFeeCents) return false;
+    if (c.economicValueCents !== mei + c.smallflagsMainFeeCents + c.cashAdjustmentCents) return false;
+    if (p.fundingCashCents !== c.economicValueCents) return false;
+  } else if (p.fundingCashCents !== null) {
+    return false;
+  }
+  return true;
+}
+
+function parcela(economico: number, mei: number, qa: number, principal: number,
+                 fabricacao: number | null,
+                 dinheiro: ParcelaPorContratacao["dinheiro"]): ParcelaPorContratacao {
   return {
     valorEconomicoCentavos: economico,
     contraprestacaoMEIsCentavos: mei,
-    remuneracaoSmallFlagsCentavos: remuneracao,
-    qaSmallFlagsCentavos: qa,
-    principalSmallFlagsCentavos: remuneracao - qa,
+    principalSmallFlagsCentavos: principal,
+    remuneracaoSmallFlagsCentavos: principal,
+    qaEmProdutosCentavos: qa,
     fabricacaoIncluidaCentavos: fabricacao,
+    dinheiro,
   };
 }
 
 /** Fail-closed: sem dados econômicos completos da RPC, não expõe discriminação estimada.
  * Na versão 3, somente os preços propostos são simulados, com a composição
- * congelada e reconciliada à SF-v1.4 real; na versão 4, tudo vem da RPC.
+ * congelada e reconciliada à SF-v1.4 real; o DINHEIRO da prévia é o Cenário A
+ * aprovado (participantes + parcela principal, sem QA, sem ajuste), conferido
+ * contra a mesma composição. Na versão 4, tudo vem da RPC.
  */
 export function beneficiosPorOportunidade(p: PublicNichePricing): BeneficiosPorOportunidade | null {
   const regra = p.nicheCode === "supermarket" ? SUPERMERCADO :
     POSICOES_COMUNS.has(p.nicheCode) ? COMUM : null;
-  if(!regra || p.nominalQuantity !== regra.quantidadeComercial) return null;
-  if(regra.participacoes * VALOR_POR_PARTICIPACAO !== regra.mei) return null;
-  if(!validaBloco(p.founding,regra.mei,regra.qa) || !validaBloco(p.fidelized,regra.mei,regra.qa)) return null;
+  if (!regra || p.nominalQuantity !== regra.quantidadeComercial) return null;
+  if (regra.participacoes * VALOR_POR_PARTICIPACAO !== regra.mei) return null;
 
-  if(p.founding.pricingRuleVersion === 3 && p.fidelized.pricingRuleVersion === 3) {
-    const previa=previaIndividualSF15(p);
-    if(!previa ||
-       previa.novoCentavos !== regra.v15NovoEconomico ||
-       previa.fidelizadoReutilizacaoCentavos !== regra.v15FidelizadoEconomico ||
-       previa.novoCentavos - regra.mei !== regra.v15NovoSmallflags ||
-       previa.fidelizadoReutilizacaoCentavos - regra.mei !== regra.v15FidelizadoSmallflags) return null;
+  if (p.founding.pricingRuleVersion === 3 && p.fidelized.pricingRuleVersion === 3) {
+    if (!validaBlocoV14(p.founding, regra.mei, regra.qa) || !validaBlocoV14(p.fidelized, regra.mei, regra.qa)) return null;
+    const previa = previaIndividualSF15(p);
+    if (!previa ||
+        previa.novoCentavos !== regra.v15NovoEconomico ||
+        previa.fidelizadoReutilizacaoCentavos !== regra.v15FidelizadoEconomico ||
+        previa.novoCentavos - regra.mei - regra.qa !== regra.v15NovoPrincipal ||
+        previa.fidelizadoReutilizacaoCentavos - regra.mei - regra.qa !== regra.v15FidelizadoPrincipal) return null;
+    // Cenário A: DINHEIRO = participantes + parcela principal; sem QA, ajuste 0.
+    if (previa.dinheiroNovoCentavos !== regra.mei + regra.v15NovoPrincipal ||
+        previa.dinheiroFidelizadoCentavos !== regra.mei + regra.v15FidelizadoPrincipal) return null;
     return {
-      estado:"previa",
-      participacoesPotenciais:regra.participacoes,
-      valorPorParticipacaoCentavos:VALOR_POR_PARTICIPACAO,
-      novo:parcela(previa.novoCentavos,regra.mei,regra.qa,regra.v15NovoSmallflags,previa.custoProducaoIncluidoCentavos),
-      fidelizado:parcela(previa.fidelizadoReutilizacaoCentavos,regra.mei,regra.qa,regra.v15FidelizadoSmallflags,0),
+      estado: "previa",
+      participacoesPotenciais: regra.participacoes,
+      valorPorParticipacaoCentavos: VALOR_POR_PARTICIPACAO,
+      novo: parcela(previa.novoCentavos, regra.mei, regra.qa, regra.v15NovoPrincipal,
+                    previa.custoProducaoIncluidoCentavos,
+                    { valorEconomicoCentavos: previa.dinheiroNovoCentavos, ajusteCentavos: 0 }),
+      fidelizado: parcela(previa.fidelizadoReutilizacaoCentavos, regra.mei, regra.qa,
+                          regra.v15FidelizadoPrincipal, 0,
+                          { valorEconomicoCentavos: previa.dinheiroFidelizadoCentavos, ajusteCentavos: 0 }),
     };
   }
 
-  if(p.founding.pricingRuleVersion === 4 && p.fidelized.pricingRuleVersion === 4) {
+  if (p.founding.pricingRuleVersion === 4 && p.fidelized.pricingRuleVersion === 4) {
+    if (!validaBlocoR3(p.founding, regra.mei, regra.qa) || !validaBlocoR3(p.fidelized, regra.mei, regra.qa)) return null;
     // É proibido inventar quantia de fabricação: o parser público atual não
-    // expõe esse campo separadamente na versão ativa. A remuneração é do servidor.
+    // expõe esse campo separadamente na versão ativa. Tudo o mais é do servidor.
+    const dinheiro = (b: NichePricing): ParcelaPorContratacao["dinheiro"] => {
+      const c = b.settlementModes!.cash;
+      return c ? { valorEconomicoCentavos: c.economicValueCents, ajusteCentavos: c.cashAdjustmentCents } : null;
+    };
     return {
-      estado:"vigente",
-      participacoesPotenciais:regra.participacoes,
-      valorPorParticipacaoCentavos:VALOR_POR_PARTICIPACAO,
-      novo:parcela(p.founding.economicValueCents,regra.mei,regra.qa,p.founding.smallflagsTotalRemunerationCents!,null),
-      fidelizado:parcela(p.fidelized.economicValueCents,regra.mei,regra.qa,p.fidelized.smallflagsTotalRemunerationCents!,null),
+      estado: "vigente",
+      participacoesPotenciais: regra.participacoes,
+      valorPorParticipacaoCentavos: VALOR_POR_PARTICIPACAO,
+      novo: parcela(p.founding.economicValueCents, regra.mei, regra.qa,
+                    p.founding.smallflagsMainFeeCents!, null, dinheiro(p.founding)),
+      fidelizado: parcela(p.fidelized.economicValueCents, regra.mei, regra.qa,
+                          p.fidelized.smallflagsMainFeeCents!, null, dinheiro(p.fidelized)),
     };
   }
   return null;

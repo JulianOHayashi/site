@@ -25,6 +25,9 @@
 -- ===========================================================================
 \set ON_ERROR_STOP on
 select tests.reset_results();
+-- R3: a reserva sob a SF-v1.4 esta travada no banco (portao do autoatendimento);
+-- esta suite exercita esse caminho historico e abre o portao so para si.
+select tests.abrir_portao_autoatendimento_qa();
 
 -- Fixture jurídica/contratual FICTÍCIA: permite que esta suíte exercite
 -- seu próprio domínio sem promover a minuta real v1.4.
@@ -402,4 +405,5 @@ select tests.check_raises('Mestre nao pode ser excluido',
 
 select tests.encerrar_contexto_contratual_v14_qa();
 
+select tests.fechar_portao_autoatendimento_qa();
 select tests.finish('250_commercial_master_enforcement');

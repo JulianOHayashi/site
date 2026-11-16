@@ -12,6 +12,8 @@ describe("SF-v1.5 — prévia individual nas oportunidades, sem totais públicos
     expect(previaIndividualSF15(preco("supermarket", 2999900, 2817600))).toEqual({
       novoCentavos: 3293900,
       fidelizadoReutilizacaoCentavos: 2817600,
+      dinheiroNovoCentavos: 3281732,
+      dinheiroFidelizadoCentavos: 2805432,
       bandeirasNovas: 84,
       custoProducaoIncluidoCentavos: 294000,
     });
@@ -21,6 +23,8 @@ describe("SF-v1.5 — prévia individual nas oportunidades, sem totais públicos
       expect(previaIndividualSF15(preco(code, 1999900, 1618800))).toEqual({
         novoCentavos: 2293900,
         fidelizadoReutilizacaoCentavos: 1618800,
+        dinheiroNovoCentavos: 2287816,
+        dinheiroFidelizadoCentavos: 1612716,
         bandeirasNovas: 84,
         custoProducaoIncluidoCentavos: 294000,
       });
@@ -34,11 +38,21 @@ describe("SF-v1.5 — prévia individual nas oportunidades, sem totais públicos
     expect(previaIndividualSF15(preco("pharmacy", 1999900, 1))).toBeNull();
     expect(previaIndividualSF15(preco("unknown", 1999900, 1618800))).toBeNull();
   });
+  it("R4.2: DINHEIRO da prévia = Cenário A aprovado (participantes + parcela principal, sem QA)", () => {
+    const sup = previaIndividualSF15(preco("supermarket", 2999900, 2817600))!;
+    const com = previaIndividualSF15(preco("pharmacy", 1999900, 1618800))!;
+    // benefício direto − QA em produtos (121,68 / 60,84): nenhum ajuste para igualar.
+    expect(sup.novoCentavos - sup.dinheiroNovoCentavos).toBe(12168);
+    expect(sup.fidelizadoReutilizacaoCentavos - sup.dinheiroFidelizadoCentavos).toBe(12168);
+    expect(com.novoCentavos - com.dinheiroNovoCentavos).toBe(6084);
+    expect(com.fidelizadoReutilizacaoCentavos - com.dinheiroFidelizadoCentavos).toBe(6084);
+  });
   it("o contrato público dos valores propostos não inclui totalização", () => {
     const proposta = previaIndividualSF15(preco("supermarket", 2999900, 2817600));
     expect(proposta).not.toBeNull();
     expect(Object.keys(proposta!)).toEqual([
-      "novoCentavos", "fidelizadoReutilizacaoCentavos", "bandeirasNovas",
+      "novoCentavos", "fidelizadoReutilizacaoCentavos",
+      "dinheiroNovoCentavos", "dinheiroFidelizadoCentavos", "bandeirasNovas",
       "custoProducaoIncluidoCentavos",
     ]);
   });

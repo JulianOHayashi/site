@@ -1,0 +1,322 @@
+MANIFESTO DE INTEGRIDADE DAS GUARDAS — R4.1 (migration 20261113200000)
+Arquivo canônico: R41_MANIFESTO_GUARDAS.json (texto jsonb do PostgreSQL, sem quebra final)
+SHA-256: bc3f7441b780b6b66fa6086b21633dc52bd942401f2e61da74ac0a85e1cb11d7
+Formato: smallflags-guard-catalog/1 (R4.1, sha256)
+Conferido idêntico em PostgreSQL 16.15 e 17.6 (bancos locais recém-criados).
+
+TABELAS GUARDADAS (13) — todo gatilho não interno delas entra; gatilho a mais é divergência:
+  public.commercial_checkout_intents
+  public.commercial_exclusivity_orders
+  public.commercial_flag_set_inspections
+  public.commercial_flag_sets
+  public.commercial_guard_manifests
+  public.commercial_instrument_template_approvals
+  public.commercial_payments
+  public.commercial_pricing_activation_approvals
+  public.commercial_pricing_activation_log
+  public.commercial_pricing_rules
+  public.commercial_pricing_schedule
+  public.commercial_qa_operational_procedures
+  public.commercial_settlement_terms
+
+GATILHOS (50) — estado aprovado | função executada | definição canônica (pg_get_triggerdef):
+  public.commercial_checkout_intents.cci_aplicar_autoridade_v14
+      estado O | tgtype 7 | função public.cci_aplicar_autoridade_v14() sha256 d71265048360c982d951e77de2830fd3d23e0c97929b57605d1d4faa3a909f90
+      CREATE TRIGGER cci_aplicar_autoridade_v14 BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_aplicar_autoridade_v14()
+      definição sha256 a1421ae18d7ff1efcf4d66a74a71086aa412c8281905c4c7dda4eae085adcb67
+  public.commercial_checkout_intents.cci_bandeiras_imutaveis
+      estado O | tgtype 19 | função public.commercial_flag_facts_imutaveis() sha256 7c432227c054e2e17e81ad3b8a8e2759b6afcad2165e693e37f9111dca67ec2b
+      CREATE TRIGGER cci_bandeiras_imutaveis BEFORE UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_facts_imutaveis()
+      definição sha256 081aad32c1ed444a205ec4c43a002d6a71a16fdedd4a20889fce477f22c93b85
+  public.commercial_checkout_intents.cci_liquidar_modalidade_v15
+      estado O | tgtype 23 | função public.cci_liquidar_modalidade_v15() sha256 0bdce46677c0c4047c97f1ac0d8db2696b7eeff926a393e393a07fd49f4ab909
+      CREATE TRIGGER cci_liquidar_modalidade_v15 BEFORE INSERT OR UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_liquidar_modalidade_v15()
+      definição sha256 4f99069e57b8738572a7c3c1a5cfb6749c2787c24a040241392b5f817918d32f
+  public.commercial_checkout_intents.cci_portao_autoatendimento
+      estado O | tgtype 7 | função public.cci_portao_autoatendimento() sha256 55f3678fdd292f426142f8a31fc8a49c023312b025bd1478251ea86756f52ae1
+      CREATE TRIGGER cci_portao_autoatendimento BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_portao_autoatendimento()
+      definição sha256 79adddb7c04966063432e3d8575d14a437f84500a23a7ccb97cb01406da901a7
+  public.commercial_checkout_intents.cci_preencher_fatos
+      estado O | tgtype 7 | função public.cci_preencher_fatos_materiais() sha256 e8f11915eee4edce7f485b10659a3b55e3648ec49456a5f98cd4a2d345307a2b
+      CREATE TRIGGER cci_preencher_fatos BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_preencher_fatos_materiais()
+      definição sha256 4eb75e7db1801bef5f3eee45ab10a784a44f3ff701d082ce4d2c118cb66493ea
+  public.commercial_checkout_intents.cci_proteger_snapshot_trg
+      estado O | tgtype 19 | função public.cci_proteger_snapshot() sha256 fdb064d35ad871f0071b8d0d4f9d99d080ae1f09826f68ad4e86d9fee412ab40
+      CREATE TRIGGER cci_proteger_snapshot_trg BEFORE UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_proteger_snapshot()
+      definição sha256 68427d6a4f344d8eaae271acb39819d48fc451a900005af8a1ff82203030b585
+  public.commercial_checkout_intents.cci_segmento_imutavel
+      estado O | tgtype 19 | função public.commercial_segment_snapshot_imutavel() sha256 044adf339fe704030567db9f03719eb1546c7f716c49930cb69816923be555a9
+      CREATE TRIGGER cci_segmento_imutavel BEFORE UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.commercial_segment_snapshot_imutavel()
+      definição sha256 092bf8d532482a93d8723d2cd5f5c637e772154eb7fd959e55235f0d30cd3ce3
+  public.commercial_checkout_intents.cci_validar_producao_bandeiras
+      estado O | tgtype 7 | função public.cci_validar_producao_bandeiras() sha256 f86a78e0d0c97884245c66dd3fc2a31ec934e94cf3a53bf563d718a6e672918b
+      CREATE TRIGGER cci_validar_producao_bandeiras BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_validar_producao_bandeiras()
+      definição sha256 beec37717a26e5671f4aa82ae697cab44339e50622115143579a5a7647335a7d
+  public.commercial_exclusivity_orders.ceo_aplicar_autoridade_v14
+      estado O | tgtype 7 | função public.ceo_aplicar_autoridade_v14() sha256 aae838a149a33f7d720406fc023dc2eb2f6ac807507ac8eeab68527564423bb0
+      CREATE TRIGGER ceo_aplicar_autoridade_v14 BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_aplicar_autoridade_v14()
+      definição sha256 47945a7ec8bc97e34feebda0dbf3c022d0b34333260c16e9cc7827175e0b6977
+  public.commercial_exclusivity_orders.ceo_bandeiras_imutaveis
+      estado O | tgtype 19 | função public.commercial_flag_facts_imutaveis() sha256 7c432227c054e2e17e81ad3b8a8e2759b6afcad2165e693e37f9111dca67ec2b
+      CREATE TRIGGER ceo_bandeiras_imutaveis BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_facts_imutaveis()
+      definição sha256 48d0c9cd0a2251cb20181a0ffb79277c54f7e261cfe0ac7679f07a631d34b997
+  public.commercial_exclusivity_orders.ceo_emitir_instrumento
+      estado O | tgtype 5 | função public.ceo_emitir_instrumento() sha256 722fce1aeab8bc66225a7bef9556fe38d308e9478a0eb3ea3649224345897ae7
+      CREATE TRIGGER ceo_emitir_instrumento AFTER INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_emitir_instrumento()
+      definição sha256 cb1564e9f602799017054547d8b3c157761491755bc6017940d960669ed5e177
+  public.commercial_exclusivity_orders.ceo_exigir_instrumento
+      estado O | tgtype 7 | função public.ceo_exigir_instrumento_quando_assinavel() sha256 26f7000b7047e0a52eaa701d53cd09e2e351cd4a87d59c5af5c98702196e8308
+      CREATE TRIGGER ceo_exigir_instrumento BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_exigir_instrumento_quando_assinavel()
+      definição sha256 afed0e0d33d4379e5e1ceb589aecc7225e12723cd63a09fe7315d793ec16f07e
+  public.commercial_exclusivity_orders.ceo_instrumento_imutavel
+      estado O | tgtype 19 | função public.ceo_instrumento_imutavel() sha256 bfdcb2188b8757ec8b4e55d40db7eef435f9e8456575343eb8e4e455981dea0d
+      CREATE TRIGGER ceo_instrumento_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_instrumento_imutavel()
+      definição sha256 f78c4e15a45d01b052d372ef8c1327dfb0f3a41ba813f0724c9b0f24744ba7a5
+  public.commercial_exclusivity_orders.ceo_liquidacao_v15_imutavel
+      estado O | tgtype 19 | função public.ceo_liquidacao_v15_imutavel() sha256 69ea27bbd7eac181b8f976f4f74237c96682b4ba2a4674503eb92638e35675e1
+      CREATE TRIGGER ceo_liquidacao_v15_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_liquidacao_v15_imutavel()
+      definição sha256 bc7f62b342dc0799ff7986c3857060ec05adc36cfca9bd3609c5b8fb10837f49
+  public.commercial_exclusivity_orders.ceo_liquidar_modalidade_v15
+      estado O | tgtype 7 | função public.ceo_liquidar_modalidade_v15() sha256 b879abd9a8f44d9f497ac6b2601e813a6583bd2428e57b0c4f166a13d2681003
+      CREATE TRIGGER ceo_liquidar_modalidade_v15 BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_liquidar_modalidade_v15()
+      definição sha256 8d86138970115b4bf658d16fa6041989aad9e089d910bd01940f31828037bbf3
+  public.commercial_exclusivity_orders.ceo_pagamento_confere_snapshot
+      estado O | tgtype 23 | função public.ceo_pagamento_confere_snapshot() sha256 44759806656f355ffff3d0f0bcc72f3127ac196b7dd0361f4910beca6b964962
+      CREATE TRIGGER ceo_pagamento_confere_snapshot BEFORE INSERT OR UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_pagamento_confere_snapshot()
+      definição sha256 385a7e6b153d7700bc86913f88d6a498eb46b1dd7602ea0dd909fd8c34257d3c
+  public.commercial_exclusivity_orders.ceo_preencher_fatos
+      estado O | tgtype 7 | função public.ceo_preencher_fatos_materiais() sha256 4ec5ce9bd2913a981fd30937ee7765d8081db0afd844a92e1c2160ec13cfb972
+      CREATE TRIGGER ceo_preencher_fatos BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_preencher_fatos_materiais()
+      definição sha256 2b28b94bff75e42db350d501b02a3b7e837ad291e10c67455753e288a40cb5e4
+  public.commercial_exclusivity_orders.ceo_revalidar_reutilizacao_bandeiras
+      estado O | tgtype 21 | função public.ceo_revalidar_reutilizacao_bandeiras() sha256 3e5b9e40d240d9914949ed322ce3b8abdc54f147aa866bc29b6136f75568ddc5
+      CREATE TRIGGER ceo_revalidar_reutilizacao_bandeiras AFTER INSERT OR UPDATE OF payment_status ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_revalidar_reutilizacao_bandeiras()
+      definição sha256 97c03227b4a9bd27fc536217d3971ff0549bc795a22f60257762c2f39d7377c2
+  public.commercial_exclusivity_orders.ceo_segmento_da_intencao
+      estado O | tgtype 7 | função public.ceo_segmento_da_intencao() sha256 a544f81886260476dfec5995d3ec1215bbc17e541042c21ba4492607e4657df8
+      CREATE TRIGGER ceo_segmento_da_intencao BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_segmento_da_intencao()
+      definição sha256 71938d7bced8dbc77639420a0373eb5b258c5b9bc2b33e96ab40ff86e237c9b2
+  public.commercial_exclusivity_orders.ceo_segmento_imutavel
+      estado O | tgtype 19 | função public.commercial_segment_snapshot_imutavel() sha256 044adf339fe704030567db9f03719eb1546c7f716c49930cb69816923be555a9
+      CREATE TRIGGER ceo_segmento_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.commercial_segment_snapshot_imutavel()
+      definição sha256 a97532e32009ae2e02e7f429e232e371902c282cd4e144ed3106ac372580aaf6
+  public.commercial_exclusivity_orders.ceo_snapshot_v14_imutavel
+      estado O | tgtype 19 | função public.ceo_snapshot_v14_imutavel() sha256 5c68326fdceca35d2fe6f5e573e6c677e7560d6b59289fd02db5324d7a21a4e7
+      CREATE TRIGGER ceo_snapshot_v14_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_snapshot_v14_imutavel()
+      definição sha256 4764bf11bfe33265cc07c405c4cc4127e3d554f164de50965561a2396e706678
+  public.commercial_exclusivity_orders.ceo_validar_producao_bandeiras
+      estado O | tgtype 7 | função public.ceo_validar_producao_bandeiras() sha256 ff8a4e146036fd361ca4e14d2a650764c4b59b4c09a6531ade0aeda04450ad7b
+      CREATE TRIGGER ceo_validar_producao_bandeiras BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_validar_producao_bandeiras()
+      definição sha256 13090adec88f0356015f17a73b044e441e25ed47a0a2b4c0dd1224da0848c00d
+  public.commercial_exclusivity_orders.trg_ceo_origem_pagamento
+      estado O | tgtype 23 | função public.ceo_marcar_origem_manual() sha256 c52e0d3ac23ab3c33151edc905b25346d0cf812b412533bcb9dd7bd574ff9086
+      CREATE TRIGGER trg_ceo_origem_pagamento BEFORE INSERT OR UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_marcar_origem_manual()
+      definição sha256 77895cf9ce3d11af7c0312ab6ac8e595722e91072bc931da4d3f3b4a1eb9e777
+  public.commercial_exclusivity_orders.trg_ceo_protect
+      estado O | tgtype 27 | função public.m2_orders_protect() sha256 760f2f2de477e05f7d735d87cf49773ff3833347bfcb2b5a12cb3f160fb1f89f
+      CREATE TRIGGER trg_ceo_protect BEFORE DELETE OR UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.m2_orders_protect()
+      definição sha256 58b552a3c0a00efa697f439c30492979a23290b0c77938456b54a1bf36cec7bd
+  public.commercial_exclusivity_orders.trg_ceo_touch
+      estado O | tgtype 19 | função public.fase2a_touch_updated_at() sha256 f0fd417ae71a52338a298bf853ce507a8bc036c54c4f14cfea417ffffb7abc8f
+      CREATE TRIGGER trg_ceo_touch BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.fase2a_touch_updated_at()
+      definição sha256 563bc51d7a8a6bf51168d2b2580dcb6bdf86f1adf6b7d22c85748076aaedf5e7
+  public.commercial_flag_set_inspections.cfi_bloquear_conjunto
+      estado O | tgtype 7 | função public.commercial_flag_set_lock_for_inspection() sha256 2271272d240a23dcd3007c6b7ce742459afb326d1102433995df2b4142301674
+      CREATE TRIGGER cfi_bloquear_conjunto BEFORE INSERT ON public.commercial_flag_set_inspections FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_set_lock_for_inspection()
+      definição sha256 a623c8387cf050cc6bfca4f318f92d3571c346bac0eb10216c0eff1ec0916218
+  public.commercial_flag_set_inspections.cfi_protect
+      estado O | tgtype 31 | função public.commercial_flag_set_inspections_protect() sha256 da606f958f5af26fdf2b0ce9ba2d45aa2056aa76d9f7b9e641bc97e2b3e58932
+      CREATE TRIGGER cfi_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_flag_set_inspections FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_set_inspections_protect()
+      definição sha256 5dcde04f40a706b69419c37b0b0e5d3ea5d91f6c6793a2028630b3c871011726
+  public.commercial_flag_set_inspections.cfi_protect_truncate
+      estado O | tgtype 34 | função public.commercial_flag_inventory_protect_truncate() sha256 bb12a8f32a55d6e71a5971e089e8756e9b2e86ddf007c999ea73076d1fe7baf4
+      CREATE TRIGGER cfi_protect_truncate BEFORE TRUNCATE ON public.commercial_flag_set_inspections FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_flag_inventory_protect_truncate()
+      definição sha256 6a342d851c3f5982542f5e63090acbe944c24ddee180731074fd8bb43308acfe
+  public.commercial_flag_sets.cfs_protect
+      estado O | tgtype 31 | função public.commercial_flag_sets_protect() sha256 2690264d59ff4dcb2b76e2e13059b8de8f7a7f474d2a256ba426b665fc817626
+      CREATE TRIGGER cfs_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_flag_sets FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_sets_protect()
+      definição sha256 d7cd3099ed10f7b31ea2d47f792af9d1690504e1154a997b9dde56edf6bd848b
+  public.commercial_flag_sets.cfs_protect_truncate
+      estado O | tgtype 34 | função public.commercial_flag_inventory_protect_truncate() sha256 bb12a8f32a55d6e71a5971e089e8756e9b2e86ddf007c999ea73076d1fe7baf4
+      CREATE TRIGGER cfs_protect_truncate BEFORE TRUNCATE ON public.commercial_flag_sets FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_flag_inventory_protect_truncate()
+      definição sha256 19bd053108da69913fa618a37e798e0fe21fbf2234ea75cc465ff9058cf4ba81
+  public.commercial_guard_manifests.cgm_protect
+      estado O | tgtype 31 | função public.commercial_guard_manifests_protect() sha256 bc270768c7a81a5923a3bc1d303253925e1765e27540bf26b8618222d16b916e
+      CREATE TRIGGER cgm_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_guard_manifests FOR EACH ROW EXECUTE FUNCTION public.commercial_guard_manifests_protect()
+      definição sha256 fc0ea03fced5b0738eed71512ebc1ef291d7a1ed2766bacf3a2d7364e21145b1
+  public.commercial_guard_manifests.cgm_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cgm_protect_truncate BEFORE TRUNCATE ON public.commercial_guard_manifests FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 e4e5c71d6746a5bb0ba5b58fdff3af610476f53f1a67c55ce797f0906e9148a6
+  public.commercial_instrument_template_approvals.citap_protect
+      estado O | tgtype 31 | função public.commercial_instrument_template_approvals_protect() sha256 c77e8e880308a73f9f6ee9751e501c189b1226539b56f8278c2328af0abb803e
+      CREATE TRIGGER citap_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_instrument_template_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_instrument_template_approvals_protect()
+      definição sha256 d8d67c88181ba5672a4ee1bf1e5b15236028b1c5d4e8764cbb7417b80cb5cb45
+  public.commercial_instrument_template_approvals.citap_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER citap_protect_truncate BEFORE TRUNCATE ON public.commercial_instrument_template_approvals FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 69bf7c3e038f1d5fe80dc97f0844f68504ca2f9760d0abb2b615154a3be40605
+  public.commercial_payments.cp_valor_confere_pedido
+      estado O | tgtype 7 | função public.cp_valor_confere_pedido() sha256 8aa0dccba55b27866c768dd03fbf8d8e3b03d72af60de9a8058094a2bbf61c28
+      CREATE TRIGGER cp_valor_confere_pedido BEFORE INSERT ON public.commercial_payments FOR EACH ROW EXECUTE FUNCTION public.cp_valor_confere_pedido()
+      definição sha256 65dced9887329d202bfec38886491be8ac81797b041ebf2d8ad3d8a037677f5c
+  public.commercial_payments.trg_cp_proteger
+      estado O | tgtype 27 | função public.cp_proteger() sha256 4f74486afa623f948f78ff3a90c8301892aed7da6e769c4a8d8c8e213d0f27be
+      CREATE TRIGGER trg_cp_proteger BEFORE DELETE OR UPDATE ON public.commercial_payments FOR EACH ROW EXECUTE FUNCTION public.cp_proteger()
+      definição sha256 e6299f3b45f6c28dd9491915580a6f6d4d979a4a18f28dc232fe6a2312a4ae7f
+  public.commercial_payments.trg_cp_touch
+      estado O | tgtype 19 | função public.fase2a_touch_updated_at() sha256 f0fd417ae71a52338a298bf853ce507a8bc036c54c4f14cfea417ffffb7abc8f
+      CREATE TRIGGER trg_cp_touch BEFORE UPDATE ON public.commercial_payments FOR EACH ROW EXECUTE FUNCTION public.fase2a_touch_updated_at()
+      definição sha256 61b182d54029d5ebd2d91dfe1ae7abc80e1afc974323bb7180cabdb2bc6b604d
+  public.commercial_pricing_activation_approvals.cpaa_protect
+      estado O | tgtype 31 | função public.commercial_pricing_activation_approvals_protect() sha256 131059cb96fbcb894a09cb3e551282b9b5144d4c793f4150029afa1e7f71da27
+      CREATE TRIGGER cpaa_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_pricing_activation_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_activation_approvals_protect()
+      definição sha256 dc5099952532325cd2ee6347f8b9af9f4de20199d2ec291a8b2a2f1a3ee3982a
+  public.commercial_pricing_activation_approvals.cpaa_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cpaa_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_activation_approvals FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 9f0587c3ec343af7a50674986e2bd4599a6563b2258e40884e73c56667a2e0f6
+  public.commercial_pricing_activation_log.cpal_protect
+      estado O | tgtype 27 | função public.commercial_pricing_activation_log_protect() sha256 14f69adce2ca6f8db8aeff765f2586090c7915b493ef22607b4cd16e6d3ce76f
+      CREATE TRIGGER cpal_protect BEFORE DELETE OR UPDATE ON public.commercial_pricing_activation_log FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_activation_log_protect()
+      definição sha256 8a2cd7c2fa9b6a526ab177710d8a6e47362162b459daffcacca1e40b9c7ad908
+  public.commercial_pricing_activation_log.cpal_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cpal_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_activation_log FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 3d7a811c361d8583b8643363348fa7663c799408fa89740984026e0a8fb68185
+  public.commercial_pricing_activation_log.cpal_somente_pelo_procedimento
+      estado O | tgtype 7 | função public.commercial_pricing_activation_log_guard() sha256 e35df937f3a0064e62fab1eb576b3c4fea5f75eccd58e05569264931654c8fe2
+      CREATE TRIGGER cpal_somente_pelo_procedimento BEFORE INSERT ON public.commercial_pricing_activation_log FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_activation_log_guard()
+      definição sha256 32359304d51ccb227c25884421d42087a26579f22382264e3bfc29a7c9d61bc7
+  public.commercial_pricing_rules.cpr_protect
+      estado O | tgtype 31 | função public.commercial_pricing_rules_protect() sha256 dcf4da0f184fe75d5919610690b0331d60b7c3145addd4d663a24ff4f6f31146
+      CREATE TRIGGER cpr_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_pricing_rules FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_rules_protect()
+      definição sha256 b4aa3089c0860976b792a242dd2e300c8620cad898bdbc473ceec950cefca990
+  public.commercial_pricing_rules.cpr_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cpr_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_rules FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 5ac37ebab8b0edc8ae8ffc5decf8710e4f6b08b62136b80060c7874e4477cb8e
+  public.commercial_pricing_schedule.cps_protect
+      estado O | tgtype 31 | função public.commercial_pricing_schedule_protect() sha256 334a31ec2adb96c33c47f422ab3a85a736ad18221dc55a1a99dec9811a8fc041
+      CREATE TRIGGER cps_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_pricing_schedule FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_schedule_protect()
+      definição sha256 b5e464973ac583f9d65585baaa82799341c4d54eaad6248466531244333e42a6
+  public.commercial_pricing_schedule.cps_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cps_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_schedule FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 6633728ebde5056762302b66ff4f6b145f20b34b6e8a3e2cc194329f504e3632
+  public.commercial_qa_operational_procedures.cqop_protect
+      estado O | tgtype 31 | função public.commercial_qa_operational_procedures_protect() sha256 86436f51ea9a9a189569ac28e5980cd0074eb12cb75bf892bad96206fb80a591
+      CREATE TRIGGER cqop_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_qa_operational_procedures FOR EACH ROW EXECUTE FUNCTION public.commercial_qa_operational_procedures_protect()
+      definição sha256 62aaf291f5148b0dc0ae32e74415441ac2ec1e31a82f6e21973614f0c0495311
+  public.commercial_qa_operational_procedures.cqop_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cqop_protect_truncate BEFORE TRUNCATE ON public.commercial_qa_operational_procedures FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 54dfcd5195584c7f474d1eed88bd6c32edb0ee1dc79ac212420cc00da38a1401
+  public.commercial_settlement_terms.cst_protect
+      estado O | tgtype 31 | função public.commercial_settlement_terms_protect() sha256 3a5c45565bec15feeaa7863a01015351f1638acbe2bd77a882960c56a2d00da2
+      CREATE TRIGGER cst_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_settlement_terms FOR EACH ROW EXECUTE FUNCTION public.commercial_settlement_terms_protect()
+      definição sha256 da68b0fe1a20e56776f08a2a3e3d7f188db6861b6e32f2b465e22dc55100cdb7
+  public.commercial_settlement_terms.cst_protect_truncate
+      estado O | tgtype 34 | função public.commercial_pricing_protect_truncate() sha256 b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+      CREATE TRIGGER cst_protect_truncate BEFORE TRUNCATE ON public.commercial_settlement_terms FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()
+      definição sha256 33a5d29ca46da23a1b977d44cb55ab9444291cade69880187f8a2ca63cfbfa4f
+
+FUNÇÕES (49) — SHA-256 de pg_get_functiondef; EXECUTE (sem o dono) nas não-gatilho:
+  public.admin_activate_pricing_rule(integer,text)
+      ebb745215956a07cb6b63342edb3695313dedfa90db6156c0f78af22f733c424 | execute (ninguém)
+  public.admin_confirm_manual_bdflow_payment(uuid,bigint,text,text)
+      07de6c5a333db89699234ffbebe222c54d38dad16995a531fd69f26327ea5ffb | execute authenticated
+  public.cci_aplicar_autoridade_v14()
+      d71265048360c982d951e77de2830fd3d23e0c97929b57605d1d4faa3a909f90
+  public.cci_liquidar_modalidade_v15()
+      0bdce46677c0c4047c97f1ac0d8db2696b7eeff926a393e393a07fd49f4ab909
+  public.cci_portao_autoatendimento()
+      55f3678fdd292f426142f8a31fc8a49c023312b025bd1478251ea86756f52ae1
+  public.cci_preencher_fatos_materiais()
+      e8f11915eee4edce7f485b10659a3b55e3648ec49456a5f98cd4a2d345307a2b
+  public.cci_proteger_snapshot()
+      fdb064d35ad871f0071b8d0d4f9d99d080ae1f09826f68ad4e86d9fee412ab40
+  public.cci_validar_producao_bandeiras()
+      f86a78e0d0c97884245c66dd3fc2a31ec934e94cf3a53bf563d718a6e672918b
+  public.ceo_aplicar_autoridade_v14()
+      aae838a149a33f7d720406fc023dc2eb2f6ac807507ac8eeab68527564423bb0
+  public.ceo_emitir_instrumento()
+      722fce1aeab8bc66225a7bef9556fe38d308e9478a0eb3ea3649224345897ae7
+  public.ceo_exigir_instrumento_quando_assinavel()
+      26f7000b7047e0a52eaa701d53cd09e2e351cd4a87d59c5af5c98702196e8308
+  public.ceo_instrumento_imutavel()
+      bfdcb2188b8757ec8b4e55d40db7eef435f9e8456575343eb8e4e455981dea0d
+  public.ceo_liquidacao_v15_imutavel()
+      69ea27bbd7eac181b8f976f4f74237c96682b4ba2a4674503eb92638e35675e1
+  public.ceo_liquidar_modalidade_v15()
+      b879abd9a8f44d9f497ac6b2601e813a6583bd2428e57b0c4f166a13d2681003
+  public.ceo_marcar_origem_manual()
+      c52e0d3ac23ab3c33151edc905b25346d0cf812b412533bcb9dd7bd574ff9086
+  public.ceo_pagamento_confere_snapshot()
+      44759806656f355ffff3d0f0bcc72f3127ac196b7dd0361f4910beca6b964962
+  public.ceo_preencher_fatos_materiais()
+      4ec5ce9bd2913a981fd30937ee7765d8081db0afd844a92e1c2160ec13cfb972
+  public.ceo_revalidar_reutilizacao_bandeiras()
+      3e5b9e40d240d9914949ed322ce3b8abdc54f147aa866bc29b6136f75568ddc5
+  public.ceo_segmento_da_intencao()
+      a544f81886260476dfec5995d3ec1215bbc17e541042c21ba4492607e4657df8
+  public.ceo_snapshot_v14_imutavel()
+      5c68326fdceca35d2fe6f5e573e6c677e7560d6b59289fd02db5324d7a21a4e7
+  public.ceo_validar_producao_bandeiras()
+      ff8a4e146036fd361ca4e14d2a650764c4b59b4c09a6531ade0aeda04450ad7b
+  public.commercial_activation_called_by_procedure()
+      c914658faee4fb50110c29838e3d0081b74294d75506f060096bb8ed882e0eea | execute (ninguém)
+  public.commercial_activation_guard_fingerprint()
+      d18cfaf581560a16cef2e51e512de74c5216b13310c9396ff9080fd2ec296336 | execute service_role
+  public.commercial_build_instrument_snapshot(uuid,uuid)
+      43d17fca7b2f8caac9f77777ff06496f44eeca7259375bad77706c3715eb37ad | execute service_role
+  public.commercial_flag_facts_imutaveis()
+      7c432227c054e2e17e81ad3b8a8e2759b6afcad2165e693e37f9111dca67ec2b
+  public.commercial_flag_inventory_protect_truncate()
+      bb12a8f32a55d6e71a5971e089e8756e9b2e86ddf007c999ea73076d1fe7baf4
+  public.commercial_flag_set_inspections_protect()
+      da606f958f5af26fdf2b0ce9ba2d45aa2056aa76d9f7b9e641bc97e2b3e58932
+  public.commercial_flag_set_lock_for_inspection()
+      2271272d240a23dcd3007c6b7ce742459afb326d1102433995df2b4142301674
+  public.commercial_flag_sets_protect()
+      2690264d59ff4dcb2b76e2e13059b8de8f7a7f474d2a256ba426b665fc817626
+  public.commercial_guard_catalog()
+      ca9c1bd97cec36a68d1eb3f15e00e2f1de5f9882b96f752cb6c1dee03f395a82 | execute service_role
+  public.commercial_guard_function_entry(regprocedure)
+      2a73088e7683c3b65ccdc9903187fec65f03dd32129965a9198a058cb670f63a | execute (ninguém)
+  public.commercial_guard_integrity_failures()
+      31bff3b751a8cd0a43a3c83fc1af6242ec952ea1dcd857d91ad33825a35cd742 | execute service_role
+  public.commercial_guard_manifests_protect()
+      bc270768c7a81a5923a3bc1d303253925e1765e27540bf26b8618222d16b916e
+  public.commercial_instrument_template_approvals_protect()
+      c77e8e880308a73f9f6ee9751e501c189b1226539b56f8278c2328af0abb803e
+  public.commercial_order_settlement_check(uuid)
+      d030911805a1013982a5006a56446d3719f6bbf0bcabf0abb56cd2f4e982a76f | execute (ninguém)
+  public.commercial_pricing_activation_approvals_protect()
+      131059cb96fbcb894a09cb3e551282b9b5144d4c793f4150029afa1e7f71da27
+  public.commercial_pricing_activation_log_guard()
+      e35df937f3a0064e62fab1eb576b3c4fea5f75eccd58e05569264931654c8fe2
+  public.commercial_pricing_activation_log_protect()
+      14f69adce2ca6f8db8aeff765f2586090c7915b493ef22607b4cd16e6d3ce76f
+  public.commercial_pricing_activation_preflight(integer)
+      3378beea9ae0d6b7f6ee3810958381e41e6a5a4bb83cf9091b8132741eb6d6b6 | execute (ninguém)
+  public.commercial_pricing_protect_truncate()
+      b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b
+  public.commercial_pricing_rules_protect()
+      dcf4da0f184fe75d5919610690b0331d60b7c3145addd4d663a24ff4f6f31146
+  public.commercial_pricing_schedule_protect()
+      334a31ec2adb96c33c47f422ab3a85a736ad18221dc55a1a99dec9811a8fc041
+  public.commercial_qa_operational_procedures_protect()
+      86436f51ea9a9a189569ac28e5980cd0074eb12cb75bf892bad96206fb80a591
+  public.commercial_segment_snapshot_imutavel()
+      044adf339fe704030567db9f03719eb1546c7f716c49930cb69816923be555a9
+  public.commercial_settlement_terms_protect()
+      3a5c45565bec15feeaa7863a01015351f1638acbe2bd77a882960c56a2d00da2
+  public.cp_proteger()
+      4f74486afa623f948f78ff3a90c8301892aed7da6e769c4a8d8c8e213d0f27be
+  public.cp_valor_confere_pedido()
+      8aa0dccba55b27866c768dd03fbf8d8e3b03d72af60de9a8058094a2bbf61c28
+  public.fase2a_touch_updated_at()
+      f0fd417ae71a52338a298bf853ce507a8bc036c54c4f14cfea417ffffb7abc8f
+  public.m2_orders_protect()
+      760f2f2de477e05f7d735d87cf49773ff3833347bfcb2b5a12cb3f160fb1f89f

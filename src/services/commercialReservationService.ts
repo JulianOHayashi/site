@@ -37,7 +37,39 @@ export type ReservaComercial = {
   bdflowOpsInvestmentCents: number;
   cashUserPoolFundingCents: number;
   totalMonetaryFundingRequiredCents: number;
+  /**
+   * Fatos de produção de bandeiras congelados na reserva (SF-v1.5). `null`
+   * quando a economia da reserva não prevê produção. Exibir, nunca recalcular.
+   */
+  flagProduction: ProducaoReservada | null;
 };
+
+export type ProducaoReservada = {
+  /** Peças físicas novas: 84 para anunciante novo, 0 na reutilização. */
+  newFlagUnits: number;
+  flagUnitReferenceCents: number;
+  /** Já contido na remuneração da SmallFlags; nunca somar de novo. */
+  flagProductionChargeCents: number;
+  /** Reutiliza o conjunto já fabricado, com inspeção aprovada. */
+  reuse: boolean;
+};
+
+function producaoReservada(o: Record<string, unknown>): ProducaoReservada | null {
+  const n = (k: string): number | null =>
+    typeof o[k] === "number" && Number.isInteger(o[k]) ? (o[k] as number) : null;
+  const pecas = n("new_flag_units");
+  const unitario = n("flag_unit_reference_cents");
+  const fabricacao = n("flag_production_charge_cents");
+  if (pecas === null && unitario === null && fabricacao === null) return null;
+  if (pecas === null || unitario === null || fabricacao === null) return null;
+  if (typeof o.flag_reuse !== "boolean") return null;
+  return {
+    newFlagUnits: pecas,
+    flagUnitReferenceCents: unitario,
+    flagProductionChargeCents: fabricacao,
+    reuse: o.flag_reuse,
+  };
+}
 
 export type ResultadoReserva =
   | { tipo: "ok"; reserva: ReservaComercial }
@@ -92,6 +124,7 @@ export async function reservarOportunidade(params: {
       totalMonetaryFundingRequiredCents: Number(
         o.total_monetary_funding_required_cents
       ),
+      flagProduction: producaoReservada(o),
     },
   };
 }

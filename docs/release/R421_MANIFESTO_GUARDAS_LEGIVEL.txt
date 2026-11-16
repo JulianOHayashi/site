@@ -1,0 +1,193 @@
+MANIFESTO DE INTEGRIDADE DAS GUARDAS — R4.2.1 (migration 20261116180000)
+Arquivo canônico: R421_MANIFESTO_GUARDAS.json (texto jsonb do PostgreSQL, sem quebra final)
+SHA-256: 812e47cd2f22b27c27d2cfbeca3cfca8f624bbda87fd6a27f594a411f98e662f
+Formato: smallflags-guard-catalog/2 (R4.2.1, sha256)
+Conferido idêntico em PostgreSQL 16.15 e 17.6 (catálogo extraído dos dois e comparado byte a byte).
+Históricos preservados no banco: R4.1 bc3f7441…cb11d7 e R4.2 155e0559…87246 (catálogo v1).
+Fora do catálogo: privilégio MAINTAIN (PG17+, só manutenção); funções do schema auth (auth.uid);
+dados operacionais (exclusividades, regiões); objetos do Storage (o conteúdo é atestado por SHA-256).
+
+TABELAS (19):
+  public.commercial_artwork_change_events: rls=True acl=1 restricoes=3 indices=2 politicas=0
+  public.commercial_artwork_change_quote_items: rls=True acl=1 restricoes=8 indices=2 politicas=0
+  public.commercial_artwork_change_quotes: rls=True acl=1 restricoes=12 indices=3 politicas=0
+  public.commercial_artwork_change_requests: rls=True acl=1 restricoes=14 indices=4 politicas=0
+  public.commercial_artwork_change_supplier_documents: rls=True acl=1 restricoes=8 indices=2 politicas=0
+  public.commercial_artwork_change_versions: rls=True acl=1 restricoes=9 indices=3 politicas=0
+  public.commercial_checkout_intents: rls=True acl=1 restricoes=32 indices=3 politicas=1
+  public.commercial_exclusivity_orders: rls=True acl=1 restricoes=47 indices=9 politicas=1
+  public.commercial_flag_set_inspections: rls=True acl=1 restricoes=7 indices=2 politicas=0
+  public.commercial_flag_sets: rls=True acl=1 restricoes=11 indices=3 politicas=0
+  public.commercial_guard_manifests: rls=True acl=1 restricoes=5 indices=2 politicas=0
+  public.commercial_instrument_template_approvals: rls=True acl=1 restricoes=8 indices=2 politicas=0
+  public.commercial_payments: rls=True acl=8 restricoes=12 indices=5 politicas=1
+  public.commercial_pricing_activation_approvals: rls=True acl=1 restricoes=6 indices=2 politicas=0
+  public.commercial_pricing_activation_log: rls=True acl=0 restricoes=5 indices=1 politicas=0
+  public.commercial_pricing_rules: rls=True acl=0 restricoes=9 indices=3 politicas=0
+  public.commercial_pricing_schedule: rls=True acl=1 restricoes=9 indices=2 politicas=0
+  public.commercial_qa_operational_procedures: rls=True acl=1 restricoes=6 indices=2 politicas=0
+  public.commercial_settlement_terms: rls=True acl=1 restricoes=12 indices=2 politicas=0
+
+GATILHOS (64):
+  public.commercial_artwork_change_events.cace_append_only  estado=O  funcao=public.commercial_artwork_change_append_only()
+  public.commercial_artwork_change_events.cace_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_artwork_change_quote_items.cacqi_append_only  estado=O  funcao=public.commercial_artwork_change_append_only()
+  public.commercial_artwork_change_quote_items.cacqi_concilia  estado=O  funcao=public.commercial_artwork_change_quote_reconcile()
+  public.commercial_artwork_change_quote_items.cacqi_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_artwork_change_quotes.cacq_append_only  estado=O  funcao=public.commercial_artwork_change_append_only()
+  public.commercial_artwork_change_quotes.cacq_concilia  estado=O  funcao=public.commercial_artwork_change_quote_reconcile()
+  public.commercial_artwork_change_quotes.cacq_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_artwork_change_requests.cacr_protect  estado=O  funcao=public.commercial_artwork_change_requests_protect()
+  public.commercial_artwork_change_requests.cacr_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_artwork_change_supplier_documents.cacd_protect  estado=O  funcao=public.commercial_artwork_change_supplier_document_protect()
+  public.commercial_artwork_change_supplier_documents.cacd_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_artwork_change_versions.cacv_append_only  estado=O  funcao=public.commercial_artwork_change_append_only()
+  public.commercial_artwork_change_versions.cacv_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_checkout_intents.cci_aplicar_autoridade_v14  estado=O  funcao=public.cci_aplicar_autoridade_v14()
+  public.commercial_checkout_intents.cci_bandeiras_imutaveis  estado=O  funcao=public.commercial_flag_facts_imutaveis()
+  public.commercial_checkout_intents.cci_liquidar_modalidade_v15  estado=O  funcao=public.cci_liquidar_modalidade_v15()
+  public.commercial_checkout_intents.cci_portao_autoatendimento  estado=O  funcao=public.cci_portao_autoatendimento()
+  public.commercial_checkout_intents.cci_preencher_fatos  estado=O  funcao=public.cci_preencher_fatos_materiais()
+  public.commercial_checkout_intents.cci_proteger_snapshot_trg  estado=O  funcao=public.cci_proteger_snapshot()
+  public.commercial_checkout_intents.cci_segmento_imutavel  estado=O  funcao=public.commercial_segment_snapshot_imutavel()
+  public.commercial_checkout_intents.cci_validar_producao_bandeiras  estado=O  funcao=public.cci_validar_producao_bandeiras()
+  public.commercial_exclusivity_orders.ceo_aplicar_autoridade_v14  estado=O  funcao=public.ceo_aplicar_autoridade_v14()
+  public.commercial_exclusivity_orders.ceo_bandeiras_imutaveis  estado=O  funcao=public.commercial_flag_facts_imutaveis()
+  public.commercial_exclusivity_orders.ceo_emitir_instrumento  estado=O  funcao=public.ceo_emitir_instrumento()
+  public.commercial_exclusivity_orders.ceo_exigir_instrumento  estado=O  funcao=public.ceo_exigir_instrumento_quando_assinavel()
+  public.commercial_exclusivity_orders.ceo_instrumento_imutavel  estado=O  funcao=public.ceo_instrumento_imutavel()
+  public.commercial_exclusivity_orders.ceo_liquidacao_v15_imutavel  estado=O  funcao=public.ceo_liquidacao_v15_imutavel()
+  public.commercial_exclusivity_orders.ceo_liquidar_modalidade_v15  estado=O  funcao=public.ceo_liquidar_modalidade_v15()
+  public.commercial_exclusivity_orders.ceo_pagamento_confere_snapshot  estado=O  funcao=public.ceo_pagamento_confere_snapshot()
+  public.commercial_exclusivity_orders.ceo_preencher_fatos  estado=O  funcao=public.ceo_preencher_fatos_materiais()
+  public.commercial_exclusivity_orders.ceo_revalidar_reutilizacao_bandeiras  estado=O  funcao=public.ceo_revalidar_reutilizacao_bandeiras()
+  public.commercial_exclusivity_orders.ceo_segmento_da_intencao  estado=O  funcao=public.ceo_segmento_da_intencao()
+  public.commercial_exclusivity_orders.ceo_segmento_imutavel  estado=O  funcao=public.commercial_segment_snapshot_imutavel()
+  public.commercial_exclusivity_orders.ceo_snapshot_v14_imutavel  estado=O  funcao=public.ceo_snapshot_v14_imutavel()
+  public.commercial_exclusivity_orders.ceo_validar_producao_bandeiras  estado=O  funcao=public.ceo_validar_producao_bandeiras()
+  public.commercial_exclusivity_orders.trg_ceo_origem_pagamento  estado=O  funcao=public.ceo_marcar_origem_manual()
+  public.commercial_exclusivity_orders.trg_ceo_protect  estado=O  funcao=public.m2_orders_protect()
+  public.commercial_exclusivity_orders.trg_ceo_touch  estado=O  funcao=public.fase2a_touch_updated_at()
+  public.commercial_flag_set_inspections.cfi_bloquear_conjunto  estado=O  funcao=public.commercial_flag_set_lock_for_inspection()
+  public.commercial_flag_set_inspections.cfi_protect  estado=O  funcao=public.commercial_flag_set_inspections_protect()
+  public.commercial_flag_set_inspections.cfi_protect_truncate  estado=O  funcao=public.commercial_flag_inventory_protect_truncate()
+  public.commercial_flag_sets.cfs_protect  estado=O  funcao=public.commercial_flag_sets_protect()
+  public.commercial_flag_sets.cfs_protect_truncate  estado=O  funcao=public.commercial_flag_inventory_protect_truncate()
+  public.commercial_guard_manifests.cgm_protect  estado=O  funcao=public.commercial_guard_manifests_protect()
+  public.commercial_guard_manifests.cgm_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_instrument_template_approvals.citap_protect  estado=O  funcao=public.commercial_instrument_template_approvals_protect()
+  public.commercial_instrument_template_approvals.citap_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_payments.cp_valor_confere_pedido  estado=O  funcao=public.cp_valor_confere_pedido()
+  public.commercial_payments.trg_cp_proteger  estado=O  funcao=public.cp_proteger()
+  public.commercial_payments.trg_cp_touch  estado=O  funcao=public.fase2a_touch_updated_at()
+  public.commercial_pricing_activation_approvals.cpaa_protect  estado=O  funcao=public.commercial_pricing_activation_approvals_protect()
+  public.commercial_pricing_activation_approvals.cpaa_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_pricing_activation_log.cpal_protect  estado=O  funcao=public.commercial_pricing_activation_log_protect()
+  public.commercial_pricing_activation_log.cpal_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_pricing_activation_log.cpal_somente_pelo_procedimento  estado=O  funcao=public.commercial_pricing_activation_log_guard()
+  public.commercial_pricing_rules.cpr_protect  estado=O  funcao=public.commercial_pricing_rules_protect()
+  public.commercial_pricing_rules.cpr_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_pricing_schedule.cps_protect  estado=O  funcao=public.commercial_pricing_schedule_protect()
+  public.commercial_pricing_schedule.cps_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_qa_operational_procedures.cqop_protect  estado=O  funcao=public.commercial_qa_operational_procedures_protect()
+  public.commercial_qa_operational_procedures.cqop_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+  public.commercial_settlement_terms.cst_protect  estado=O  funcao=public.commercial_settlement_terms_protect()
+  public.commercial_settlement_terms.cst_protect_truncate  estado=O  funcao=public.commercial_pricing_protect_truncate()
+
+FUNCOES (85):
+  public.admin_activate_pricing_rule(integer,text)  execute=-
+  public.admin_artwork_change_approve_exception(uuid,integer,text,text)  execute=authenticated
+  public.admin_artwork_change_authorize_production(uuid,integer)  execute=authenticated
+  public.admin_artwork_change_register_quote(uuid,integer,uuid,text,text,text,jsonb,bigint)  execute=authenticated
+  public.admin_artwork_change_register_supplier_document(uuid,text,text)  execute=authenticated
+  public.admin_artwork_change_reject(uuid,integer,text)  execute=authenticated
+  public.admin_artwork_change_start_review(uuid,integer)  execute=authenticated
+  public.admin_artwork_change_supplier_document_path(uuid)  execute=authenticated
+  public.admin_confirm_manual_bdflow_payment(uuid,bigint,text,text)  execute=authenticated
+  public.artwork_change_accept_quote(uuid,integer,uuid,bigint,text)  execute=authenticated
+  public.artwork_change_cancel(uuid,integer,text)  execute=authenticated
+  public.artwork_change_image_path(uuid)  execute=authenticated
+  public.artwork_change_register_version(uuid,integer,text,text,text)  execute=authenticated
+  public.artwork_change_request_create(uuid,text,text,text)  execute=authenticated
+  public.artwork_change_requests_for_order(uuid)  execute=authenticated
+  public.artwork_change_submit(uuid,integer)  execute=authenticated
+  public.cci_aplicar_autoridade_v14()  execute=-
+  public.cci_liquidar_modalidade_v15()  execute=-
+  public.cci_portao_autoatendimento()  execute=-
+  public.cci_preencher_fatos_materiais()  execute=-
+  public.cci_proteger_snapshot()  execute=-
+  public.cci_validar_producao_bandeiras()  execute=-
+  public.ceo_aplicar_autoridade_v14()  execute=-
+  public.ceo_emitir_instrumento()  execute=-
+  public.ceo_exigir_instrumento_quando_assinavel()  execute=-
+  public.ceo_instrumento_imutavel()  execute=-
+  public.ceo_liquidacao_v15_imutavel()  execute=-
+  public.ceo_liquidar_modalidade_v15()  execute=-
+  public.ceo_marcar_origem_manual()  execute=-
+  public.ceo_pagamento_confere_snapshot()  execute=-
+  public.ceo_preencher_fatos_materiais()  execute=-
+  public.ceo_revalidar_reutilizacao_bandeiras()  execute=-
+  public.ceo_segmento_da_intencao()  execute=-
+  public.ceo_snapshot_v14_imutavel()  execute=-
+  public.ceo_validar_producao_bandeiras()  execute=-
+  public.commercial_activation_called_by_procedure()  execute=-
+  public.commercial_activation_guard_fingerprint()  execute=service_role
+  public.commercial_artwork_change_actor(uuid)  execute=-
+  public.commercial_artwork_change_append_only()  execute=-
+  public.commercial_artwork_change_document_readable(text)  execute=authenticated
+  public.commercial_artwork_change_document_valid(uuid,uuid)  execute=-
+  public.commercial_artwork_change_event(uuid,text,text,text,text,jsonb)  execute=-
+  public.commercial_artwork_change_gate(uuid,integer,text[],text[])  execute=-
+  public.commercial_artwork_change_lock(uuid,text)  execute=-
+  public.commercial_artwork_change_quote_reconcile()  execute=-
+  public.commercial_artwork_change_readiness(uuid)  execute=-
+  public.commercial_artwork_change_renewal_state(uuid,text,uuid)  execute=-
+  public.commercial_artwork_change_requests_protect()  execute=-
+  public.commercial_artwork_change_supplier_document_protect()  execute=-
+  public.commercial_build_instrument_snapshot(uuid,uuid)  execute=service_role
+  public.commercial_fidelity_identity(text,uuid)  execute=-
+  public.commercial_flag_facts_imutaveis()  execute=-
+  public.commercial_flag_inventory_protect_truncate()  execute=-
+  public.commercial_flag_reuse_resolution(uuid,text)  execute=-
+  public.commercial_flag_set_inspections_protect()  execute=-
+  public.commercial_flag_set_lock_for_inspection()  execute=-
+  public.commercial_flag_sets_protect()  execute=-
+  public.commercial_guard_catalog()  execute=service_role
+  public.commercial_guard_function_entry(regprocedure)  execute=-
+  public.commercial_guard_integrity_failures()  execute=service_role
+  public.commercial_guard_manifests_protect()  execute=-
+  public.commercial_instrument_template_approvals_protect()  execute=-
+  public.commercial_order_artwork_locked(uuid)  execute=-
+  public.commercial_order_settlement_check(uuid)  execute=-
+  public.commercial_pricing_activation_approvals_protect()  execute=-
+  public.commercial_pricing_activation_log_guard()  execute=-
+  public.commercial_pricing_activation_log_protect()  execute=-
+  public.commercial_pricing_activation_preflight(integer)  execute=-
+  public.commercial_pricing_protect_truncate()  execute=-
+  public.commercial_pricing_rules_protect()  execute=-
+  public.commercial_pricing_schedule_protect()  execute=-
+  public.commercial_qa_operational_procedures_protect()  execute=-
+  public.commercial_segment_snapshot_imutavel()  execute=-
+  public.commercial_settlement_terms_protect()  execute=-
+  public.cp_proteger()  execute=-
+  public.cp_valor_confere_pedido()  execute=-
+  public.create_commercial_checkout_intent(uuid,text,text,uuid)  execute=authenticated
+  public.fase2a_touch_updated_at()  execute=-
+  public.is_site_admin()  execute=authenticated,service_role
+  public.m2_is_company_member(uuid)  execute=authenticated
+  public.m2_is_company_owner(uuid)  execute=authenticated
+  public.m2_orders_protect()  execute=-
+  public.register_customization_image(uuid,text,text,bigint,text)  execute=authenticated
+  public.request_customization_image_path(uuid)  execute=authenticated
+  public.service_artwork_change_attest_supplier_document(uuid,uuid,text,bigint)  execute=service_role
+
+STORAGE:
+  objects_rls=True
+  bucket partner-customization-images: public=False limite=10485760 mime=['image/jpeg', 'image/png', 'image/webp']
+  bucket supplier-quote-documents: public=False limite=20971520 mime=['application/pdf', 'image/png', 'image/jpeg']
+  politica cacd_admin_insert: cmd=a
+  politica cacd_admin_select: cmd=r
+  politica cacd_owner_select: cmd=r
+  politica m2_custom_img_admin_select: cmd=r
+  politica m2_custom_img_owner_insert: cmd=a
+  politica m2_custom_img_owner_select: cmd=r

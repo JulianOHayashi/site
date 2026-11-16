@@ -11,6 +11,9 @@
 -- ===========================================================================
 \set ON_ERROR_STOP on
 select tests.reset_results();
+-- R3: a reserva sob a SF-v1.4 esta travada no banco (portao do autoatendimento);
+-- esta suite exercita esse caminho historico e abre o portao so para si.
+select tests.abrir_portao_autoatendimento_qa();
 
 -- ---------------------------------------------------------------------------
 -- Fixtures: duas empresas ativas na MESMA região, cada uma com seu titular,
@@ -354,4 +357,5 @@ select tests.check('a expiracao e derivada de now() do banco, nao de parametro',
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'create_commercial_checkout_intent'));
 
+select tests.fechar_portao_autoatendimento_qa();
 select tests.finish('210_commercial_reservation');

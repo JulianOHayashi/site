@@ -58,6 +58,7 @@ import {
   reservarOportunidade,
   type ReservaComercial,
 } from "../services/commercialReservationService";
+import { mensagemFalhaReserva } from "../domain/commercial/reservaMensagens";
 import { obterVinculosParceiro } from "../services/partnerApplicationService";
 import {
   listarSegmentos,
@@ -135,6 +136,13 @@ export default function RevisaoContratacao() {
   }, [nichoParam, precos]);
 
   const composicao = nicho?.founding ?? null;
+  // R4.3: só as modalidades habilitadas pelo servidor são oferecidas.
+  const habilitadas: readonly BenefitSettlementMode[] =
+    composicao?.settlementModes?.habilitadas ?? BENEFIT_SETTLEMENT_MODES;
+  // (ausente = as duas, como no servidor anterior)
+  useEffect(() => {
+    if (habilitadas.length > 0 && !habilitadas.includes(modo)) setModo(habilitadas[0]);
+  }, [habilitadas, modo]);
 
   useEffect(() => {
     if (!segmentoParam) return;
@@ -219,6 +227,7 @@ export default function RevisaoContratacao() {
   const reservar = useCallback(async () => {
     if (!empresa || !nicho || reservando || disponibilidadePagamento !== "disponivel") return;
     if (bloqueioSegmento) return;
+    if (!habilitadas.includes(modo)) return;
     setReservando(true);
     setFalhaReserva(null);
     const r = await reservarOportunidade({
@@ -230,7 +239,7 @@ export default function RevisaoContratacao() {
     setReservando(false);
     if (r.tipo === "ok") setReserva(r.reserva);
     else setFalhaReserva(r.codigo);
-  }, [bloqueioSegmento, disponibilidadePagamento, empresa, modo, nicho, reservando, segmento]);
+  }, [bloqueioSegmento, disponibilidadePagamento, empresa, habilitadas, modo, nicho, reservando, segmento]);
 
   return (
     <>
@@ -272,8 +281,10 @@ export default function RevisaoContratacao() {
 
           <dl className="mt-4 divide-y divide-tinta/10">
             <Linha
-              rotulo="Valor econômico da contratação"
-              valor={formatarCentavos(composicao.economicValueCents)}
+              rotulo="Valor econômico da contratação nesta modalidade"
+              valor={formatarCentavos(modo === "cash" && composicao.settlementModes?.cash
+                ? composicao.settlementModes.cash.economicValueCents
+                : composicao.economicValueCents)}
             />
             {composicao.meiConsiderationCents !== null &&
             composicao.smallflagsQaCents !== null &&
@@ -284,20 +295,39 @@ export default function RevisaoContratacao() {
                   rotulo="Contraprestação dos MEIs"
                   valor={formatarCentavos(composicao.meiConsiderationCents)}
                 />
-                <Linha
-                  rotulo="Parcela de QA da SmallFlags"
-                  valor={formatarCentavos(composicao.smallflagsQaCents)}
-                />
-                <Linha
-                  rotulo="Pool contratual total (MEIs + QA)"
-                  valor={formatarCentavos(composicao.contractualPoolCents)}
-                />
+                {/* R3: no DINHEIRO não há QA em produtos. Na v1.4 (sem política
+                    R3) a QA integra as duas formas e continua exibida. */}
+                {!(composicao.qaPolicy && modo === "cash") && (
+                  <>
+                    <Linha
+                      rotulo={composicao.qaPolicy
+                        ? "QA em produtos para testes locais (só no benefício direto)"
+                        : "Parcela de QA da SmallFlags"}
+                      valor={formatarCentavos(composicao.smallflagsQaCents)}
+                    />
+                    <Linha
+                      rotulo="Pool contratual total (MEIs + QA)"
+                      valor={formatarCentavos(composicao.contractualPoolCents)}
+                    />
+                  </>
+                )}
                 <Linha
                   rotulo="Parcela operacional principal da SmallFlags"
                   valor={formatarCentavos(composicao.smallflagsMainFeeCents)}
                 />
+                {/* Produção de bandeiras: o servidor declara peças e valor;
+                    o valor já está DENTRO da parcela principal acima. */}
+                {composicao.flagProduction &&
+                  composicao.flagProduction.flagProductionChargeCents > 0 && (
+                    <Linha
+                      rotulo={`dos quais, fabricação de ${composicao.flagProduction.newFlagUnits} bandeiras (${formatarCentavos(composicao.flagProduction.flagUnitReferenceCents)} cada)`}
+                      valor={formatarCentavos(composicao.flagProduction.flagProductionChargeCents)}
+                    />
+                  )}
                 <Linha
-                  rotulo="Remuneração contratual total da SmallFlags"
+                  rotulo={composicao.qaPolicy
+                    ? "Remuneração monetária da SmallFlags (sem QA)"
+                    : "Remuneração contratual total da SmallFlags"}
                   valor={formatarCentavos(composicao.smallflagsTotalRemunerationCents)}
                 />
               </>
@@ -325,7 +355,13 @@ export default function RevisaoContratacao() {
             <legend className="sr-only">
               Forma de disponibilização dos benefícios
             </legend>
-            {BENEFIT_SETTLEMENT_MODES.map((m) => (
+            {habilitadas.length === 1 && habilitadas[0] === "cash" && (
+              <p className="text-sm text-tinta/70" data-testid="somente-dinheiro">
+                No momento, a contratação está disponível somente em dinheiro. O
+                benefício direto ainda não está disponível.
+              </p>
+            )}
+            {habilitadas.map((m) => (
               <label
                 key={m}
                 className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${
@@ -411,19 +447,36 @@ export default function RevisaoContratacao() {
                 valor={formatarCentavos(composicao.bdflowDueCents)}
               />
             )}
+            {composicao.settlementModes && (
+              <Linha
+                rotulo="Valor total nesta forma"
+                valor={
+                  modo === "cash"
+                    ? composicao.settlementModes.cash
+                      ? formatarCentavos(composicao.settlementModes.cash.economicValueCents)
+                      : "Sem preço aprovado"
+                    : formatarCentavos(composicao.settlementModes.directBenefits.economicValueCents)
+                }
+              />
+            )}
             <Linha
               rotulo="Valor financeiro da cobrança"
-              valor={formatarCentavos(
-                modo === "cash"
+              valor={(() => {
+                const v = modo === "cash"
                   ? composicao.fundingCashCents
-                  : composicao.fundingDirectBenefitsCents
-              )}
+                  : composicao.fundingDirectBenefitsCents;
+                return v === null ? "Sem preço aprovado" : formatarCentavos(v);
+              })()}
               destaque
             />
           </dl>
 
           <p className="mt-3 text-xs text-tinta/60">
-            {composicao.pricingRuleVersion >= 3
+            {composicao.qaPolicy
+              ? modo === "cash"
+                ? "Nesta forma não há QA nem testes com produtos. A cobrança em dinheiro corresponde ao valor total desta forma; a contraprestação dos participantes e a parcela da SmallFlags permanecem contabilmente separadas."
+                : "A contraprestação dos participantes é cumprida pela empresa em benefícios diretos, e a QA, em produtos para testes locais. Em dinheiro, só a parcela da SmallFlags."
+              : composicao.pricingRuleVersion >= 3
               ? modo === "cash"
                 ? "A cobrança em dinheiro corresponde ao valor econômico integral. A contraprestação dos MEIs e a remuneração da SmallFlags permanecem contabilmente separadas."
                 : "A contraprestação ordinária dos MEIs é cumprida diretamente pela empresa. A remuneração contratual da SmallFlags, inclusive a parcela de QA, continua devida em dinheiro."
@@ -458,6 +511,13 @@ export default function RevisaoContratacao() {
               <p className="mt-2 text-xs text-tinta/60">
                 Você já tinha esta reserva em andamento; o prazo original foi
                 mantido.
+              </p>
+            )}
+            {reserva.flagProduction && (
+              <p className="mt-2 text-sm text-tinta/70" data-testid="producao-reservada">
+                {reserva.flagProduction.reuse
+                  ? "Esta renovação reutiliza as bandeiras já fabricadas para a sua marca, aprovadas em inspeção de conservação. Não há nova fabricação nesta contratação."
+                  : `Esta contratação inclui a fabricação de ${reserva.flagProduction.newFlagUnits} bandeiras para a sua marca (${formatarCentavos(reserva.flagProduction.flagProductionChargeCents)}, já incluídos no valor acima).`}
               </p>
             )}
           </section>
@@ -517,17 +577,10 @@ export default function RevisaoContratacao() {
                 role="alert"
                 className="mt-3 aviso-erro p-3"
               >
-                {falhaReserva === "opportunity_reserved"
-                  ? "Esta oportunidade está reservada por outra empresa no momento."
-                  : falhaReserva === "not_company_owner"
-                    ? "Apenas o responsável da empresa pode reservar."
-                    : falhaReserva === "company_already_contracted_in_exclusivity"
-                      ? "Esta empresa já possui um nicho contratado nesta exclusividade. Cada CNPJ pode contratar apenas um nicho por exclusividade."
-                      : falhaReserva === "region_not_operating"
-                        ? "Ainda não operamos na cidade cadastrada para a sua empresa."
-                        : ERROS_SEGMENTO.has(falhaReserva)
-                          ? mensagemSegmento(falhaReserva)
-                          : "Não foi possível reservar agora. Nada foi cobrado."}
+                {mensagemFalhaReserva(falhaReserva) ??
+                  (ERROS_SEGMENTO.has(falhaReserva)
+                    ? mensagemSegmento(falhaReserva)
+                    : "Não foi possível reservar agora. Nada foi cobrado.")}
               </div>
             )}
           </>

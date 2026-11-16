@@ -20,15 +20,22 @@ const INSTR = ler(`${DIR}/03_MINUTA_INSTRUMENTO_INDIVIDUAL_V2_20261110.md`);
 const ANEXO = ler(`${DIR}/04_ANEXO_TECNICO_BANDEIRA_PRELIMINAR_20261110.md`);
 const MATRIZ = ler(`${DIR}/05_MATRIZ_REGULATORIA_GRANDE_VITORIA_20261110.md`);
 const MIGRATION = ler("supabase/migrations/20261111000511_contract_v2_vehicle_visual_advertising.sql");
+const MIGRATION_SF15 = ler("supabase/migrations/20261112120000_commercial_flag_production_pricing_sf_v15.sql");
+const PRODUCAO = ler(`${DIR}/08_ANEXO_PRODUCAO_REUTILIZACAO_BANDEIRAS_PRELIMINAR_20261112.md`);
 const CONTRATUAIS = { MESTRE, TERMOS, INSTR };
 
-/** Fatos que o construtor do snapshot (versão desta migration) emite. */
+/**
+ * Fatos que o construtor do snapshot emite: versão V2 mais a extensão da
+ * SF-v1.5 (fatos de produção de bandeiras do pedido).
+ */
 function fatosDoServidor(): Set<string> {
-  const corpo = MIGRATION.slice(
-    MIGRATION.indexOf("CREATE OR REPLACE FUNCTION public.commercial_build_instrument_snapshot")
-  );
   const chaves = new Set<string>();
-  for (const m of corpo.matchAll(/'([a-z_]+)',\s*(?:v_|coalesce|pg_catalog)/g)) chaves.add(m[1]);
+  for (const mig of [MIGRATION, MIGRATION_SF15]) {
+    const corpo = mig.slice(
+      mig.indexOf("CREATE OR REPLACE FUNCTION public.commercial_build_instrument_snapshot")
+    );
+    for (const m of corpo.matchAll(/'([a-z_]+)',\s*(?:v_|coalesce|pg_catalog)/g)) chaves.add(m[1]);
+  }
   // Campos do próprio pedido emitido (não do snapshot): código e hash.
   chaves.add("instrument_code");
   chaves.add("instrument_snapshot_hash");
@@ -218,5 +225,79 @@ describe("Contratos V2 — a migration preparatória não ativa nada", () => {
     const v2 = corpo.indexOf("'commercial_advertising_spec_not_approved'");
     expect(d9).toBeGreaterThan(0);
     expect(v2).toBeGreaterThan(d9);
+  });
+});
+
+describe("Contratos V2 — SF-v1.5: produção e reutilização de bandeiras", () => {
+  const fatos = fatosDoServidor();
+
+  it("instrumento traz peças, valor de referência e fabricação como fatos do servidor", () => {
+    for (const c of [
+      "flag_production_new_units",
+      "flag_unit_reference_cents",
+      "flag_production_charge_cents",
+      "flag_reuse_set_id",
+      "flag_reuse_inspection_id",
+    ]) {
+      expect(campos(INSTR)).toContain(c);
+      expect(fatos.has(c)).toBe(true);
+    }
+    expect(campos(TERMOS)).toContain("flag_production_charge_cents");
+  });
+
+  it("fabricação entra no preço uma única vez, sem reduzir MEI nem QA", () => {
+    for (const doc of [MESTRE, TERMOS]) {
+      expect(corrido(doc)).toMatch(/uma única vez/);
+      expect(corrido(doc)).toMatch(/não reduz a contraprestação dos divulgadores nem a parcela de QA/i);
+    }
+  });
+
+  it("quantidade de bandeiras não se confunde com as unidades da posição", () => {
+    expect(corrido(MESTRE)).toMatch(/quantidade de bandeiras não se confunde com as unidades da posição/i);
+    expect(corrido(INSTR)).toMatch(/não é derivada da quantidade contratual/);
+    expect(corrido(PRODUCAO)).toMatch(/não significam 84 bandeiras no total/);
+  });
+
+  it("reutilização exige inspeção de todas as peças, uma inspeção por contratação", () => {
+    expect(corrido(MESTRE)).toMatch(/aprove todas as peças/);
+    expect(corrido(MESTRE)).toMatch(/Cada nova contratação fidelizada exige inspeção própria/);
+    expect(corrido(INSTR)).toMatch(/autoriza somente esta contratação/);
+    expect(corrido(PRODUCAO)).toMatch(/Cada inspeção autoriza uma reutilização/);
+  });
+
+  it("fidelização e conservação são fatos distintos", () => {
+    expect(corrido(MESTRE)).toMatch(/Fidelização e conservação são fatos distintos/);
+    expect(corrido(PRODUCAO)).toMatch(/condição de fidelizado do anunciante não muda/);
+  });
+
+  it("nenhum documento promete reposição gratuita nem cria cobrança de reposição", () => {
+    for (const doc of [MESTRE, TERMOS, INSTR, PRODUCAO]) {
+      for (const f of frases(corrido(doc)).filter((x) => /gratuit|sem custo/i.test(x))) {
+        // \b do JavaScript não trata "ã" como letra: delimita por espaço.
+        expect(f).toMatch(/(?:^|\s)(?:não|nem|nenhuma?|sem)\s/i);
+      }
+      expect(corrido(doc)).toMatch(/D-N5/);
+    }
+    expect(corrido(PRODUCAO)).toMatch(/nenhuma autorizada como regra de cobrança/i);
+  });
+
+  it("inspeção de conservação não é aprovação técnica", () => {
+    expect(corrido(MESTRE)).toMatch(/Não é aprovação técnica da bandeira ou do suporte/i);
+    expect(corrido(PRODUCAO)).toMatch(/não é aprovação técnica de segurança/i);
+  });
+
+  it("anexo de produção é preliminar e não fixa preço", () => {
+    expect(PRODUCAO.split("\n")[0]).toMatch(/PRELIMINAR — NÃO APROVADO/);
+    expect(PRODUCAO).not.toMatch(/R\$\s*\d/);
+  });
+
+  it("migration SF-v1.5 não publica documento, não cria aceite e não toca modelos ou especificações", () => {
+    expect(MIGRATION_SF15).not.toMatch(/INSERT INTO public\.legal_documents/i);
+    expect(MIGRATION_SF15).not.toMatch(/INSERT INTO public\.legal_acceptances/i);
+    expect(MIGRATION_SF15).not.toMatch(/(?:INSERT INTO|UPDATE) public\.commercial_instrument_templates/i);
+    expect(MIGRATION_SF15).not.toMatch(/(?:INSERT INTO|UPDATE) public\.commercial_advertising_specs/i);
+    expect(MIGRATION_SF15).not.toMatch(/admin_publish_legal_document\s*\(/);
+    expect(MIGRATION_SF15).not.toMatch(/UPDATE public\.commercial_pricing_rules/i);
+    expect(MIGRATION_SF15).toMatch(/\(4, 'prepared',/);
   });
 });

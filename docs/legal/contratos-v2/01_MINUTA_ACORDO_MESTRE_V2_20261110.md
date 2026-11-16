@@ -2,7 +2,8 @@
 
 **Acordo Mestre de Parceria Comercial — SmallFlags — Versão proposta V2 (publicidade visual em veículos)**
 
-- Data da minuta: 2026-11-10.
+- Data da minuta: 2026-11-10. Revisada em 2026-11-12 (produção e reutilização
+  de bandeiras, SF-v1.5).
 - Status: **RASCUNHO PARA REVISÃO JURÍDICA. Sem efeito contratual.** Não deve ser
   inserido em `legal_documents` nem apresentado para aceite antes de aprovação
   jurídica expressa e de autorização de publicação.
@@ -46,6 +47,15 @@ regida por instrumento próprio e pela operação do aplicativo.
   comerciais diferentes da mesma classificação são a **mesma** atividade.
 - **Unidades**: a quantidade contratual da posição, como definida no
   instrumento individual.
+- **Conjunto de bandeiras**: as bandeiras físicas fabricadas com a arte de UM
+  ANUNCIANTE, na quantidade informada pelo servidor no instrumento individual
+  (uma por participante da formação operacional de referência). A quantidade
+  de bandeiras **não se confunde** com as unidades da posição.
+- **Inspeção de conservação**: verificação, registrada pela SMALLFLAGS com
+  evidência identificada por hash, de todas as peças de um conjunto quanto a
+  dano, perda, desgaste, adequação à exibição, compatibilidade com a arte
+  aprovada e segurança aparente. **Não é** aprovação técnica da bandeira ou do
+  suporte (Cláusula 7.2).
 
 ## Cláusula 2 — Objeto
 
@@ -129,7 +139,9 @@ alternativas são:
 - (a) uma arte por ciclo, com alterações pagas à parte;
 - (b) um número de alterações incluído no preço.
 
-O preço vigente **não** é alterado por esta minuta.
+Esta minuta **não fixa** preço: os valores de cada pedido vêm da versão
+econômica identificada no instrumento individual. Alteração de arte que torne
+o conjunto de bandeiras incompatível segue também a Cláusula 7A.
 
 4.5. Pagar os valores do instrumento individual, calculados e informados pelo
 servidor da SMALLFLAGS, na modalidade escolhida no checkout.
@@ -149,9 +161,11 @@ que rege o pedido.
   no instrumento;
 - circulação em local onde a exibição seja proibida ou não autorizada.
 
-5.4. **PENDENTE DE DECISÃO (D-N1):** quem **fabrica, instala, inspeciona,
-substitui e remove** a bandeira e o suporte, e quem paga cada etapa. As
-alternativas são:
+5.4. **Fabricação inicial:** a SMALLFLAGS contrata junto a fornecedor a
+fabricação do conjunto de bandeiras de cada ANUNCIANTE em contratação não
+fidelizada, com o custo nominal incluído no preço (Cláusula 7A).
+**PENDENTE DE DECISÃO (D-N1):** quem **instala, inspeciona, substitui e
+remove** a bandeira e o suporte, e quem paga cada etapa. As alternativas são:
 - (a) a SMALLFLAGS fornece o conjunto e coordena instalação e remoção;
 - (b) um fornecedor credenciado executa, sob coordenação da SMALLFLAGS;
 - (c) o divulgador executa, segundo procedimento e checklist da SMALLFLAGS.
@@ -204,6 +218,51 @@ emissão de instrumento.
 - os critérios de interrupção por risco.
 
 Ver o Anexo Técnico preliminar e a lista de confirmações do responsável técnico.
+
+## Cláusula 7A — Produção e reutilização das bandeiras
+
+7A.1. **Produção inicial.** A contratação **não fidelizada** exige a
+fabricação de um conjunto de bandeiras novo, com a arte do ANUNCIANTE, na
+quantidade informada no instrumento individual. Essa quantidade é a de
+participantes da formação operacional de referência e **não** é derivada das
+unidades da posição.
+
+7A.2. **Custo nominal no preço, uma única vez.** O custo nominal dessa
+fabricação **integra o preço comercial** da contratação não fidelizada. Ele
+aparece separadamente no instrumento individual, está contido na remuneração
+da SMALLFLAGS e é considerado **uma única vez**, na contratação que exige a
+produção. Ele **não reduz** a contraprestação dos divulgadores nem a parcela
+de QA. Frete, embalagem, instalação, suporte, tributos e perdas não estão
+compreendidos nesse custo nominal e não são cobrados por esta cláusula.
+
+7A.3. **Reutilização na contratação fidelizada.** O ANUNCIANTE fidelizado
+**poderá reutilizar** o conjunto já fabricado para a sua marca, desde que a
+inspeção de conservação mais recente, registrada pela SMALLFLAGS depois do uso
+anterior, aprove **todas** as peças para nova exibição. A reutilização evita a
+fabricação de novo conjunto, e por isso a condição fidelizada não inclui novo
+custo de produção. Cada nova contratação fidelizada exige inspeção própria.
+
+7A.4. **Fidelização e conservação são fatos distintos.** A condição de
+fidelizado continua definida pela atividade efetiva, pelo CNPJ e pela cidade.
+A conservação das peças não altera essa condição; ela apenas define se a
+reutilização é possível. Sem inspeção aprovada, a contratação fidelizada não
+é liberada, e nenhum preço é presumido.
+
+7A.5. **Sem promessa de reposição gratuita.** O valor da condição fidelizada
+**não representa** promessa de reposição sem custo. Se a inspeção identificar
+peça danificada, perdida, desgastada, inadequada à exibição, incompatível com
+nova arte aprovada ou insegura, a contratação fidelizada só prossegue conforme
+a política de reposição aprovada. **PENDENTE DE DECISÃO (D-N5):** quem paga a
+reposição e em que medida. Até essa decisão, nenhuma cobrança de reposição é
+feita e nenhuma reposição é prometida.
+
+7A.6. **Segurança e licenciamento continuam aplicáveis.** A reutilização não
+dispensa a especificação técnica aprovada (Cláusula 7.2) nem as autorizações
+da Cláusula 8. Peça considerada insegura não é reutilizada.
+
+7A.7. **Operação.** A distribuição das bandeiras entre os divulgadores, as
+etapas e a alternância das peças pertencem à operação do aplicativo. Este
+Acordo não presume que todas as peças sejam exibidas ao mesmo tempo.
 
 ## Cláusula 8 — Segurança, autorizações e restrições
 
@@ -288,8 +347,8 @@ legislação de trânsito.
 - quem o contrata;
 - qual a cobertura mínima.
 
-10.4. **Substituição do material:** o procedimento e o prazo dependem de D-N1
-e de D-N3.
+10.4. **Substituição do material:** o procedimento e o prazo dependem de D-N1,
+de D-N3 e da política de reposição (D-N5, Cláusula 7A.5).
 
 ## Cláusula 11 — Prazo, vigência e encerramento
 

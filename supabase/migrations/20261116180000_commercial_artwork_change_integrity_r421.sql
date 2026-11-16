@@ -1,0 +1,1626 @@
+-- ===========================================================================
+-- R4.2.1 — CORREÇÕES DIRECIONADAS DA ALTERAÇÃO DE ARTE (auditoria
+-- independente da R4.2, 16/11/2026)
+--
+-- Migration PREPARATÓRIA, NÃO aplicada. Depende de 20261116120000 (R4.2) e
+-- das anteriores, também não aplicadas. Não grava preço, modalidade,
+-- aprovação, procedimento de QA, solicitação, documento nem orçamento; não
+-- ativa versão; não altera linha histórica (R4.1 e R4.2 continuam gravados).
+--
+--   P1-1 PRONTIDÃO: 'production_authorized' é permissão para iniciar, não
+--        prova de execução. A renovação fidelizada sem reutilização só aceita
+--        uma alteração de arte PRONTA (commercial_artwork_change_readiness).
+--        Os fatos de cobrança autorizada e de produção/conjunto efetivos
+--        ainda não têm especificação comercial: a prontidão é SEMPRE falsa
+--        (bloqueio seguro) e a proposta de schema fica em
+--        docs/release/R421_PROPOSTA_PRONTIDAO_ALTERACAO_ARTE.md.
+--   P1-2 CAMPANHA CERTA: a solicitação guarda a exclusividade base e o alvo
+--        (região + número de sequência). 'next_campaign' = sequência base+1
+--        na mesma região, e só ela. Duas campanhas depois, a alteração não
+--        vale. Uma solicitação viva por empresa, identidade e campanha alvo.
+--        Pedido base precisa ser o pedido vivo mais recente da identidade.
+--        Solicitação pendente para a campanha bloqueia a renovação nela
+--        (sem cair silenciosamente para as bandeiras antigas). Trava por
+--        empresa+identidade serializa solicitação e renovação.
+--   P1-3 COBERTURA: catálogo de guardas versão 2 (manifesto R4.2.1): as
+--        tabelas novas, seus gatilhos, restrições, índices, colunas, RLS,
+--        permissões, as RPCs e os buckets/políticas de Storage envolvidos.
+--   P1-4 CUSTO COMPROVADO: o documento do fornecedor é um objeto PRIVADO no
+--        Storage, registrado pelo administrador e ATESTADO pelo servidor
+--        (SHA-256 calculado sobre os bytes por código com service_role, nunca
+--        declarado). O orçamento é itemizado (quantidade × unitário por item,
+--        soma = total; preço não linear = itens explícitos), preso ao
+--        documento atestado, e o aceite do owner confirma o SHA-256 dele.
+-- ===========================================================================
+
+DO $pre_r421$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.commercial_artwork_change_requests) THEN
+    RAISE EXCEPTION 'r421_pre: ha solicitacoes de alteracao de arte; a R4.2.1 exige base sem solicitacoes (R4.2 nunca foi aplicada)';
+  END IF;
+  IF (SELECT manifest_label FROM public.commercial_guard_manifests ORDER BY id DESC LIMIT 1) <> 'R4.2' THEN
+    RAISE EXCEPTION 'r421_pre: manifesto vigente nao e o R4.2';
+  END IF;
+END $pre_r421$;
+
+-- ===========================================================================
+-- A. CAMPANHA ALVO (P1-2)
+-- ===========================================================================
+ALTER TABLE public.commercial_artwork_change_requests
+  ADD COLUMN base_exclusivity_id    uuid REFERENCES public.commercial_exclusivities(id),
+  ADD COLUMN target_region_id       uuid REFERENCES public.commercial_regions(id),
+  ADD COLUMN target_sequence_number integer;
+ALTER TABLE public.commercial_artwork_change_requests
+  ALTER COLUMN base_exclusivity_id SET NOT NULL,
+  ALTER COLUMN target_region_id SET NOT NULL,
+  ALTER COLUMN target_sequence_number SET NOT NULL,
+  ADD CONSTRAINT cacr_alvo_sequencia CHECK (target_sequence_number > 0);
+COMMENT ON COLUMN public.commercial_artwork_change_requests.target_sequence_number IS
+  'R4.2.1: campanha (exclusividade) a que a alteracao se destina, derivada pelo servidor do pedido base: '
+  'next_campaign = sequencia base + 1 na mesma regiao; current_campaign = a propria. Nao vale para outra.';
+
+-- Uma solicitação viva (não cancelada nem recusada) por empresa, identidade
+-- e campanha alvo. Vale também na corrida.
+CREATE UNIQUE INDEX cacr_uma_por_campanha_idx
+  ON public.commercial_artwork_change_requests (company_id, fidelity_identity, target_region_id, target_sequence_number)
+  WHERE status NOT IN ('cancelled', 'rejected');
+
+-- Serializa, por empresa e identidade, a abertura de solicitação e a
+-- renovação (reserva, intenção e pedido).
+CREATE FUNCTION public.commercial_artwork_change_lock(p_company_id uuid, p_fidelity_identity text)
+RETURNS void
+LANGUAGE sql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+  SELECT pg_catalog.pg_advisory_xact_lock(
+           pg_catalog.hashtextextended('smallflags:artwork:' || p_company_id::text || ':' || p_fidelity_identity, 0));
+$$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_lock(uuid, text) FROM PUBLIC, anon, authenticated, service_role;
+
+-- ===========================================================================
+-- B. PRONTIDÃO (P1-1): fail-closed até existir especificação dos fatos
+-- ===========================================================================
+CREATE FUNCTION public.commercial_artwork_change_readiness(p_request_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_r public.commercial_artwork_change_requests%ROWTYPE;
+BEGIN
+  SELECT * INTO v_r FROM public.commercial_artwork_change_requests WHERE id = p_request_id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ready', false, 'missing', pg_catalog.jsonb_build_array('request_not_found'));
+  END IF;
+  IF v_r.status <> 'production_authorized' THEN
+    RETURN pg_catalog.jsonb_build_object('ready', false, 'status', v_r.status,
+      'missing', pg_catalog.jsonb_build_array('production_not_authorized'));
+  END IF;
+  -- Autorização de produção é permissão para iniciar, não prova de execução.
+  -- Nenhum destes fatos existe no banco nem tem especificação comercial:
+  -- enquanto não existirem e não forem verificados aqui, NUNCA pronto.
+  RETURN pg_catalog.jsonb_build_object('ready', false, 'status', v_r.status,
+    'missing', pg_catalog.jsonb_build_array(
+      'billing_authorization_fact_not_available',
+      'production_execution_fact_not_available',
+      'new_flag_set_fact_not_available'),
+    'policy', 'R4.2.1 fail-closed: ver docs/release/R421_PROPOSTA_PRONTIDAO_ALTERACAO_ARTE.md');
+END $$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_readiness(uuid) FROM PUBLIC, anon, authenticated, service_role;
+
+-- Estado da alteração de arte para uma renovação NA exclusividade dada.
+--   none     : nenhuma solicitação viva para essa campanha -> regras de
+--              reutilização como antes;
+--   pending  : solicitação viva ainda não autorizada -> renovação bloqueada
+--              (a arte nova foi pedida para essa campanha);
+--   not_ready: produção autorizada sem os fatos de prontidão -> bloqueada;
+--   ready    : pronta e não usada por pedido vivo -> substitui a reutilização.
+-- Toma a trava da empresa+identidade (VOLATILE de propósito).
+CREATE FUNCTION public.commercial_artwork_change_renewal_state(
+  p_company_id uuid, p_fidelity_identity text, p_exclusivity_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_e   public.commercial_exclusivities%ROWTYPE;
+  v_r   public.commercial_artwork_change_requests%ROWTYPE;
+  v_pr  jsonb;
+BEGIN
+  PERFORM public.commercial_artwork_change_lock(p_company_id, p_fidelity_identity);
+  SELECT * INTO v_e FROM public.commercial_exclusivities WHERE id = p_exclusivity_id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('state', 'none');
+  END IF;
+  SELECT * INTO v_r FROM public.commercial_artwork_change_requests r
+   WHERE r.company_id = p_company_id AND r.fidelity_identity = p_fidelity_identity
+     AND r.target_campaign = 'next_campaign'
+     AND r.target_region_id = v_e.region_id AND r.target_sequence_number = v_e.sequence_number
+     AND r.status NOT IN ('cancelled', 'rejected');
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('state', 'none');
+  END IF;
+  IF v_r.status <> 'production_authorized' THEN
+    RETURN pg_catalog.jsonb_build_object('state', 'pending', 'request_id', v_r.id, 'status', v_r.status,
+      'reason', 'artwork_change_pending_for_campaign');
+  END IF;
+  v_pr := public.commercial_artwork_change_readiness(v_r.id);
+  IF (v_pr->>'ready')::boolean IS NOT TRUE THEN
+    RETURN pg_catalog.jsonb_build_object('state', 'not_ready', 'request_id', v_r.id,
+      'reason', 'artwork_change_not_ready', 'missing', v_pr->'missing');
+  END IF;
+  RETURN pg_catalog.jsonb_build_object('state', 'ready', 'request_id', v_r.id);
+END $$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_renewal_state(uuid, text, uuid) FROM PUBLIC, anon, authenticated, service_role;
+
+-- Proteção: campanha alvo derivada no servidor e imutável.
+CREATE OR REPLACE FUNCTION public.commercial_artwork_change_requests_protect()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_excl uuid;
+  v_reg  uuid;
+  v_seq  integer;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'alteracao_arte_imutavel: solicitacao nao e apagada' USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status <> 'draft' OR NEW.row_version <> 1 THEN
+      RAISE EXCEPTION 'alteracao_arte_estado_invalido: solicitacao nasce em rascunho' USING ERRCODE = 'check_violation';
+    END IF;
+    -- R4.2.1: campanha alvo derivada pelo servidor do pedido base.
+    SELECT o.exclusivity_id, e.region_id, e.sequence_number INTO v_excl, v_reg, v_seq
+      FROM public.commercial_exclusivity_orders o
+      JOIN public.commercial_exclusivities e ON e.id = o.exclusivity_id
+     WHERE o.id = NEW.base_order_id;
+    IF v_excl IS NULL THEN
+      RAISE EXCEPTION 'alteracao_arte_campanha_base_ausente: pedido base sem exclusividade' USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.base_exclusivity_id := v_excl;
+    NEW.target_region_id := v_reg;
+    NEW.target_sequence_number := v_seq + CASE WHEN NEW.target_campaign = 'next_campaign' THEN 1 ELSE 0 END;
+    RETURN NEW;
+  END IF;
+  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.company_id IS DISTINCT FROM OLD.company_id
+     OR NEW.base_order_id IS DISTINCT FROM OLD.base_order_id
+     OR NEW.fidelity_identity IS DISTINCT FROM OLD.fidelity_identity
+     OR NEW.target_campaign IS DISTINCT FROM OLD.target_campaign
+     OR NEW.requested_by IS DISTINCT FROM OLD.requested_by
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.base_exclusivity_id IS DISTINCT FROM OLD.base_exclusivity_id
+     OR NEW.target_region_id IS DISTINCT FROM OLD.target_region_id
+     OR NEW.target_sequence_number IS DISTINCT FROM OLD.target_sequence_number THEN
+    RAISE EXCEPTION 'alteracao_arte_imutavel: identidade da solicitacao nao muda' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.row_version <> OLD.row_version + 1 THEN
+    RAISE EXCEPTION 'alteracao_arte_versao: row_version deve avancar exatamente 1' USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD.status IN ('production_authorized', 'rejected', 'cancelled') THEN
+    RAISE EXCEPTION 'alteracao_arte_final: solicitacao % encerrada (%)', OLD.id, OLD.status USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT ((OLD.status, NEW.status) IN (
+      ('draft', 'draft'), ('draft', 'submitted'), ('draft', 'cancelled'),
+      ('submitted', 'submitted'), ('submitted', 'under_review'), ('submitted', 'cancelled'), ('submitted', 'rejected'),
+      ('under_review', 'under_review'), ('under_review', 'quoted'), ('under_review', 'cancelled'),
+      ('under_review', 'rejected'),
+      ('quoted', 'quoted'), ('quoted', 'under_review'), ('quoted', 'accepted'), ('quoted', 'cancelled'),
+      ('quoted', 'rejected'),
+      ('accepted', 'accepted'), ('accepted', 'quoted'), ('accepted', 'production_authorized'),
+      ('accepted', 'cancelled'), ('accepted', 'rejected'))) THEN
+    RAISE EXCEPTION 'alteracao_arte_transicao_invalida: % -> %', OLD.status, NEW.status USING ERRCODE = 'check_violation';
+  END IF;
+  -- Exceção registrada não é desfeita nem reescrita.
+  IF OLD.exception_approved_by IS NOT NULL AND (
+       NEW.exception_approved_by IS DISTINCT FROM OLD.exception_approved_by
+       OR NEW.exception_approved_at IS DISTINCT FROM OLD.exception_approved_at
+       OR NEW.exception_reason IS DISTINCT FROM OLD.exception_reason
+       OR NEW.exception_feasibility IS DISTINCT FROM OLD.exception_feasibility) THEN
+    RAISE EXCEPTION 'alteracao_arte_imutavel: excecao registrada nao muda' USING ERRCODE = 'check_violation';
+  END IF;
+  NEW.updated_at := pg_catalog.now();
+  RETURN NEW;
+END $function$;
+
+-- Abertura: pedido base mais recente, campanha alvo livre, trava.
+CREATE OR REPLACE FUNCTION public.artwork_change_request_create(p_order_id uuid, p_target_campaign text DEFAULT 'next_campaign'::text, p_phrase_text text DEFAULT NULL::text, p_note text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_o  public.commercial_exclusivity_orders%ROWTYPE;
+  v_id uuid;
+  v_identidade text;
+  v_be    public.commercial_exclusivities%ROWTYPE;
+  v_alvo  integer;
+  v_cons  text;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authenticated');
+  END IF;
+  SELECT * INTO v_o FROM public.commercial_exclusivity_orders WHERE id = p_order_id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+  IF public.commercial_artwork_change_actor(v_o.company_id) IS DISTINCT FROM 'partner_owner' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authorized');
+  END IF;
+  IF v_o.status = 'cancelled' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'order_cancelled');
+  END IF;
+  IF p_target_campaign IS NULL OR p_target_campaign NOT IN ('next_campaign', 'current_campaign') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_target');
+  END IF;
+  IF p_phrase_text IS NOT NULL AND length(btrim(p_phrase_text)) NOT BETWEEN 1 AND 280 THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_phrase');
+  END IF;
+  v_identidade := public.commercial_fidelity_identity(v_o.niche_code, v_o.segment_id);
+  -- R4.2.1: serializa com a renovação da mesma empresa e identidade.
+  PERFORM public.commercial_artwork_change_lock(v_o.company_id, v_identidade);
+  SELECT * INTO v_be FROM public.commercial_exclusivities WHERE id = v_o.exclusivity_id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'base_campaign_missing');
+  END IF;
+  v_alvo := v_be.sequence_number + CASE WHEN p_target_campaign = 'next_campaign' THEN 1 ELSE 0 END;
+  -- O pedido base precisa ser o pedido vivo mais recente da identidade (senão
+  -- a "próxima campanha" já passou ou já foi contratada).
+  IF EXISTS (SELECT 1 FROM public.commercial_exclusivity_orders o2
+               JOIN public.commercial_exclusivities e2 ON e2.id = o2.exclusivity_id
+              WHERE o2.company_id = v_o.company_id AND o2.id <> v_o.id AND o2.status <> 'cancelled'
+                AND public.commercial_fidelity_identity(o2.niche_code, o2.segment_id) = v_identidade
+                AND e2.region_id = v_be.region_id AND e2.sequence_number > v_be.sequence_number) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'base_order_not_latest');
+  END IF;
+  -- Campanha alvo já adjudicada a outra empresa nesse nicho: não há renovação possível.
+  IF p_target_campaign = 'next_campaign' AND EXISTS (
+       SELECT 1 FROM public.commercial_exclusivity_orders o3
+         JOIN public.commercial_exclusivities e3 ON e3.id = o3.exclusivity_id
+        WHERE e3.region_id = v_be.region_id AND e3.sequence_number = v_alvo
+          AND o3.niche_code = v_o.niche_code AND o3.company_id <> v_o.company_id AND o3.status <> 'cancelled') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'target_campaign_unavailable');
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.commercial_artwork_change_requests
+              WHERE company_id = v_o.company_id AND fidelity_identity = v_identidade
+                AND status IN ('draft', 'submitted', 'under_review', 'quoted', 'accepted')) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'artwork_change_already_open');
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.commercial_artwork_change_requests
+              WHERE company_id = v_o.company_id AND fidelity_identity = v_identidade
+                AND target_region_id = v_be.region_id AND target_sequence_number = v_alvo
+                AND status NOT IN ('cancelled', 'rejected')) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'artwork_change_already_exists_for_campaign');
+  END IF;
+  BEGIN
+    INSERT INTO public.commercial_artwork_change_requests
+      (company_id, base_order_id, fidelity_identity, target_campaign, phrase_text, request_note, requested_by)
+    VALUES (v_o.company_id, v_o.id, v_identidade, p_target_campaign,
+            nullif(btrim(coalesce(p_phrase_text, '')), ''), nullif(btrim(coalesce(p_note, '')), ''), auth.uid())
+    RETURNING id INTO v_id;
+  EXCEPTION WHEN unique_violation THEN
+    GET STACKED DIAGNOSTICS v_cons = CONSTRAINT_NAME;
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason',
+      CASE WHEN v_cons = 'cacr_uma_por_campanha_idx' THEN 'artwork_change_already_exists_for_campaign'
+           ELSE 'artwork_change_already_open' END);
+  END;
+  PERFORM public.commercial_artwork_change_event(v_id, 'created', NULL, 'draft', 'partner_owner',
+    pg_catalog.jsonb_build_object('target_campaign', p_target_campaign,
+                                  'target_sequence_number', v_alvo));
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'request_id', v_id, 'status', 'draft', 'row_version', 1,
+    'target_sequence_number', v_alvo);
+END $function$;
+
+-- ===========================================================================
+-- C. RESOLUÇÃO NOS GATILHOS GUARDADOS E NA RESERVA (P1-1, P1-2)
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.cci_validar_producao_bandeiras()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_status text;
+  v_sched  public.commercial_pricing_schedule%ROWTYPE;
+  v_r      jsonb;
+  v_arte   uuid;
+  v_ac     jsonb;
+BEGIN
+  SELECT status INTO v_status FROM public.commercial_pricing_rules
+   WHERE version = NEW.pricing_rule_version;
+  IF v_status = 'prepared' THEN
+    RAISE EXCEPTION 'pricing_rule_not_published: versao % ainda nao e vigente', NEW.pricing_rule_version
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF NEW.pricing_rule_version IS NOT NULL AND NEW.pricing_rule_version >= 3 THEN
+    SELECT * INTO v_sched FROM public.commercial_pricing_schedule
+     WHERE pricing_rule_version = NEW.pricing_rule_version
+       AND commercial_category = CASE WHEN NEW.niche_code = 'supermarket'
+                                      THEN 'supermarket' ELSE 'common' END
+       AND fidelized = NEW.fidelized;
+  END IF;
+
+  -- Economia sem produção de bandeiras: nenhum fato de produção é aceito.
+  IF v_sched.new_flag_units IS NULL THEN
+    NEW.flag_production_new_units    := NULL;
+    NEW.flag_unit_reference_cents    := NULL;
+    NEW.flag_production_charge_cents := NULL;
+    NEW.flag_reuse_set_id            := NULL;
+    NEW.flag_reuse_inspection_id     := NULL;
+    NEW.artwork_change_request_id    := NULL;
+    RETURN NEW;
+  END IF;
+
+  IF NOT NEW.fidelized THEN
+    NEW.flag_production_new_units    := v_sched.new_flag_units;
+    NEW.flag_unit_reference_cents    := v_sched.flag_unit_reference_cents;
+    NEW.flag_production_charge_cents := v_sched.flag_production_charge_cents;
+    NEW.flag_reuse_set_id            := NULL;
+    NEW.flag_reuse_inspection_id     := NULL;
+    NEW.artwork_change_request_id    := NULL;
+    RETURN NEW;
+  END IF;
+
+  -- R4.2 (decisão B): alteração voluntária de arte com produção AUTORIZADA
+  -- para a próxima campanha substitui a reutilização das bandeiras antigas.
+  -- Preço-base, participantes e QA fidelizados não mudam; a produção da nova
+  -- arte é rubrica separada (orçamento aceito na solicitação).
+  -- R4.2.1: só a alteração destinada a ESTA campanha conta, e só pronta.
+  v_ac := public.commercial_artwork_change_renewal_state(NEW.company_id,
+           CASE WHEN NEW.segment_classification_snapshot IS NOT NULL
+                THEN 'segment:' || NEW.segment_classification_snapshot
+                ELSE NEW.niche_code END,
+           NEW.exclusivity_id);
+  IF v_ac->>'state' IN ('pending', 'not_ready') THEN
+    RAISE EXCEPTION '%: %', v_ac->>'reason', v_ac::text USING ERRCODE = 'check_violation';
+  END IF;
+  v_arte := CASE WHEN v_ac->>'state' = 'ready' THEN (v_ac->>'request_id')::uuid END;
+  IF v_arte IS NOT NULL THEN
+    NEW.flag_production_new_units    := 0;
+    NEW.flag_unit_reference_cents    := v_sched.flag_unit_reference_cents;
+    NEW.flag_production_charge_cents := 0;
+    NEW.flag_reuse_set_id            := NULL;
+    NEW.flag_reuse_inspection_id     := NULL;
+    NEW.artwork_change_request_id    := v_arte;
+    RETURN NEW;
+  END IF;
+
+  v_r := public.commercial_flag_reuse_resolution(
+           NEW.company_id,
+           CASE WHEN NEW.segment_classification_snapshot IS NOT NULL
+                THEN 'segment:' || NEW.segment_classification_snapshot
+                ELSE NEW.niche_code END);
+  IF (v_r->>'ok')::boolean IS NOT TRUE THEN
+    RAISE EXCEPTION '%: %', v_r->>'reason', v_r->>'detail'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  NEW.flag_production_new_units    := 0;
+  NEW.flag_unit_reference_cents    := v_sched.flag_unit_reference_cents;
+  NEW.flag_production_charge_cents := 0;
+  NEW.flag_reuse_set_id            := (v_r->>'flag_set_id')::uuid;
+  NEW.flag_reuse_inspection_id     := (v_r->>'inspection_id')::uuid;
+  NEW.artwork_change_request_id    := NULL;
+  RETURN NEW;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.ceo_validar_producao_bandeiras()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_status text;
+  v_sched  public.commercial_pricing_schedule%ROWTYPE;
+  v_i      public.commercial_checkout_intents%ROWTYPE;
+  v_r      jsonb;
+  v_arte   uuid;
+  v_ac     jsonb;
+BEGIN
+  SELECT status INTO v_status FROM public.commercial_pricing_rules
+   WHERE version = NEW.pricing_rule_version;
+  IF v_status = 'prepared' THEN
+    RAISE EXCEPTION 'pricing_rule_not_published: versao % ainda nao e vigente', NEW.pricing_rule_version
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF NEW.pricing_rule_version IS NOT NULL AND NEW.pricing_rule_version >= 3 THEN
+    SELECT * INTO v_sched FROM public.commercial_pricing_schedule
+     WHERE pricing_rule_version = NEW.pricing_rule_version
+       AND commercial_category = CASE WHEN NEW.niche_code = 'supermarket'
+                                      THEN 'supermarket' ELSE 'common' END
+       AND fidelized = NEW.fidelized;
+  END IF;
+
+  IF v_sched.new_flag_units IS NULL THEN
+    NEW.flag_production_new_units    := NULL;
+    NEW.flag_unit_reference_cents    := NULL;
+    NEW.flag_production_charge_cents := NULL;
+    NEW.flag_reuse_set_id            := NULL;
+    NEW.flag_reuse_inspection_id     := NULL;
+    NEW.artwork_change_request_id    := NULL;
+    RETURN NEW;
+  END IF;
+
+  -- Pedido vindo de intenção: CÓPIA do que a reserva congelou.
+  IF NEW.checkout_intent_id IS NOT NULL THEN
+    SELECT * INTO v_i FROM public.commercial_checkout_intents WHERE id = NEW.checkout_intent_id;
+    IF NOT FOUND
+       OR v_i.pricing_rule_version IS DISTINCT FROM NEW.pricing_rule_version
+       OR v_i.fidelized IS DISTINCT FROM NEW.fidelized
+       OR v_i.flag_production_new_units IS NULL THEN
+      RAISE EXCEPTION 'flag_production_snapshot_divergente: intencao sem fatos de producao coerentes'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.flag_production_new_units    := v_i.flag_production_new_units;
+    NEW.flag_unit_reference_cents    := v_i.flag_unit_reference_cents;
+    NEW.flag_production_charge_cents := v_i.flag_production_charge_cents;
+    NEW.flag_reuse_set_id            := v_i.flag_reuse_set_id;
+    NEW.flag_reuse_inspection_id     := v_i.flag_reuse_inspection_id;
+    NEW.artwork_change_request_id    := v_i.artwork_change_request_id;
+    RETURN NEW;
+  END IF;
+
+  -- Venda manual: mesma autoridade da intenção.
+  IF NOT NEW.fidelized THEN
+    NEW.flag_production_new_units    := v_sched.new_flag_units;
+    NEW.flag_unit_reference_cents    := v_sched.flag_unit_reference_cents;
+    NEW.flag_production_charge_cents := v_sched.flag_production_charge_cents;
+    NEW.flag_reuse_set_id            := NULL;
+    NEW.flag_reuse_inspection_id     := NULL;
+    NEW.artwork_change_request_id    := NULL;
+    RETURN NEW;
+  END IF;
+
+  -- R4.2 (decisão B): alteração voluntária de arte com produção AUTORIZADA
+  -- para a próxima campanha substitui a reutilização das bandeiras antigas.
+  -- Preço-base, participantes e QA fidelizados não mudam; a produção da nova
+  -- arte é rubrica separada (orçamento aceito na solicitação).
+  -- R4.2.1: só a alteração destinada a ESTA campanha conta, e só pronta.
+  v_ac := public.commercial_artwork_change_renewal_state(NEW.company_id,
+           CASE WHEN NEW.segment_classification_snapshot IS NOT NULL
+                THEN 'segment:' || NEW.segment_classification_snapshot
+                ELSE NEW.niche_code END,
+           NEW.exclusivity_id);
+  IF v_ac->>'state' IN ('pending', 'not_ready') THEN
+    RAISE EXCEPTION '%: %', v_ac->>'reason', v_ac::text USING ERRCODE = 'check_violation';
+  END IF;
+  v_arte := CASE WHEN v_ac->>'state' = 'ready' THEN (v_ac->>'request_id')::uuid END;
+  IF v_arte IS NOT NULL THEN
+    NEW.flag_production_new_units    := 0;
+    NEW.flag_unit_reference_cents    := v_sched.flag_unit_reference_cents;
+    NEW.flag_production_charge_cents := 0;
+    NEW.flag_reuse_set_id            := NULL;
+    NEW.flag_reuse_inspection_id     := NULL;
+    NEW.artwork_change_request_id    := v_arte;
+    RETURN NEW;
+  END IF;
+
+  v_r := public.commercial_flag_reuse_resolution(
+           NEW.company_id,
+           CASE WHEN NEW.segment_classification_snapshot IS NOT NULL
+                THEN 'segment:' || NEW.segment_classification_snapshot
+                ELSE NEW.niche_code END);
+  IF (v_r->>'ok')::boolean IS NOT TRUE THEN
+    RAISE EXCEPTION '%: %', v_r->>'reason', v_r->>'detail'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  NEW.flag_production_new_units    := 0;
+  NEW.flag_unit_reference_cents    := v_sched.flag_unit_reference_cents;
+  NEW.flag_production_charge_cents := 0;
+  NEW.flag_reuse_set_id            := (v_r->>'flag_set_id')::uuid;
+  NEW.flag_reuse_inspection_id     := (v_r->>'inspection_id')::uuid;
+  NEW.artwork_change_request_id    := NULL;
+  RETURN NEW;
+END $function$;
+
+CREATE OR REPLACE FUNCTION public.create_commercial_checkout_intent(p_company_id uuid, p_niche_code text, p_benefit_settlement_mode text, p_segment_id uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_eleg jsonb;
+  v_uid      uuid := auth.uid();
+  v_company  public.site_partner_companies%ROWTYPE;
+  v_key      text;
+  v_uf       text;
+  v_region   uuid;
+  v_excl     uuid;
+  v_opp      public.commercial_opportunities%ROWTYPE;
+  v_viva     public.commercial_checkout_intents%ROWTYPE;
+  v_fidel    boolean;
+  v_p        jsonb;
+  v_pool     bigint;
+  v_bdflow   bigint;
+  v_cash     bigint;
+  v_ate      timestamptz;
+  v_id       uuid;
+  v_seg      jsonb;
+  v_reuso    jsonb;
+  v_ac       jsonb;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authenticated');
+  END IF;
+
+  IF p_benefit_settlement_mode IS NULL
+     OR p_benefit_settlement_mode NOT IN ('direct_benefits','cash') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_settlement_mode');
+  END IF;
+
+  SELECT * INTO v_company FROM public.site_partner_companies WHERE id = p_company_id;
+  IF NOT FOUND OR v_company.status <> 'active' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'company_not_found');
+  END IF;
+
+  -- Helper canônico: partner_owner + ativo + auth.uid(). Gerente de unidade
+  -- não decide contratação comercial — é decisão da empresa, não operacional.
+  IF NOT public.m2_is_company_owner(p_company_id) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_company_owner');
+  END IF;
+
+
+  -- P0-1 PORTAO 1 de 4: elegibilidade do Acordo Mestre pela definicao UNICA.
+  -- Falha CEDO: sem Mestre elegivel a empresa nao segura oportunidade escassa
+  -- por 30 minutos nem gera aceite que jamais podera ser finalizado.
+  v_eleg := public.m2_master_agreement_eligibility(p_company_id);
+  IF (v_eleg->>'ok')::boolean IS NOT TRUE THEN
+    RETURN v_eleg;
+  END IF;
+
+  -- ---- resolução autoritativa: empresa -> região -> exclusividade -> oportunidade
+  v_key := public.commercial_city_key(v_company.city);
+  IF v_key IS NULL OR v_key = '' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'company_city_missing');
+  END IF;
+  IF NOT public.commercial_is_valid_uf(v_company.uf) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'company_uf_invalid');
+  END IF;
+  v_uf := pg_catalog.upper(pg_catalog.btrim(v_company.uf));
+
+  SELECT c.region_id INTO v_region
+    FROM public.commercial_region_cities c
+   WHERE c.uf = v_uf AND c.city_key = v_key AND c.is_active;
+  IF v_region IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'region_not_operating');
+  END IF;
+
+  SELECT e.id INTO v_excl
+    FROM public.commercial_exclusivities e
+   WHERE e.region_id = v_region AND e.is_current;
+  IF v_excl IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'no_current_exclusivity');
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public.commercial_exclusivity_orders o
+     WHERE o.exclusivity_id = v_excl
+       AND o.company_id = p_company_id
+       AND o.status <> 'cancelled'
+  ) THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'ok', false, 'reason', 'company_already_contracted_in_exclusivity');
+  END IF;
+
+  -- SERIALIZAÇÃO: daqui até o fim da transação, esta oportunidade é nossa.
+  -- Duas empresas chegando ao mesmo tempo entram em fila aqui, e a segunda
+  -- enxerga o estado já gravado pela primeira.
+  SELECT * INTO v_opp
+    FROM public.commercial_opportunities o
+   WHERE o.exclusivity_id = v_excl AND o.niche_code = p_niche_code
+     FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'opportunity_not_found');
+  END IF;
+
+  -- ---- posição × segmento: Supermercado sem segmento, Outros com segmento
+  -- aprovado, substituto só em posição elegível, e o segmento ainda livre
+  -- nesta exclusividade. Decidido aqui, nunca pelo navegador.
+  v_seg := public.commercial_resolve_position_segment(
+             p_niche_code, p_segment_id, v_excl, v_opp.id, true);
+  IF (v_seg->>'ok')::boolean IS NOT TRUE THEN
+    RETURN v_seg;
+  END IF;
+
+  -- ---- reserva viva da PRÓPRIA empresa: idempotente, e sem esticar o prazo.
+  -- Renovar a cada requisição deixaria qualquer titular segurar a oportunidade
+  -- para sempre, apertando F5.
+  SELECT * INTO v_viva
+    FROM public.commercial_checkout_intents i
+   WHERE i.opportunity_id = v_opp.id
+     AND i.status = 'draft'
+     AND i.reserved_until IS NOT NULL
+     AND i.reserved_until > pg_catalog.now();
+
+  IF FOUND THEN
+    IF v_viva.company_id <> p_company_id THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'ok', false, 'reason', 'opportunity_reserved',
+        'reserved_until', v_viva.reserved_until);
+    END IF;
+    IF v_viva.segment_id IS DISTINCT FROM p_segment_id THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'ok', false, 'reason', 'reservation_segment_mismatch',
+        'reserved_until', v_viva.reserved_until);
+    END IF;
+    RETURN public.cci_resposta_intencao(v_viva, true);
+  END IF;
+
+  -- ---- reserva vencida NÃO bloqueia para sempre: é recuperada aqui.
+  UPDATE public.commercial_checkout_intents
+     SET status = 'cancelled'
+   WHERE opportunity_id = v_opp.id
+     AND status = 'draft'
+     AND reserved_until IS NOT NULL
+     AND reserved_until <= pg_catalog.now();
+
+  IF v_opp.status = 'reserved'
+     AND (v_opp.reserved_until IS NULL OR v_opp.reserved_until <= pg_catalog.now()) THEN
+    v_opp.status := 'available';
+  END IF;
+
+  IF v_opp.status <> 'available' THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'ok', false,
+      'reason', CASE WHEN v_opp.status = 'reserved' THEN 'opportunity_reserved'
+                     ELSE 'opportunity_unavailable' END,
+      'opportunity_status', v_opp.status);
+  END IF;
+
+  -- ---- instantâneo econômico: sempre do servidor, nunca do chamador
+  v_fidel := public.is_fidelized_context(
+               v_company.cnpj, v_company.uf, v_company.city, p_niche_code, p_segment_id);
+
+  v_p := public.calculate_niche_contract_pricing(p_niche_code, v_fidel);
+  IF (v_p->>'ok')::boolean IS NOT TRUE THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'pricing_unavailable');
+  END IF;
+
+  -- Nicho INTEIRO. A quantidade vem da oportunidade e da regra de preço, que
+  -- têm de concordar; divergência é defeito de dados, não venda parcial.
+  IF (v_p->>'nominal_quantity')::int <> v_opp.contracted_quantity THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'quantity_mismatch');
+  END IF;
+
+  -- ---- SF-v1.5: o preço fidelizado PRESSUPÕE reutilização das bandeiras.
+  -- Sem conjunto do mesmo anunciante e da mesma identidade, com inspeção
+  -- aprovando todas as peças e ainda não usada, não há reserva nem preço.
+  -- Reposição sem política aprovada também não tem preço. Antes de tocar na
+  -- oportunidade: nada fica reservado.
+  -- R4.2 (decisão B): alteração de arte com produção autorizada para a próxima
+  -- campanha substitui a reutilização; a fidelidade não depende das peças.
+  -- R4.2.1: alteração destinada a esta campanha pendente ou não pronta
+  -- bloqueia (sem cair para as bandeiras antigas); pronta substitui o reuso.
+  IF v_p ? 'new_flag_units' AND v_fidel THEN
+    v_ac := public.commercial_artwork_change_renewal_state(
+              p_company_id, public.commercial_fidelity_identity(p_niche_code, p_segment_id), v_excl);
+    IF v_ac->>'state' IN ('pending', 'not_ready') THEN
+      RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', v_ac->>'reason',
+        'detail', coalesce(v_ac->'missing', pg_catalog.to_jsonb(v_ac->>'status')));
+    END IF;
+  END IF;
+  IF v_p ? 'new_flag_units' AND v_fidel AND coalesce(v_ac->>'state', 'none') <> 'ready' THEN
+    v_reuso := public.commercial_flag_reuse_resolution(
+                 p_company_id,
+                 public.commercial_fidelity_identity(p_niche_code, p_segment_id));
+    IF (v_reuso->>'ok')::boolean IS NOT TRUE THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'ok', false, 'reason', v_reuso->>'reason', 'detail', v_reuso->>'detail');
+    END IF;
+  END IF;
+
+  v_pool   := (v_p->>'contractual_pool_cents')::bigint;
+  v_bdflow := (v_p->>'bdflow_due_cents')::bigint;
+  v_cash   := CASE WHEN p_benefit_settlement_mode = 'cash' THEN v_pool ELSE 0 END;
+
+  -- TEMPO DO BANCO. Trinta minutos exatos, a partir de now().
+  v_ate := pg_catalog.now() + interval '30 minutes';
+
+  UPDATE public.commercial_opportunities
+     SET status = 'reserved', reserved_until = v_ate, updated_at = pg_catalog.now()
+   WHERE id = v_opp.id;
+
+  INSERT INTO public.commercial_checkout_intents
+    (company_id, niche_code, status, pricing_rule_version,
+     benefit_distribution_policy_version, fidelized, payment_method,
+     benefit_settlement_mode, currency, nominal_quantity,
+     economic_value_cents, user_pool_cents, bdflow_ops_investment_cents,
+     cash_user_pool_funding_cents, total_monetary_funding_required_cents,
+     opportunity_id, exclusivity_id, region_id, reserved_until,
+     created_by, segment_id, segment_code_snapshot, segment_name_snapshot,
+     segment_classification_snapshot)
+  VALUES
+    (p_company_id, p_niche_code, 'draft', (v_p->>'pricing_rule_version')::int,
+     2, v_fidel, v_p->>'payment_method',
+     p_benefit_settlement_mode, 'BRL', (v_p->>'nominal_quantity')::int,
+     (v_p->>'economic_value_cents')::bigint, v_pool, v_bdflow,
+     v_cash, v_bdflow + v_cash,
+     v_opp.id, v_excl, v_region, v_ate,
+     v_uid, (v_seg->>'segment_id')::uuid, v_seg->>'segment_code',
+     v_seg->>'segment_name', v_seg->>'segment_classification')
+  RETURNING id INTO v_id;
+
+  PERFORM public.m1_auditar('commercial_checkout.reserved', v_id, 'owner',
+    pg_catalog.jsonb_build_object('company_id', p_company_id,
+                                  'opportunity_id', v_opp.id,
+                                  'niche_code', p_niche_code,
+                                  'segment_code', v_seg->>'segment_code',
+                                  'segment_classification', v_seg->>'segment_classification',
+                                  'reserved_until', v_ate));
+
+  SELECT * INTO v_viva FROM public.commercial_checkout_intents WHERE id = v_id;
+  RETURN public.cci_resposta_intencao(v_viva, false);
+END;
+$function$;
+
+-- O resolvedor sem campanha (R4.2) deixa de existir.
+DROP FUNCTION public.commercial_artwork_change_for_renewal(uuid, text);
+
+
+-- ===========================================================================
+-- D. DOCUMENTO DO FORNECEDOR: objeto privado, atestado pelo servidor (P1-4)
+-- ===========================================================================
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('supplier-quote-documents', 'supplier-quote-documents', false, 20971520,
+        ARRAY['application/pdf', 'image/png', 'image/jpeg'])
+ON CONFLICT (id) DO NOTHING;
+
+-- Caminho: <request_id>/<aleatorio>. Administrador envia e lê; o owner da
+-- empresa da solicitação lê. NENHUMA política de UPDATE ou DELETE: o objeto
+-- não é sobrescrito nem apagado pelo cliente.
+CREATE POLICY cacd_admin_insert ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'supplier-quote-documents' AND public.is_site_admin());
+CREATE POLICY cacd_admin_select ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'supplier-quote-documents' AND public.is_site_admin());
+-- (a política chama função SECURITY DEFINER: authenticated não lê a tabela)
+CREATE FUNCTION public.commercial_artwork_change_document_readable(p_object_name text)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+  SELECT EXISTS (SELECT 1 FROM public.commercial_artwork_change_requests r
+                  WHERE r.id::text = pg_catalog.split_part(p_object_name, '/', 1)
+                    AND public.m2_is_company_owner(r.company_id));
+$$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_document_readable(text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.commercial_artwork_change_document_readable(text) TO authenticated;
+CREATE POLICY cacd_owner_select ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'supplier-quote-documents'
+         AND public.commercial_artwork_change_document_readable(storage.objects.name));
+
+CREATE TABLE public.commercial_artwork_change_supplier_documents (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id         uuid NOT NULL REFERENCES public.commercial_artwork_change_requests(id),
+  storage_bucket     text NOT NULL DEFAULT 'supplier-quote-documents',
+  storage_path       text NOT NULL,
+  storage_object_id  uuid NOT NULL,
+  mime_type          text NOT NULL,
+  byte_size          bigint NOT NULL,
+  declared_sha256    text NOT NULL,
+  registered_by      uuid NOT NULL,
+  registered_at      timestamptz NOT NULL DEFAULT now(),
+  attested_sha256    text,
+  attested_byte_size bigint,
+  attested_at        timestamptz,
+  attested_by_role   text,
+  CONSTRAINT cacd_bucket CHECK (storage_bucket = 'supplier-quote-documents'),
+  CONSTRAINT cacd_mime CHECK (mime_type IN ('application/pdf', 'image/png', 'image/jpeg')),
+  CONSTRAINT cacd_tamanho CHECK (byte_size > 0 AND byte_size <= 20971520),
+  CONSTRAINT cacd_sha256 CHECK (declared_sha256 ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT cacd_atestado CHECK (
+    (attested_sha256 IS NULL AND attested_byte_size IS NULL AND attested_at IS NULL AND attested_by_role IS NULL)
+    OR (attested_sha256 ~ '^[0-9a-f]{64}$' AND attested_byte_size > 0 AND attested_at IS NOT NULL
+        AND attested_by_role = 'service_role')),
+  CONSTRAINT cacd_caminho UNIQUE (storage_bucket, storage_path)
+);
+COMMENT ON TABLE public.commercial_artwork_change_supplier_documents IS
+  'R4.2.1: documento ORIGINAL do fornecedor (orcamento). declared_sha256 e o que o administrador informou; '
+  'attested_sha256 e calculado pelo servidor sobre os bytes do objeto (service_role). Orcamento so com os dois iguais.';
+
+CREATE FUNCTION public.commercial_artwork_change_supplier_document_protect()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'pg_catalog'
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'alteracao_arte_imutavel: documento do fornecedor nao e apagado' USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.attested_sha256 IS NOT NULL OR NEW.attested_at IS NOT NULL THEN
+      RAISE EXCEPTION 'documento_fornecedor_atestado_so_pelo_servidor' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  -- Única mudança: o atestado, uma vez, do vazio para preenchido.
+  IF OLD.attested_sha256 IS NULL AND NEW.attested_sha256 IS NOT NULL
+     AND (pg_catalog.to_jsonb(NEW) - ARRAY['attested_sha256', 'attested_byte_size', 'attested_at', 'attested_by_role'])
+       = (pg_catalog.to_jsonb(OLD) - ARRAY['attested_sha256', 'attested_byte_size', 'attested_at', 'attested_by_role']) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'alteracao_arte_imutavel: documento do fornecedor so recebe o atestado, uma vez' USING ERRCODE = 'check_violation';
+END $$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_supplier_document_protect() FROM PUBLIC, anon, authenticated, service_role;
+CREATE TRIGGER cacd_protect BEFORE INSERT OR UPDATE OR DELETE ON public.commercial_artwork_change_supplier_documents
+  FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_supplier_document_protect();
+CREATE TRIGGER cacd_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_supplier_documents
+  FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate();
+ALTER TABLE public.commercial_artwork_change_supplier_documents ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.commercial_artwork_change_supplier_documents FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON public.commercial_artwork_change_supplier_documents TO service_role;
+
+-- Caminho derivado no servidor (administrador).
+CREATE FUNCTION public.admin_artwork_change_supplier_document_path(p_request_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE v_r public.commercial_artwork_change_requests%ROWTYPE;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authenticated');
+  END IF;
+  SELECT * INTO v_r FROM public.commercial_artwork_change_requests WHERE id = p_request_id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+  IF public.commercial_artwork_change_actor(v_r.company_id) IS DISTINCT FROM 'site_admin' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authorized');
+  END IF;
+  IF v_r.status NOT IN ('under_review', 'quoted', 'accepted') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_status', 'status', v_r.status);
+  END IF;
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'bucket', 'supplier-quote-documents',
+    'storage_path', v_r.id::text || '/' || pg_catalog.replace(gen_random_uuid()::text, '-', ''));
+END $$;
+
+-- Registro do documento enviado (metadados do Storage, não do cliente).
+CREATE FUNCTION public.admin_artwork_change_register_supplier_document(
+  p_request_id uuid, p_storage_path text, p_declared_sha256 text)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_r    public.commercial_artwork_change_requests%ROWTYPE;
+  v_obj  storage.objects%ROWTYPE;
+  v_size bigint;
+  v_mime text;
+  v_id   uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authenticated');
+  END IF;
+  SELECT * INTO v_r FROM public.commercial_artwork_change_requests WHERE id = p_request_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+  IF public.commercial_artwork_change_actor(v_r.company_id) IS DISTINCT FROM 'site_admin' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authorized');
+  END IF;
+  IF v_r.status NOT IN ('under_review', 'quoted', 'accepted') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_status', 'status', v_r.status);
+  END IF;
+  IF p_storage_path IS NULL OR p_storage_path NOT LIKE (v_r.id::text || '/%') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_path');
+  END IF;
+  IF p_declared_sha256 IS NULL OR p_declared_sha256 !~ '^[0-9a-f]{64}$' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_sha256');
+  END IF;
+  SELECT * INTO v_obj FROM storage.objects o
+   WHERE o.bucket_id = 'supplier-quote-documents' AND o.name = p_storage_path;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'storage_object_not_found');
+  END IF;
+  v_size := (v_obj.metadata->>'size')::bigint;
+  v_mime := nullif(v_obj.metadata->>'mimetype', '');
+  IF v_size IS NULL OR v_size <= 0 OR v_size > 20971520
+     OR v_mime IS NULL OR v_mime NOT IN ('application/pdf', 'image/png', 'image/jpeg') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_metadata');
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.commercial_artwork_change_supplier_documents
+              WHERE storage_bucket = 'supplier-quote-documents' AND storage_path = p_storage_path) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'path_already_registered');
+  END IF;
+  INSERT INTO public.commercial_artwork_change_supplier_documents
+    (request_id, storage_path, storage_object_id, mime_type, byte_size, declared_sha256, registered_by)
+  VALUES (v_r.id, p_storage_path, v_obj.id, v_mime, v_size, p_declared_sha256, auth.uid())
+  RETURNING id INTO v_id;
+  PERFORM public.commercial_artwork_change_event(v_r.id, 'supplier_document_registered', v_r.status, v_r.status,
+    'site_admin', pg_catalog.jsonb_build_object('document_id', v_id, 'declared_sha256', p_declared_sha256,
+                                                'byte_size', v_size));
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'document_id', v_id, 'attestation', 'pending');
+END $$;
+
+-- Atestado do servidor: SÓ service_role (código do backend que baixou os
+-- bytes do objeto e calculou o SHA-256). O objeto precisa ser o mesmo
+-- registrado (id e tamanho). Divergência com o declarado fica registrada e
+-- impede o orçamento.
+CREATE FUNCTION public.service_artwork_change_attest_supplier_document(
+  p_document_id uuid, p_storage_object_id uuid, p_computed_sha256 text, p_byte_size bigint)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_d   public.commercial_artwork_change_supplier_documents%ROWTYPE;
+  v_obj storage.objects%ROWTYPE;
+BEGIN
+  -- Autorização: EXECUTE só para service_role (GRANT abaixo).
+  SELECT * INTO v_d FROM public.commercial_artwork_change_supplier_documents WHERE id = p_document_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+  IF v_d.attested_sha256 IS NOT NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'already_attested',
+      'matches_declared', v_d.attested_sha256 = v_d.declared_sha256);
+  END IF;
+  IF p_computed_sha256 IS NULL OR p_computed_sha256 !~ '^[0-9a-f]{64}$' OR p_byte_size IS NULL OR p_byte_size <= 0 THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_attestation');
+  END IF;
+  SELECT * INTO v_obj FROM storage.objects o
+   WHERE o.bucket_id = v_d.storage_bucket AND o.name = v_d.storage_path;
+  IF NOT FOUND OR v_obj.id IS DISTINCT FROM v_d.storage_object_id OR p_storage_object_id IS DISTINCT FROM v_d.storage_object_id
+     OR (v_obj.metadata->>'size')::bigint IS DISTINCT FROM v_d.byte_size OR p_byte_size IS DISTINCT FROM v_d.byte_size THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'storage_object_changed');
+  END IF;
+  UPDATE public.commercial_artwork_change_supplier_documents
+     SET attested_sha256 = p_computed_sha256, attested_byte_size = p_byte_size,
+         attested_at = pg_catalog.now(), attested_by_role = 'service_role'
+   WHERE id = v_d.id;
+  PERFORM public.commercial_artwork_change_event(v_d.request_id, 'supplier_document_attested',
+    (SELECT status FROM public.commercial_artwork_change_requests WHERE id = v_d.request_id),
+    (SELECT status FROM public.commercial_artwork_change_requests WHERE id = v_d.request_id), 'system',
+    pg_catalog.jsonb_build_object('document_id', v_d.id, 'attested_sha256', p_computed_sha256,
+                                  'matches_declared', p_computed_sha256 = v_d.declared_sha256));
+  IF p_computed_sha256 <> v_d.declared_sha256 THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_sha256_mismatch',
+      'declared_sha256', v_d.declared_sha256, 'attested_sha256', p_computed_sha256);
+  END IF;
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'document_id', v_d.id, 'attested_sha256', p_computed_sha256);
+END $$;
+
+-- Documento utilizável num orçamento: da solicitação, atestado igual ao
+-- declarado, e o objeto do Storage ainda é o mesmo (id e tamanho).
+CREATE FUNCTION public.commercial_artwork_change_document_valid(p_document_id uuid, p_request_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+  SELECT coalesce((
+    SELECT d.attested_sha256 IS NOT NULL AND d.attested_sha256 = d.declared_sha256
+           AND d.attested_byte_size = d.byte_size
+           AND EXISTS (SELECT 1 FROM storage.objects o
+                        WHERE o.bucket_id = d.storage_bucket AND o.name = d.storage_path
+                          AND o.id = d.storage_object_id AND (o.metadata->>'size')::bigint = d.byte_size)
+      FROM public.commercial_artwork_change_supplier_documents d
+     WHERE d.id = p_document_id AND d.request_id = p_request_id), false);
+$$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_document_valid(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
+
+-- ===========================================================================
+-- E. ORÇAMENTO ITEMIZADO E PRESO AO DOCUMENTO ATESTADO (P1-4)
+-- ===========================================================================
+ALTER TABLE public.commercial_artwork_change_quotes
+  ADD COLUMN supplier_document_id uuid REFERENCES public.commercial_artwork_change_supplier_documents(id);
+ALTER TABLE public.commercial_artwork_change_quotes
+  ALTER COLUMN supplier_document_id SET NOT NULL,
+  ALTER COLUMN supplier_unit_cost_cents DROP NOT NULL,
+  DROP CONSTRAINT cacq_valores,
+  ADD CONSTRAINT cacq_valores CHECK (pieces_count > 0 AND supplier_total_cents > 0
+                                     AND cap_cents >= supplier_total_cents
+                                     AND (supplier_unit_cost_cents IS NULL
+                                          OR (supplier_unit_cost_cents > 0
+                                              AND pieces_count * supplier_unit_cost_cents = supplier_total_cents)));
+COMMENT ON COLUMN public.commercial_artwork_change_quotes.supplier_unit_cost_cents IS
+  'R4.2.1: preenchido so quando ha um unico item (preco linear: pecas x unitario = total). Preco nao linear = itens.';
+
+CREATE TABLE public.commercial_artwork_change_quote_items (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id          uuid NOT NULL REFERENCES public.commercial_artwork_change_quotes(id),
+  line_no           integer NOT NULL,
+  kind              text NOT NULL,
+  description       text NOT NULL,
+  document_locator  text NOT NULL,
+  quantity          integer NOT NULL,
+  unit_cost_cents   bigint NOT NULL,
+  line_total_cents  bigint NOT NULL,
+  CONSTRAINT cacqi_numero UNIQUE (quote_id, line_no),
+  CONSTRAINT cacqi_linha CHECK (line_no > 0),
+  -- Só fabricação das peças. Outras rubricas do fornecedor (matriz, setup,
+  -- frete, embalagem...) exigem decisão comercial própria: recusadas.
+  CONSTRAINT cacqi_tipo CHECK (kind = 'flag_pieces'),
+  CONSTRAINT cacqi_descricao CHECK (length(btrim(description)) >= 3 AND length(btrim(document_locator)) >= 1),
+  CONSTRAINT cacqi_valores CHECK (quantity > 0 AND unit_cost_cents > 0
+                                  AND line_total_cents = quantity * unit_cost_cents)
+);
+CREATE TRIGGER cacqi_append_only BEFORE UPDATE OR DELETE ON public.commercial_artwork_change_quote_items
+  FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_append_only();
+CREATE TRIGGER cacqi_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_quote_items
+  FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate();
+ALTER TABLE public.commercial_artwork_change_quote_items ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.commercial_artwork_change_quote_items FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON public.commercial_artwork_change_quote_items TO service_role;
+
+-- Conciliação no fim da transação (qualquer caminho): itens existem, soma
+-- das quantidades = peças, soma dos itens = total do fornecedor, unitário só
+-- com item único, documento atestado da mesma solicitação. Item depois do
+-- orçamento gravado também passa por aqui (e quebra a soma: recusado).
+CREATE FUNCTION public.commercial_artwork_change_quote_reconcile()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_q     public.commercial_artwork_change_quotes%ROWTYPE;
+  v_n     integer;
+  v_pecas bigint;
+  v_total bigint;
+  v_unit  bigint;
+BEGIN
+  SELECT * INTO v_q FROM public.commercial_artwork_change_quotes
+   WHERE id = CASE WHEN TG_TABLE_NAME = 'commercial_artwork_change_quotes' THEN NEW.id
+                   ELSE (pg_catalog.to_jsonb(NEW)->>'quote_id')::uuid END;
+  SELECT count(*), sum(quantity), sum(line_total_cents), min(unit_cost_cents)
+    INTO v_n, v_pecas, v_total, v_unit
+    FROM public.commercial_artwork_change_quote_items WHERE quote_id = v_q.id;
+  IF v_n = 0 THEN
+    RAISE EXCEPTION 'orcamento_sem_itens: orcamento % sem itens do documento do fornecedor', v_q.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF v_pecas <> v_q.pieces_count THEN
+    RAISE EXCEPTION 'orcamento_pecas_divergentes: itens % <> pecas %', v_pecas, v_q.pieces_count
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF v_total <> v_q.supplier_total_cents THEN
+    RAISE EXCEPTION 'orcamento_total_divergente: soma dos itens % <> total %', v_total, v_q.supplier_total_cents
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF (v_n = 1 AND v_q.supplier_unit_cost_cents IS DISTINCT FROM v_unit)
+     OR (v_n > 1 AND v_q.supplier_unit_cost_cents IS NOT NULL) THEN
+    RAISE EXCEPTION 'orcamento_unitario_divergente: unitario so com item unico e igual ao do item'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.commercial_artwork_change_supplier_documents d
+                  WHERE d.id = v_q.supplier_document_id AND d.request_id = v_q.request_id
+                    AND d.attested_sha256 IS NOT NULL AND d.attested_sha256 = d.declared_sha256
+                    AND d.attested_sha256 = v_q.supplier_document_sha256) THEN
+    RAISE EXCEPTION 'orcamento_documento_nao_atestado: documento do fornecedor nao atestado ou divergente'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION public.commercial_artwork_change_quote_reconcile() FROM PUBLIC, anon, authenticated, service_role;
+CREATE CONSTRAINT TRIGGER cacq_concilia AFTER INSERT ON public.commercial_artwork_change_quotes
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_quote_reconcile();
+CREATE CONSTRAINT TRIGGER cacqi_concilia AFTER INSERT ON public.commercial_artwork_change_quote_items
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_quote_reconcile();
+
+-- O orçamento declarado (sem documento atestado nem itens) deixa de existir.
+DROP FUNCTION public.admin_artwork_change_register_quote(uuid, integer, text, text, text, text, integer, bigint, bigint, bigint);
+
+CREATE FUNCTION public.admin_artwork_change_register_quote(
+  p_request_id uuid, p_expected_row_version integer, p_supplier_document_id uuid,
+  p_supplier_name text, p_supplier_document_reference text, p_scope text,
+  p_items jsonb, p_cap_cents bigint)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  g       record;
+  v_ver   uuid;
+  v_n     integer;
+  v_id    uuid;
+  v_doc   public.commercial_artwork_change_supplier_documents%ROWTYPE;
+  v_it    jsonb;
+  v_i     integer := 0;
+  v_qtd   bigint;
+  v_unit  bigint;
+  v_linha bigint;
+  v_pecas bigint := 0;
+  v_total bigint := 0;
+  v_u1    bigint;
+BEGIN
+  SELECT * INTO g FROM public.commercial_artwork_change_gate(p_request_id, p_expected_row_version,
+    ARRAY['site_admin'], ARRAY['under_review', 'quoted', 'accepted']);
+  IF g.refusal IS NOT NULL THEN RETURN g.refusal; END IF;
+  SELECT id INTO v_ver FROM public.commercial_artwork_change_versions
+   WHERE request_id = (g.r).id ORDER BY version_no DESC LIMIT 1;
+  IF v_ver IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'artwork_version_required');
+  END IF;
+  IF p_supplier_name IS NULL OR length(btrim(p_supplier_name)) < 2
+     OR p_supplier_document_reference IS NULL OR length(btrim(p_supplier_document_reference)) < 5
+     OR p_scope IS NULL OR length(btrim(p_scope)) < 5 THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_required');
+  END IF;
+  SELECT * INTO v_doc FROM public.commercial_artwork_change_supplier_documents
+   WHERE id = p_supplier_document_id AND request_id = (g.r).id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_not_found');
+  END IF;
+  IF v_doc.attested_sha256 IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_not_attested');
+  END IF;
+  IF NOT public.commercial_artwork_change_document_valid(v_doc.id, (g.r).id) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_sha256_mismatch',
+      'declared_sha256', v_doc.declared_sha256, 'attested_sha256', v_doc.attested_sha256);
+  END IF;
+  IF p_items IS NULL OR pg_catalog.jsonb_typeof(p_items) <> 'array' OR pg_catalog.jsonb_array_length(p_items) = 0
+     OR pg_catalog.jsonb_array_length(p_items) > 50 THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'quote_items_required');
+  END IF;
+  FOR v_it IN SELECT x FROM pg_catalog.jsonb_array_elements(p_items) x LOOP
+    v_i := v_i + 1;
+    IF coalesce(v_it->>'kind', '') <> 'flag_pieces' THEN
+      RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'quote_item_kind_not_allowed', 'line_no', v_i);
+    END IF;
+    IF coalesce(v_it->>'quantity', '') !~ '^[0-9]{1,9}$' OR coalesce(v_it->>'unit_cost_cents', '') !~ '^[0-9]{1,12}$'
+       OR coalesce(v_it->>'line_total_cents', '') !~ '^[0-9]{1,15}$'
+       OR length(btrim(coalesce(v_it->>'description', ''))) < 3
+       OR length(btrim(coalesce(v_it->>'document_locator', ''))) < 1 THEN
+      RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_quote_item', 'line_no', v_i);
+    END IF;
+    v_qtd := (v_it->>'quantity')::bigint;
+    v_unit := (v_it->>'unit_cost_cents')::bigint;
+    v_linha := (v_it->>'line_total_cents')::bigint;
+    IF v_qtd <= 0 OR v_unit <= 0 OR v_linha <> v_qtd * v_unit THEN
+      RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'quote_item_total_mismatch', 'line_no', v_i,
+        'quantity', v_qtd, 'unit_cost_cents', v_unit, 'line_total_cents', v_linha);
+    END IF;
+    v_pecas := v_pecas + v_qtd;
+    v_total := v_total + v_linha;
+    v_u1 := v_unit;
+  END LOOP;
+  IF p_cap_cents IS NULL OR p_cap_cents < v_total THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'invalid_quote_values');
+  END IF;
+
+  UPDATE public.commercial_artwork_change_quotes SET status = 'superseded'
+   WHERE request_id = (g.r).id AND status IN ('open', 'accepted');
+  SELECT coalesce(max(quote_no), 0) + 1 INTO v_n FROM public.commercial_artwork_change_quotes
+   WHERE request_id = (g.r).id;
+  INSERT INTO public.commercial_artwork_change_quotes
+    (request_id, quote_no, artwork_version_id, supplier_name, supplier_document_reference,
+     supplier_document_sha256, supplier_document_id, scope, pieces_count, supplier_unit_cost_cents,
+     supplier_total_cents, cap_cents, registered_by)
+  VALUES ((g.r).id, v_n, v_ver, btrim(p_supplier_name), btrim(p_supplier_document_reference),
+          v_doc.attested_sha256, v_doc.id, btrim(p_scope), v_pecas,
+          CASE WHEN v_i = 1 THEN v_u1 END, v_total, p_cap_cents, auth.uid())
+  RETURNING id INTO v_id;
+  INSERT INTO public.commercial_artwork_change_quote_items
+    (quote_id, line_no, kind, description, document_locator, quantity, unit_cost_cents, line_total_cents)
+  SELECT v_id, o.n, 'flag_pieces', btrim(o.x->>'description'), btrim(o.x->>'document_locator'),
+         (o.x->>'quantity')::integer, (o.x->>'unit_cost_cents')::bigint, (o.x->>'line_total_cents')::bigint
+    FROM pg_catalog.jsonb_array_elements(p_items) WITH ORDINALITY o(x, n);
+  UPDATE public.commercial_artwork_change_requests
+     SET row_version = row_version + 1, status = 'quoted', accepted_quote_id = NULL,
+         accepted_total_cents = NULL, accepted_by = NULL, accepted_at = NULL
+   WHERE id = (g.r).id;
+  PERFORM public.commercial_artwork_change_event((g.r).id,
+    CASE WHEN (g.r).status = 'accepted' THEN 'quote_revised_acceptance_cleared' ELSE 'quote_registered' END,
+    (g.r).status, 'quoted', 'site_admin',
+    pg_catalog.jsonb_build_object('quote_id', v_id, 'quote_no', v_n, 'supplier_total_cents', v_total,
+                                  'pieces_count', v_pecas, 'items', v_i, 'cap_cents', p_cap_cents,
+                                  'supplier_document_id', v_doc.id, 'supplier_document_sha256', v_doc.attested_sha256,
+                                  'artwork_version_id', v_ver));
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'quote_id', v_id, 'quote_no', v_n, 'status', 'quoted',
+    'pieces_count', v_pecas, 'partner_charge_cents', v_total, 'row_version', (g.r).row_version + 1);
+END $$;
+
+-- Aceite: o owner confirma o valor exato E o SHA-256 do documento que viu.
+DROP FUNCTION public.artwork_change_accept_quote(uuid, integer, uuid, bigint);
+CREATE FUNCTION public.artwork_change_accept_quote(
+  p_request_id uuid, p_expected_row_version integer, p_quote_id uuid, p_accepted_total_cents bigint,
+  p_supplier_document_sha256 text)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  g   record;
+  v_q public.commercial_artwork_change_quotes%ROWTYPE;
+BEGIN
+  SELECT * INTO g FROM public.commercial_artwork_change_gate(p_request_id, p_expected_row_version,
+    ARRAY['partner_owner'], ARRAY['quoted']);
+  IF g.refusal IS NOT NULL THEN RETURN g.refusal; END IF;
+  SELECT * INTO v_q FROM public.commercial_artwork_change_quotes
+   WHERE id = p_quote_id AND request_id = (g.r).id;
+  IF NOT FOUND OR v_q.status <> 'open' THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'quote_not_current');
+  END IF;
+  IF v_q.artwork_version_id IS DISTINCT FROM (SELECT id FROM public.commercial_artwork_change_versions
+                                               WHERE request_id = (g.r).id ORDER BY version_no DESC LIMIT 1) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'quote_not_current');
+  END IF;
+  IF p_accepted_total_cents IS DISTINCT FROM v_q.partner_charge_cents OR v_q.partner_charge_cents > v_q.cap_cents THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'accepted_total_mismatch',
+      'partner_charge_cents', v_q.partner_charge_cents, 'cap_cents', v_q.cap_cents);
+  END IF;
+  IF p_supplier_document_sha256 IS DISTINCT FROM v_q.supplier_document_sha256 THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_mismatch');
+  END IF;
+  IF NOT public.commercial_artwork_change_document_valid(v_q.supplier_document_id, (g.r).id) THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'supplier_document_not_valid');
+  END IF;
+  UPDATE public.commercial_artwork_change_quotes SET status = 'accepted' WHERE id = v_q.id;
+  UPDATE public.commercial_artwork_change_requests
+     SET row_version = row_version + 1, status = 'accepted', accepted_quote_id = v_q.id,
+         accepted_total_cents = v_q.partner_charge_cents, accepted_by = auth.uid(), accepted_at = pg_catalog.now()
+   WHERE id = (g.r).id;
+  PERFORM public.commercial_artwork_change_event((g.r).id, 'quote_accepted', 'quoted', 'accepted', 'partner_owner',
+    pg_catalog.jsonb_build_object('quote_id', v_q.id, 'partner_charge_cents', v_q.partner_charge_cents,
+                                  'cap_cents', v_q.cap_cents, 'supplier_document_sha256', v_q.supplier_document_sha256));
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'status', 'accepted', 'row_version', (g.r).row_version + 1);
+END $$;
+
+REVOKE ALL ON FUNCTION public.admin_artwork_change_supplier_document_path(uuid),
+                       public.admin_artwork_change_register_supplier_document(uuid, text, text),
+                       public.service_artwork_change_attest_supplier_document(uuid, uuid, text, bigint),
+                       public.admin_artwork_change_register_quote(uuid, integer, uuid, text, text, text, jsonb, bigint),
+                       public.artwork_change_accept_quote(uuid, integer, uuid, bigint, text)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_artwork_change_supplier_document_path(uuid),
+                          public.admin_artwork_change_register_supplier_document(uuid, text, text),
+                          public.admin_artwork_change_register_quote(uuid, integer, uuid, text, text, text, jsonb, bigint),
+                          public.artwork_change_accept_quote(uuid, integer, uuid, bigint, text)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.service_artwork_change_attest_supplier_document(uuid, uuid, text, bigint) TO service_role;
+
+
+-- Leitura: owner, membro (manager) e administrador. Agora com a campanha
+-- alvo, a prontidão, os itens do orçamento e o documento atestado.
+CREATE OR REPLACE FUNCTION public.artwork_change_requests_for_order(p_order_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $$
+DECLARE
+  v_o    public.commercial_exclusivity_orders%ROWTYPE;
+  v_ator text;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authenticated');
+  END IF;
+  SELECT * INTO v_o FROM public.commercial_exclusivity_orders WHERE id = p_order_id;
+  IF NOT FOUND THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+  v_ator := public.commercial_artwork_change_actor(v_o.company_id);
+  IF v_ator IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'reason', 'not_authorized');
+  END IF;
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'viewer_role', v_ator,
+    'can_request', v_ator = 'partner_owner',
+    'requests', coalesce((
+      SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+        'request_id', r.id, 'status', r.status, 'row_version', r.row_version,
+        'target_campaign', r.target_campaign, 'target_sequence_number', r.target_sequence_number,
+        'phrase_text', r.phrase_text,
+        'created_at', r.created_at, 'updated_at', r.updated_at,
+        'exception_approved', r.exception_approved_by IS NOT NULL,
+        'accepted_total_cents', r.accepted_total_cents, 'closed_reason', r.closed_reason,
+        'readiness', public.commercial_artwork_change_readiness(r.id),
+        'versions', coalesce((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+            'version_id', v.id, 'version_no', v.version_no, 'storage_path', v.storage_path,
+            'mime_type', v.mime_type, 'byte_size', v.byte_size, 'sha256', v.sha256,
+            'phrase_text', v.phrase_text, 'registered_at', v.registered_at) ORDER BY v.version_no)
+          FROM public.commercial_artwork_change_versions v WHERE v.request_id = r.id), '[]'::jsonb),
+        'quote', (SELECT pg_catalog.jsonb_build_object(
+            'quote_id', q.id, 'quote_no', q.quote_no, 'status', q.status,
+            'artwork_version_id', q.artwork_version_id, 'supplier_name', q.supplier_name,
+            'supplier_document_reference', q.supplier_document_reference, 'scope', q.scope,
+            'pieces_count', q.pieces_count, 'supplier_unit_cost_cents', q.supplier_unit_cost_cents,
+            'supplier_total_cents', q.supplier_total_cents, 'partner_charge_cents', q.partner_charge_cents,
+            'cap_cents', q.cap_cents, 'excluded_items', pg_catalog.to_jsonb(q.excluded_items),
+            'supplier_document', (SELECT pg_catalog.jsonb_build_object(
+                'document_id', d.id, 'storage_bucket', d.storage_bucket, 'storage_path', d.storage_path,
+                'mime_type', d.mime_type, 'byte_size', d.byte_size, 'sha256', d.attested_sha256,
+                'attested', d.attested_sha256 IS NOT NULL AND d.attested_sha256 = d.declared_sha256,
+                'valid', public.commercial_artwork_change_document_valid(d.id, r.id))
+              FROM public.commercial_artwork_change_supplier_documents d WHERE d.id = q.supplier_document_id),
+            'items', coalesce((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                'line_no', it.line_no, 'kind', it.kind, 'description', it.description,
+                'document_locator', it.document_locator, 'quantity', it.quantity,
+                'unit_cost_cents', it.unit_cost_cents, 'line_total_cents', it.line_total_cents) ORDER BY it.line_no)
+              FROM public.commercial_artwork_change_quote_items it WHERE it.quote_id = q.id), '[]'::jsonb))
+          FROM public.commercial_artwork_change_quotes q
+         WHERE q.request_id = r.id AND q.status IN ('open', 'accepted')
+         ORDER BY q.quote_no DESC LIMIT 1))
+        ORDER BY r.created_at DESC)
+        FROM public.commercial_artwork_change_requests r WHERE r.base_order_id = v_o.id), '[]'::jsonb));
+END $$;
+
+-- ===========================================================================
+-- F. CATÁLOGO DAS GUARDAS, VERSÃO 2 (P1-3)
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.commercial_guard_catalog()
+RETURNS jsonb
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $catalogo2$
+  WITH tabelas AS (
+    SELECT x.nome, pg_catalog.to_regclass('public.' || x.nome) AS rel
+      FROM pg_catalog.unnest(ARRAY[
+        'commercial_pricing_rules', 'commercial_pricing_schedule', 'commercial_settlement_terms',
+        'commercial_checkout_intents', 'commercial_exclusivity_orders', 'commercial_payments',
+        'commercial_pricing_activation_log', 'commercial_pricing_activation_approvals',
+        'commercial_flag_sets', 'commercial_flag_set_inspections',
+        'commercial_instrument_template_approvals', 'commercial_qa_operational_procedures',
+        'commercial_guard_manifests',
+        'commercial_artwork_change_requests', 'commercial_artwork_change_versions',
+        'commercial_artwork_change_quotes', 'commercial_artwork_change_quote_items',
+        'commercial_artwork_change_events', 'commercial_artwork_change_supplier_documents']) AS x(nome)
+  ), gatilhos AS (
+    SELECT t.*
+      FROM pg_catalog.pg_trigger t
+      JOIN tabelas ON tabelas.rel = t.tgrelid
+     WHERE NOT t.tgisinternal
+  ), funcoes AS (
+    SELECT p.oid
+      FROM pg_catalog.pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND p.proname = ANY (ARRAY[
+         'admin_activate_pricing_rule', 'commercial_pricing_activation_preflight',
+         'commercial_activation_called_by_procedure', 'commercial_activation_guard_fingerprint',
+         'commercial_guard_function_entry', 'commercial_guard_catalog', 'commercial_guard_integrity_failures',
+         'admin_confirm_manual_bdflow_payment', 'commercial_build_instrument_snapshot',
+         'commercial_order_settlement_check',
+         'commercial_artwork_change_actor', 'commercial_artwork_change_gate', 'commercial_artwork_change_event',
+         'commercial_artwork_change_lock', 'commercial_artwork_change_readiness',
+         'commercial_artwork_change_renewal_state', 'commercial_artwork_change_document_valid',
+         'commercial_artwork_change_document_readable', 'commercial_artwork_change_quote_reconcile',
+         'artwork_change_request_create', 'artwork_change_image_path', 'artwork_change_register_version',
+         'artwork_change_submit', 'artwork_change_accept_quote', 'artwork_change_cancel',
+         'artwork_change_requests_for_order', 'admin_artwork_change_start_review',
+         'admin_artwork_change_register_quote', 'admin_artwork_change_approve_exception',
+         'admin_artwork_change_authorize_production', 'admin_artwork_change_reject',
+         'admin_artwork_change_supplier_document_path', 'admin_artwork_change_register_supplier_document',
+         'service_artwork_change_attest_supplier_document',
+         'commercial_order_artwork_locked', 'request_customization_image_path', 'register_customization_image',
+         'create_commercial_checkout_intent', 'commercial_flag_reuse_resolution', 'commercial_fidelity_identity',
+         'is_site_admin', 'm2_is_company_owner', 'm2_is_company_member'])
+    UNION
+    SELECT g.tgfoid FROM gatilhos g
+  ), entrada AS (
+    SELECT p.oid,
+           pg_catalog.jsonb_build_object('definition_sha256',
+             pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(pg_catalog.pg_get_functiondef(p.oid), 'UTF8')), 'hex'))
+           || CASE WHEN p.prorettype = 'trigger'::pg_catalog.regtype THEN '{}'::jsonb
+                   ELSE pg_catalog.jsonb_build_object('execute', coalesce((
+                          SELECT pg_catalog.jsonb_agg(x.r ORDER BY x.r)
+                            FROM (SELECT DISTINCT coalesce(nullif(g.grantee, 0)::pg_catalog.regrole::text, 'PUBLIC') AS r
+                                    FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) g
+                                   WHERE g.privilege_type = 'EXECUTE' AND g.grantee <> p.proowner) x),
+                          '[]'::jsonb))
+              END AS e
+      FROM pg_catalog.pg_proc p
+     WHERE p.oid IN (SELECT oid FROM funcoes)
+  ), tab AS (
+    SELECT tb.nome, tb.rel,
+      pg_catalog.jsonb_build_object(
+        'table', 'public.' || tb.nome,
+        'present', tb.rel IS NOT NULL,
+        'rls', c.relrowsecurity,
+        'rls_forced', c.relforcerowsecurity,
+        'acl', coalesce((SELECT pg_catalog.jsonb_agg(x.r ORDER BY x.r)
+                           FROM (SELECT DISTINCT coalesce(nullif(a.grantee, 0)::pg_catalog.regrole::text, 'PUBLIC')
+                                          || ':' || a.privilege_type AS r
+                                   FROM pg_catalog.aclexplode(coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))) a
+                                  -- MAINTAIN (PG17+) fora: só manutenção, não altera dados.
+                                  WHERE a.grantee <> c.relowner AND a.privilege_type <> 'MAINTAIN') x), '[]'::jsonb),
+        'columns_sha256', pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(coalesce((
+            SELECT pg_catalog.string_agg(pg_catalog.concat_ws('|', a.attname,
+                     pg_catalog.format_type(a.atttypid, a.atttypmod), a.attnotnull::text, a.attgenerated::text,
+                     a.attidentity::text, pg_catalog.pg_get_expr(d.adbin, d.adrelid)), E'\n' ORDER BY a.attnum)
+              FROM pg_catalog.pg_attribute a
+              LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+             WHERE a.attrelid = tb.rel AND a.attnum > 0 AND NOT a.attisdropped), ''), 'UTF8')), 'hex'),
+        'constraints', coalesce((SELECT pg_catalog.jsonb_object_agg(k.conname, pg_catalog.pg_get_constraintdef(k.oid))
+                                   FROM pg_catalog.pg_constraint k WHERE k.conrelid = tb.rel), '{}'::jsonb),
+        'indexes', coalesce((SELECT pg_catalog.jsonb_object_agg(ic.relname, pg_catalog.pg_get_indexdef(i.indexrelid))
+                               FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
+                              WHERE i.indrelid = tb.rel), '{}'::jsonb),
+        'policies', coalesce((SELECT pg_catalog.jsonb_object_agg(po.polname, pg_catalog.jsonb_build_object(
+                                 'cmd', po.polcmd::text, 'permissive', po.polpermissive,
+                                 'roles', (SELECT pg_catalog.jsonb_agg(coalesce(nullif(r, 0)::pg_catalog.regrole::text, 'PUBLIC') ORDER BY 1)
+                                             FROM pg_catalog.unnest(po.polroles) r),
+                                 'using', pg_catalog.pg_get_expr(po.polqual, po.polrelid),
+                                 'check', pg_catalog.pg_get_expr(po.polwithcheck, po.polrelid)))
+                                FROM pg_catalog.pg_policy po WHERE po.polrelid = tb.rel), '{}'::jsonb)) AS j
+      FROM tabelas tb LEFT JOIN pg_catalog.pg_class c ON c.oid = tb.rel
+  )
+  SELECT pg_catalog.jsonb_build_object(
+    'format', 'smallflags-guard-catalog/2 (R4.2.1, sha256)',
+    'tables', (SELECT pg_catalog.jsonb_agg(tab.j ORDER BY tab.nome) FROM tab),
+    'functions', coalesce((SELECT pg_catalog.jsonb_object_agg(en.oid::pg_catalog.regprocedure::text, en.e)
+                             FROM entrada en), '{}'::jsonb),
+    'triggers', coalesce((SELECT pg_catalog.jsonb_object_agg(
+        g.tgrelid::pg_catalog.regclass::text || '.' || g.tgname,
+        pg_catalog.jsonb_build_object(
+          'state', g.tgenabled::text,
+          'definition', pg_catalog.pg_get_triggerdef(g.oid, false),
+          'definition_sha256', pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(
+                                 pg_catalog.pg_get_triggerdef(g.oid, false), 'UTF8')), 'hex'),
+          'function', g.tgfoid::pg_catalog.regprocedure::text,
+          'function_sha256', en.e->>'definition_sha256',
+          'tgtype', g.tgtype,
+          'args_sha256', pg_catalog.encode(pg_catalog.sha256(g.tgargs), 'hex'),
+          'when', pg_catalog.pg_get_expr(g.tgqual, g.tgrelid),
+          'columns', g.tgattr::text,
+          'deferrable', g.tgdeferrable,
+          'initially_deferred', g.tginitdeferred))
+        FROM gatilhos g JOIN entrada en ON en.oid = g.tgfoid), '{}'::jsonb),
+    'storage', pg_catalog.jsonb_build_object(
+      'objects_rls', (SELECT c.relrowsecurity FROM pg_catalog.pg_class c
+                       WHERE c.oid = pg_catalog.to_regclass('storage.objects')),
+      'buckets', coalesce((SELECT pg_catalog.jsonb_object_agg(b.id, pg_catalog.jsonb_build_object(
+                             'public', b.public, 'file_size_limit', b.file_size_limit,
+                             'allowed_mime_types', pg_catalog.to_jsonb(b.allowed_mime_types)))
+                             FROM storage.buckets b
+                            WHERE b.id IN ('partner-customization-images', 'supplier-quote-documents')), '{}'::jsonb),
+      'policies', coalesce((SELECT pg_catalog.jsonb_object_agg(po.polname, pg_catalog.jsonb_build_object(
+                             'cmd', po.polcmd::text, 'permissive', po.polpermissive,
+                             'roles', (SELECT pg_catalog.jsonb_agg(coalesce(nullif(r, 0)::pg_catalog.regrole::text, 'PUBLIC') ORDER BY 1)
+                                         FROM pg_catalog.unnest(po.polroles) r),
+                             'using', pg_catalog.pg_get_expr(po.polqual, po.polrelid),
+                             'check', pg_catalog.pg_get_expr(po.polwithcheck, po.polrelid)))
+                             FROM pg_catalog.pg_policy po
+                            WHERE po.polrelid = pg_catalog.to_regclass('storage.objects')
+                              AND (coalesce(pg_catalog.pg_get_expr(po.polqual, po.polrelid), '')
+                                   || coalesce(pg_catalog.pg_get_expr(po.polwithcheck, po.polrelid), ''))
+                                  ~ '(partner-customization-images|supplier-quote-documents)'), '{}'::jsonb)));
+$catalogo2$;
+
+CREATE OR REPLACE FUNCTION public.commercial_guard_integrity_failures()
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_m     public.commercial_guard_manifests%ROWTYPE;
+  v_viva  jsonb;
+  v_f     text[] := ARRAY[]::text[];
+  v_k     text;
+  v_a     jsonb;
+  v_b     jsonb;
+  v_camp  text;
+  v_dif   text[];
+BEGIN
+  IF pg_catalog.current_setting('session_replication_role') <> 'origin' THEN
+    v_f := v_f || ('session_replication_role_not_origin:' || pg_catalog.current_setting('session_replication_role'));
+  END IF;
+  SELECT * INTO v_m FROM public.commercial_guard_manifests ORDER BY id DESC LIMIT 1;
+  IF NOT FOUND THEN
+    RETURN v_f || 'guard_manifest_missing'::text;
+  END IF;
+  v_viva := public.commercial_guard_catalog();
+
+  FOR v_k IN SELECT pg_catalog.jsonb_object_keys(v_m.catalog->'triggers') LOOP
+    v_a := v_m.catalog->'triggers'->v_k;
+    v_b := v_viva->'triggers'->v_k;
+    IF v_b IS NULL THEN
+      v_f := v_f || ('guard_trigger_missing:' || v_k);
+      CONTINUE;
+    END IF;
+    IF v_b->>'state' IS DISTINCT FROM v_a->>'state' THEN
+      v_f := v_f || format('guard_trigger_state_not_approved:%s:%s(aprovado %s)', v_k, v_b->>'state', v_a->>'state');
+    END IF;
+    v_dif := ARRAY[]::text[];
+    FOREACH v_camp IN ARRAY ARRAY['definition_sha256', 'function', 'function_sha256', 'tgtype',
+                                  'args_sha256', 'when', 'columns', 'deferrable', 'initially_deferred'] LOOP
+      IF v_b->v_camp IS DISTINCT FROM v_a->v_camp THEN
+        v_dif := v_dif || v_camp;
+      END IF;
+    END LOOP;
+    IF array_length(v_dif, 1) > 0 THEN
+      v_f := v_f || format('guard_trigger_definition_divergent:%s:%s', v_k, array_to_string(v_dif, ','));
+    END IF;
+  END LOOP;
+  FOR v_k IN SELECT pg_catalog.jsonb_object_keys(v_viva->'triggers')
+             EXCEPT SELECT pg_catalog.jsonb_object_keys(v_m.catalog->'triggers') LOOP
+    v_f := v_f || ('guard_trigger_not_approved:' || v_k);
+  END LOOP;
+
+  FOR v_k IN SELECT pg_catalog.jsonb_object_keys(v_m.catalog->'functions')
+             UNION SELECT pg_catalog.jsonb_object_keys(v_viva->'functions') LOOP
+    IF v_viva->'functions'->v_k IS NULL THEN
+      v_f := v_f || ('guard_function_missing:' || v_k);
+    ELSIF v_m.catalog->'functions'->v_k IS NULL THEN
+      v_f := v_f || ('guard_function_not_approved:' || v_k);
+    ELSIF v_viva->'functions'->v_k IS DISTINCT FROM v_m.catalog->'functions'->v_k THEN
+      v_f := v_f || ('guard_function_divergent:' || v_k);
+    END IF;
+  END LOOP;
+  -- R4.2.1: por tabela (colunas, restrições, índices, RLS, permissões,
+  -- políticas) e Storage (buckets e políticas dos dois buckets).
+  FOR v_k IN SELECT x->>'table' FROM pg_catalog.jsonb_array_elements(coalesce(v_m.catalog->'tables', '[]')) x
+             UNION SELECT x->>'table' FROM pg_catalog.jsonb_array_elements(coalesce(v_viva->'tables', '[]')) x LOOP
+    v_a := (SELECT x FROM pg_catalog.jsonb_array_elements(v_m.catalog->'tables') x WHERE x->>'table' = v_k);
+    v_b := (SELECT x FROM pg_catalog.jsonb_array_elements(v_viva->'tables') x WHERE x->>'table' = v_k);
+    IF v_a IS NULL THEN
+      v_f := v_f || ('guard_table_not_approved:' || v_k);
+    ELSIF v_b IS NULL THEN
+      v_f := v_f || ('guard_table_missing:' || v_k);
+    ELSIF v_a IS DISTINCT FROM v_b THEN
+      v_dif := ARRAY(SELECT k FROM pg_catalog.jsonb_object_keys(v_a || v_b) k
+                      WHERE v_a->k IS DISTINCT FROM v_b->k ORDER BY 1);
+      v_f := v_f || format('guard_table_divergent:%s:%s', v_k, array_to_string(v_dif, ','));
+    END IF;
+  END LOOP;
+  IF v_viva->'storage' IS DISTINCT FROM v_m.catalog->'storage' THEN
+    v_dif := ARRAY(SELECT k FROM pg_catalog.jsonb_object_keys(coalesce(v_m.catalog->'storage', '{}') || coalesce(v_viva->'storage', '{}')) k
+                    WHERE v_m.catalog->'storage'->k IS DISTINCT FROM v_viva->'storage'->k ORDER BY 1);
+    v_f := v_f || format('guard_storage_divergent:%s', array_to_string(v_dif, ','));
+  END IF;
+  -- Rede de segurança: qualquer diferença não nomeada acima.
+  IF v_viva IS DISTINCT FROM v_m.catalog AND NOT EXISTS (
+       SELECT 1 FROM pg_catalog.unnest(v_f) x WHERE x NOT LIKE 'session_replication_role%') THEN
+    v_f := v_f || 'guard_manifest_divergent'::text;
+  END IF;
+  RETURN v_f;
+END $function$;
+
+-- ===========================================================================
+-- G. MANIFESTO APROVADO R4.2.1 — docs/release/R421_MANIFESTO_GUARDAS.json
+--    (SHA-256 812e47cd2f22b27c27d2cfbeca3cfca8f624bbda87fd6a27f594a411f98e662f). Catálogo versão 2: inclui as
+--    tabelas da alteração de arte, RPCs, restrições, índices, colunas, RLS,
+--    permissões e Storage. R4.1 e R4.2 permanecem como linhas históricas.
+-- ===========================================================================
+INSERT INTO public.commercial_guard_manifests (manifest_label, catalog, source_reference)
+VALUES ('R4.2.1', $manifesto_r421${"format": "smallflags-guard-catalog/2 (R4.2.1, sha256)", "tables": [{"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_artwork_change_events", "indexes": {"cace_pedido_idx": "CREATE INDEX cace_pedido_idx ON public.commercial_artwork_change_events USING btree (request_id, id)", "commercial_artwork_change_events_pkey": "CREATE UNIQUE INDEX commercial_artwork_change_events_pkey ON public.commercial_artwork_change_events USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cace_papel": "CHECK ((actor_role = ANY (ARRAY['partner_owner'::text, 'site_admin'::text, 'system'::text])))", "commercial_artwork_change_events_pkey": "PRIMARY KEY (id)", "commercial_artwork_change_events_request_id_fkey": "FOREIGN KEY (request_id) REFERENCES public.commercial_artwork_change_requests(id)"}, "columns_sha256": "93986f1cc71aa4a08895b0cac621584cb05126db7a80b296b772f8665b42b44d"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_artwork_change_quote_items", "indexes": {"cacqi_numero": "CREATE UNIQUE INDEX cacqi_numero ON public.commercial_artwork_change_quote_items USING btree (quote_id, line_no)", "commercial_artwork_change_quote_items_pkey": "CREATE UNIQUE INDEX commercial_artwork_change_quote_items_pkey ON public.commercial_artwork_change_quote_items USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cacqi_tipo": "CHECK ((kind = 'flag_pieces'::text))", "cacqi_linha": "CHECK ((line_no > 0))", "cacqi_numero": "UNIQUE (quote_id, line_no)", "cacqi_valores": "CHECK (((quantity > 0) AND (unit_cost_cents > 0) AND (line_total_cents = (quantity * unit_cost_cents))))", "cacqi_concilia": "TRIGGER DEFERRABLE INITIALLY DEFERRED", "cacqi_descricao": "CHECK (((length(btrim(description)) >= 3) AND (length(btrim(document_locator)) >= 1)))", "commercial_artwork_change_quote_items_pkey": "PRIMARY KEY (id)", "commercial_artwork_change_quote_items_quote_id_fkey": "FOREIGN KEY (quote_id) REFERENCES public.commercial_artwork_change_quotes(id)"}, "columns_sha256": "bd12649ef1fd07fc3981d36f26749d7923235530a65643eabbedea10b4c6718c"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_artwork_change_quotes", "indexes": {"cacq_numero": "CREATE UNIQUE INDEX cacq_numero ON public.commercial_artwork_change_quotes USING btree (request_id, quote_no)", "cacq_um_aberto_idx": "CREATE UNIQUE INDEX cacq_um_aberto_idx ON public.commercial_artwork_change_quotes USING btree (request_id) WHERE (status = 'open'::text)", "commercial_artwork_change_quotes_pkey": "CREATE UNIQUE INDEX commercial_artwork_change_quotes_pkey ON public.commercial_artwork_change_quotes USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cacq_escopo": "CHECK ((length(btrim(scope)) >= 5))", "cacq_numero": "UNIQUE (request_id, quote_no)", "cacq_status": "CHECK ((status = ANY (ARRAY['open'::text, 'superseded'::text, 'accepted'::text])))", "cacq_valores": "CHECK (((pieces_count > 0) AND (supplier_total_cents > 0) AND (cap_cents >= supplier_total_cents) AND ((supplier_unit_cost_cents IS NULL) OR ((supplier_unit_cost_cents > 0) AND ((pieces_count * supplier_unit_cost_cents) = supplier_total_cents)))))", "cacq_concilia": "TRIGGER DEFERRABLE INITIALLY DEFERRED", "cacq_documento": "CHECK (((length(btrim(supplier_document_reference)) >= 5) AND (supplier_document_sha256 ~ '^[0-9a-f]{64}$'::text)))", "cacq_fornecedor": "CHECK ((length(btrim(supplier_name)) >= 2))", "cacq_nao_incluidos": "CHECK ((excluded_items @> ARRAY['frete'::text, 'criacao_de_arte'::text, 'instalacao'::text, 'tributos'::text, 'servicos'::text]))", "commercial_artwork_change_quotes_pkey": "PRIMARY KEY (id)", "commercial_artwork_change_quotes_request_id_fkey": "FOREIGN KEY (request_id) REFERENCES public.commercial_artwork_change_requests(id)", "commercial_artwork_change_quotes_artwork_version_id_fkey": "FOREIGN KEY (artwork_version_id) REFERENCES public.commercial_artwork_change_versions(id)", "commercial_artwork_change_quotes_supplier_document_id_fkey": "FOREIGN KEY (supplier_document_id) REFERENCES public.commercial_artwork_change_supplier_documents(id)"}, "columns_sha256": "0f987abd0e192d0f2f0268b725a2ca797d7d8612bbf519261a494803e1d8a6ca"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_artwork_change_requests", "indexes": {"cacr_pedido_idx": "CREATE INDEX cacr_pedido_idx ON public.commercial_artwork_change_requests USING btree (base_order_id, created_at DESC)", "cacr_uma_aberta_idx": "CREATE UNIQUE INDEX cacr_uma_aberta_idx ON public.commercial_artwork_change_requests USING btree (company_id, fidelity_identity) WHERE (status = ANY (ARRAY['draft'::text, 'submitted'::text, 'under_review'::text, 'quoted'::text, 'accepted'::text]))", "cacr_uma_por_campanha_idx": "CREATE UNIQUE INDEX cacr_uma_por_campanha_idx ON public.commercial_artwork_change_requests USING btree (company_id, fidelity_identity, target_region_id, target_sequence_number) WHERE (status <> ALL (ARRAY['cancelled'::text, 'rejected'::text]))", "commercial_artwork_change_requests_pkey": "CREATE UNIQUE INDEX commercial_artwork_change_requests_pkey ON public.commercial_artwork_change_requests USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cacr_alvo": "CHECK ((target_campaign = ANY (ARRAY['next_campaign'::text, 'current_campaign'::text])))", "cacr_frase": "CHECK (((phrase_text IS NULL) OR ((length(btrim(phrase_text)) >= 1) AND (length(btrim(phrase_text)) <= 280))))", "cacr_status": "CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'under_review'::text, 'quoted'::text, 'accepted'::text, 'production_authorized'::text, 'rejected'::text, 'cancelled'::text])))", "cacr_identidade": "CHECK (((fidelity_identity ~ '^[a-z][a-z_]{2,63}$'::text) OR (fidelity_identity ~ '^segment:[a-z][a-z0-9_]{2,63}$'::text)))", "cacr_alvo_sequencia": "CHECK ((target_sequence_number > 0))", "cacr_aceite_coerente": "CHECK ((((status = ANY (ARRAY['accepted'::text, 'production_authorized'::text])) AND (accepted_quote_id IS NOT NULL) AND (accepted_total_cents > 0) AND (accepted_by IS NOT NULL) AND (accepted_at IS NOT NULL)) OR ((status <> ALL (ARRAY['accepted'::text, 'production_authorized'::text])) AND (accepted_quote_id IS NULL) AND (accepted_total_cents IS NULL) AND (accepted_by IS NULL) AND (accepted_at IS NULL)) OR (status = ANY (ARRAY['cancelled'::text, 'rejected'::text]))))", "cacr_excecao_coerente": "CHECK ((((exception_approved_by IS NULL) AND (exception_approved_at IS NULL) AND (exception_reason IS NULL) AND (exception_feasibility IS NULL)) OR ((target_campaign = 'current_campaign'::text) AND (exception_approved_by IS NOT NULL) AND (exception_approved_at IS NOT NULL) AND (length(btrim(exception_reason)) >= 10) AND (length(btrim(exception_feasibility)) >= 10))))", "cacr_producao_coerente": "CHECK ((((status = 'production_authorized'::text) AND (production_authorized_by IS NOT NULL) AND (production_authorized_at IS NOT NULL) AND ((target_campaign = 'next_campaign'::text) OR (exception_approved_by IS NOT NULL))) OR ((status <> 'production_authorized'::text) AND (production_authorized_by IS NULL) AND (production_authorized_at IS NULL))))", "cacr_encerramento_coerente": "CHECK ((((status = ANY (ARRAY['cancelled'::text, 'rejected'::text])) AND (closed_at IS NOT NULL) AND (closed_by IS NOT NULL) AND (length(btrim(COALESCE(closed_reason, ''::text))) >= 3)) OR ((status <> ALL (ARRAY['cancelled'::text, 'rejected'::text])) AND (closed_at IS NULL) AND (closed_by IS NULL) AND (closed_reason IS NULL))))", "commercial_artwork_change_requests_pkey": "PRIMARY KEY (id)", "commercial_artwork_change_requests_company_id_fkey": "FOREIGN KEY (company_id) REFERENCES public.site_partner_companies(id)", "commercial_artwork_change_requests_base_order_id_fkey": "FOREIGN KEY (base_order_id) REFERENCES public.commercial_exclusivity_orders(id)", "commercial_artwork_change_requests_target_region_id_fkey": "FOREIGN KEY (target_region_id) REFERENCES public.commercial_regions(id)", "commercial_artwork_change_requests_base_exclusivity_id_fkey": "FOREIGN KEY (base_exclusivity_id) REFERENCES public.commercial_exclusivities(id)"}, "columns_sha256": "7a23cfcb763cb48f42a67fe3c7a72fce4e7050be795ddc8739f13b3b905146ce"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_artwork_change_supplier_documents", "indexes": {"cacd_caminho": "CREATE UNIQUE INDEX cacd_caminho ON public.commercial_artwork_change_supplier_documents USING btree (storage_bucket, storage_path)", "commercial_artwork_change_supplier_documents_pkey": "CREATE UNIQUE INDEX commercial_artwork_change_supplier_documents_pkey ON public.commercial_artwork_change_supplier_documents USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cacd_mime": "CHECK ((mime_type = ANY (ARRAY['application/pdf'::text, 'image/png'::text, 'image/jpeg'::text])))", "cacd_bucket": "CHECK ((storage_bucket = 'supplier-quote-documents'::text))", "cacd_sha256": "CHECK ((declared_sha256 ~ '^[0-9a-f]{64}$'::text))", "cacd_caminho": "UNIQUE (storage_bucket, storage_path)", "cacd_tamanho": "CHECK (((byte_size > 0) AND (byte_size <= 20971520)))", "cacd_atestado": "CHECK ((((attested_sha256 IS NULL) AND (attested_byte_size IS NULL) AND (attested_at IS NULL) AND (attested_by_role IS NULL)) OR ((attested_sha256 ~ '^[0-9a-f]{64}$'::text) AND (attested_byte_size > 0) AND (attested_at IS NOT NULL) AND (attested_by_role = 'service_role'::text))))", "commercial_artwork_change_supplier_documents_pkey": "PRIMARY KEY (id)", "commercial_artwork_change_supplier_documents_request_id_fkey": "FOREIGN KEY (request_id) REFERENCES public.commercial_artwork_change_requests(id)"}, "columns_sha256": "b1013bd8044170a3defe383d284f7484c5216912d477b64d7b4be09b076f5551"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_artwork_change_versions", "indexes": {"cacv_numero": "CREATE UNIQUE INDEX cacv_numero ON public.commercial_artwork_change_versions USING btree (request_id, version_no)", "cacv_caminho": "CREATE UNIQUE INDEX cacv_caminho ON public.commercial_artwork_change_versions USING btree (storage_bucket, storage_path)", "commercial_artwork_change_versions_pkey": "CREATE UNIQUE INDEX commercial_artwork_change_versions_pkey ON public.commercial_artwork_change_versions USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cacv_mime": "CHECK ((mime_type = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text])))", "cacv_frase": "CHECK (((phrase_text IS NULL) OR ((length(btrim(phrase_text)) >= 1) AND (length(btrim(phrase_text)) <= 280))))", "cacv_bucket": "CHECK ((storage_bucket = 'partner-customization-images'::text))", "cacv_numero": "UNIQUE (request_id, version_no)", "cacv_sha256": "CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))", "cacv_caminho": "UNIQUE (storage_bucket, storage_path)", "cacv_tamanho": "CHECK (((byte_size > 0) AND (byte_size <= 10485760)))", "commercial_artwork_change_versions_pkey": "PRIMARY KEY (id)", "commercial_artwork_change_versions_request_id_fkey": "FOREIGN KEY (request_id) REFERENCES public.commercial_artwork_change_requests(id)"}, "columns_sha256": "0576ff44d14c1b9c0bd78ea981db1a9099eeab4c5d1c6b7df402d72209a0bd67"}, {"acl": ["authenticated:SELECT"], "rls": true, "table": "public.commercial_checkout_intents", "indexes": {"cci_company_idx": "CREATE INDEX cci_company_idx ON public.commercial_checkout_intents USING btree (company_id, created_at DESC)", "commercial_checkout_intents_pkey": "CREATE UNIQUE INDEX commercial_checkout_intents_pkey ON public.commercial_checkout_intents USING btree (id)", "cci_reserva_viva_por_oportunidade_idx": "CREATE UNIQUE INDEX cci_reserva_viva_por_oportunidade_idx ON public.commercial_checkout_intents USING btree (opportunity_id) WHERE ((status = 'draft'::text) AND (reserved_until IS NOT NULL))"}, "present": true, "policies": {"cci_owner_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "(public.is_site_admin() OR public.m2_is_company_owner(company_id))", "permissive": true}}, "rls_forced": false, "constraints": {"cci_positivos": "CHECK (((economic_value_cents > 0) AND (user_pool_cents >= 0) AND (bdflow_ops_investment_cents >= 0) AND (cash_user_pool_funding_cents >= 0) AND (nominal_quantity > 0) AND (participant_target > 0)))", "cci_modo_valido": "CHECK ((benefit_settlement_mode = ANY (ARRAY['direct_benefits'::text, 'cash'::text])))", "cci_metodo_valido": "CHECK ((payment_method = ANY (ARRAY['pix'::text, 'credit_card'::text])))", "cci_status_valido": "CHECK ((status = ANY (ARRAY['draft'::text, 'awaiting_contract'::text, 'awaiting_payment_provider'::text, 'paid'::text, 'expired'::text, 'cancelled'::text])))", "cci_total_monetario": "CHECK (((pricing_rule_version >= 3) OR (total_monetary_funding_required_cents = (bdflow_ops_investment_cents + cash_user_pool_funding_cents))))", "cci_bandeiras_coerente": "CHECK ((((flag_production_new_units IS NULL) AND (flag_unit_reference_cents IS NULL) AND (flag_production_charge_cents IS NULL) AND (flag_reuse_set_id IS NULL) AND (flag_reuse_inspection_id IS NULL) AND (artwork_change_request_id IS NULL)) OR ((NOT fidelized) AND (flag_production_new_units > 0) AND (flag_unit_reference_cents > 0) AND (flag_production_charge_cents = (flag_production_new_units * flag_unit_reference_cents)) AND (flag_production_charge_cents <= smallflags_main_fee_cents) AND (flag_reuse_set_id IS NULL) AND (flag_reuse_inspection_id IS NULL) AND (artwork_change_request_id IS NULL)) OR (fidelized AND (flag_production_new_units = 0) AND (flag_unit_reference_cents > 0) AND (flag_production_charge_cents = 0) AND (((flag_reuse_set_id IS NOT NULL) AND (flag_reuse_inspection_id IS NOT NULL) AND (artwork_change_request_id IS NULL)) OR ((flag_reuse_set_id IS NULL) AND (flag_reuse_inspection_id IS NULL) AND (artwork_change_request_id IS NOT NULL))))))", "cci_nfse_taker_formato": "CHECK (((nfse_taker_cnpj IS NULL) OR (nfse_taker_cnpj ~ '^[0-9]{14}$'::text))) NOT VALID", "cci_aceite_exige_unidade": "CHECK (((status <> ALL (ARRAY['awaiting_payment_provider'::text, 'paid'::text])) OR (execution_unit_id IS NOT NULL))) NOT VALID", "cci_invariante_economica": "CHECK ((economic_value_cents = (user_pool_cents + bdflow_ops_investment_cents)))", "cci_outros_exige_segmento": "CHECK (((niche_code <> 'others'::text) OR (segment_id IS NOT NULL)))", "cci_financiamento_coerente": "CHECK (((pricing_rule_version >= 3) OR ((benefit_settlement_mode = 'direct_benefits'::text) AND (cash_user_pool_funding_cents = 0)) OR ((benefit_settlement_mode = 'cash'::text) AND (cash_user_pool_funding_cents = user_pool_cents))))", "cci_liquidacao_modalidade_v15": "CHECK (((pricing_rule_version IS NULL) OR (pricing_rule_version < 4) OR ((benefit_settlement_mode IS NOT NULL) AND (settlement_terms_id IS NOT NULL) AND (qa_policy = 'in_kind_direct_benefits_only'::text) AND (mei_consideration_cents IS NOT NULL) AND (smallflags_main_fee_cents IS NOT NULL) AND (smallflags_qa_cents IS NOT NULL) AND (smallflags_total_remuneration_cents IS NOT NULL) AND (mei_cash_funding_cents IS NOT NULL) AND (mei_in_kind_cents IS NOT NULL) AND (qa_in_kind_cents IS NOT NULL) AND (qa_cash_cents IS NOT NULL) AND (cash_adjustment_cents IS NOT NULL) AND (qa_cash_cents = 0) AND (smallflags_qa_cents = qa_in_kind_cents) AND (smallflags_total_remuneration_cents = smallflags_main_fee_cents) AND (economic_value_cents = (((mei_consideration_cents + smallflags_main_fee_cents) + qa_in_kind_cents) + cash_adjustment_cents)) AND (user_pool_cents = (mei_consideration_cents + qa_in_kind_cents)) AND (bdflow_ops_investment_cents = (smallflags_main_fee_cents + cash_adjustment_cents)) AND (((benefit_settlement_mode = 'direct_benefits'::text) AND (mei_in_kind_cents = mei_consideration_cents) AND (mei_cash_funding_cents = 0) AND (cash_user_pool_funding_cents = 0) AND (cash_adjustment_cents = 0) AND (total_monetary_funding_required_cents = smallflags_main_fee_cents)) OR ((benefit_settlement_mode = 'cash'::text) AND (qa_in_kind_cents = 0) AND (mei_in_kind_cents = 0) AND (mei_cash_funding_cents = mei_consideration_cents) AND (cash_user_pool_funding_cents = user_pool_cents) AND (total_monetary_funding_required_cents = economic_value_cents))))))", "cci_segmento_posicao_elegivel": "CHECK (((segment_id IS NULL) OR (niche_code = ANY (ARRAY['pharmacy'::text, 'womens_clothing'::text, 'mens_clothing'::text, 'footwear'::text, 'others'::text]))))", "cci_supermercado_sem_segmento": "CHECK (((niche_code <> 'supermarket'::text) OR (segment_id IS NULL)))", "cci_financiamento_v14_coerente": "CHECK (((pricing_rule_version >= 4) OR (pricing_rule_version < 3) OR ((mei_consideration_cents IS NOT NULL) AND (smallflags_qa_cents IS NOT NULL) AND (smallflags_main_fee_cents IS NOT NULL) AND (smallflags_total_remuneration_cents IS NOT NULL) AND (mei_cash_funding_cents IS NOT NULL) AND (smallflags_total_remuneration_cents = (smallflags_qa_cents + smallflags_main_fee_cents)) AND (economic_value_cents = ((mei_consideration_cents + smallflags_qa_cents) + smallflags_main_fee_cents)) AND (user_pool_cents = (mei_consideration_cents + smallflags_qa_cents)) AND (bdflow_ops_investment_cents = smallflags_main_fee_cents) AND (((benefit_settlement_mode = 'direct_benefits'::text) AND (mei_cash_funding_cents = 0) AND (cash_user_pool_funding_cents = 0) AND (total_monetary_funding_required_cents = smallflags_total_remuneration_cents)) OR ((benefit_settlement_mode = 'cash'::text) AND (mei_cash_funding_cents = mei_consideration_cents) AND (cash_user_pool_funding_cents = user_pool_cents) AND (total_monetary_funding_required_cents = economic_value_cents)))))) NOT VALID", "cci_liquidacao_v15_so_versao_4": "CHECK (((pricing_rule_version >= 4) OR ((settlement_terms_id IS NULL) AND (qa_policy IS NULL) AND (mei_in_kind_cents IS NULL) AND (qa_in_kind_cents IS NULL) AND (qa_cash_cents IS NULL) AND (cash_adjustment_cents IS NULL))))", "cci_segmento_snapshot_coerente": "CHECK ((((segment_id IS NULL) AND (segment_code_snapshot IS NULL) AND (segment_name_snapshot IS NULL) AND (segment_classification_snapshot IS NULL)) OR ((segment_id IS NOT NULL) AND (segment_code_snapshot IS NOT NULL) AND (segment_name_snapshot IS NOT NULL) AND (segment_classification_snapshot IS NOT NULL))))", "cci_metodo_deriva_da_fidelidade": "CHECK (((fidelized AND (payment_method = 'credit_card'::text)) OR ((NOT fidelized) AND (payment_method = 'pix'::text))))", "commercial_checkout_intents_pkey": "PRIMARY KEY (id)", "commercial_checkout_intents_region_id_fkey": "FOREIGN KEY (region_id) REFERENCES public.commercial_regions(id)", "commercial_checkout_intents_company_id_fkey": "FOREIGN KEY (company_id) REFERENCES public.site_partner_companies(id)", "commercial_checkout_intents_created_by_fkey": "FOREIGN KEY (created_by) REFERENCES auth.users(id)", "commercial_checkout_intents_niche_code_fkey": "FOREIGN KEY (niche_code) REFERENCES public.commercial_niches(code)", "commercial_checkout_intents_segment_id_fkey": "FOREIGN KEY (segment_id) REFERENCES public.commercial_segments(id)", "commercial_checkout_intents_exclusivity_id_fkey": "FOREIGN KEY (exclusivity_id) REFERENCES public.commercial_exclusivities(id)", "commercial_checkout_intents_opportunity_id_fkey": "FOREIGN KEY (opportunity_id) REFERENCES public.commercial_opportunities(id)", "commercial_checkout_intents_execution_unit_id_fkey": "FOREIGN KEY (execution_unit_id) REFERENCES public.site_partner_units(id)", "commercial_checkout_intents_flag_reuse_set_id_fkey": "FOREIGN KEY (flag_reuse_set_id) REFERENCES public.commercial_flag_sets(id)", "commercial_checkout_intents_settlement_terms_id_fkey": "FOREIGN KEY (settlement_terms_id) REFERENCES public.commercial_settlement_terms(id)", "commercial_checkout_intents_pricing_rule_version_fkey": "FOREIGN KEY (pricing_rule_version) REFERENCES public.commercial_pricing_rules(version)", "commercial_checkout_intents_flag_reuse_inspection_id_fkey": "FOREIGN KEY (flag_reuse_inspection_id) REFERENCES public.commercial_flag_set_inspections(id)", "commercial_checkout_intents_artwork_change_request_id_fkey": "FOREIGN KEY (artwork_change_request_id) REFERENCES public.commercial_artwork_change_requests(id)"}, "columns_sha256": "32d1b257e5cf8797d261a03d80108907da705036b11cd686b7454200def3e642"}, {"acl": ["authenticated:SELECT"], "rls": true, "table": "public.commercial_exclusivity_orders", "indexes": {"ceo_intencao_unica_idx": "CREATE UNIQUE INDEX ceo_intencao_unica_idx ON public.commercial_exclusivity_orders USING btree (checkout_intent_id) WHERE ((checkout_intent_id IS NOT NULL) AND (status <> 'cancelled'::text))", "ceo_instrument_code_uidx": "CREATE UNIQUE INDEX ceo_instrument_code_uidx ON public.commercial_exclusivity_orders USING btree (instrument_code) WHERE (instrument_code IS NOT NULL)", "ceo_alteracao_arte_unica_idx": "CREATE UNIQUE INDEX ceo_alteracao_arte_unica_idx ON public.commercial_exclusivity_orders USING btree (artwork_change_request_id) WHERE ((artwork_change_request_id IS NOT NULL) AND (status <> 'cancelled'::text))", "ceo_inspecao_reuso_unica_idx": "CREATE UNIQUE INDEX ceo_inspecao_reuso_unica_idx ON public.commercial_exclusivity_orders USING btree (flag_reuse_inspection_id) WHERE ((flag_reuse_inspection_id IS NOT NULL) AND (status <> 'cancelled'::text))", "ceo_nicho_por_exclusividade_idx": "CREATE UNIQUE INDEX ceo_nicho_por_exclusividade_idx ON public.commercial_exclusivity_orders USING btree (exclusivity_id, niche_code) WHERE (status <> 'cancelled'::text)", "ceo_empresa_por_exclusividade_idx": "CREATE UNIQUE INDEX ceo_empresa_por_exclusividade_idx ON public.commercial_exclusivity_orders USING btree (exclusivity_id, company_id) WHERE (status <> 'cancelled'::text)", "ceo_segmento_por_exclusividade_idx": "CREATE UNIQUE INDEX ceo_segmento_por_exclusividade_idx ON public.commercial_exclusivity_orders USING btree (exclusivity_id, segment_classification_snapshot) WHERE ((status <> 'cancelled'::text) AND (segment_id IS NOT NULL))", "commercial_exclusivity_orders_pkey": "CREATE UNIQUE INDEX commercial_exclusivity_orders_pkey ON public.commercial_exclusivity_orders USING btree (id)", "commercial_exclusivity_orders_opportunity_id_key": "CREATE UNIQUE INDEX commercial_exclusivity_orders_opportunity_id_key ON public.commercial_exclusivity_orders USING btree (opportunity_id)"}, "present": true, "policies": {"ceo_owner_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "(public.m2_is_company_owner(company_id) OR public.is_site_admin())", "permissive": true}}, "rls_forced": false, "constraints": {"ceo_moeda": "CHECK ((currency = 'BRL'::text))", "ceo_timestamps": "CHECK ((updated_at >= created_at))", "ceo_qty_positiva": "CHECK ((nominal_quantity > 0))", "ceo_modo_v2_valido": "CHECK (((benefit_settlement_mode IS NULL) OR (benefit_settlement_mode = ANY (ARRAY['direct_benefits'::text, 'cash'::text]))))", "ceo_status_allowed": "CHECK ((status = ANY (ARRAY['draft'::text, 'signed'::text, 'cancelled'::text])))", "ceo_periodo_positivo": "CHECK ((exclusivity_period_days > 0))", "ceo_bandeiras_coerente": "CHECK ((((flag_production_new_units IS NULL) AND (flag_unit_reference_cents IS NULL) AND (flag_production_charge_cents IS NULL) AND (flag_reuse_set_id IS NULL) AND (flag_reuse_inspection_id IS NULL) AND (artwork_change_request_id IS NULL)) OR ((NOT fidelized) AND (flag_production_new_units > 0) AND (flag_unit_reference_cents > 0) AND (flag_production_charge_cents = (flag_production_new_units * flag_unit_reference_cents)) AND (flag_production_charge_cents <= smallflags_main_fee_cents) AND (flag_reuse_set_id IS NULL) AND (flag_reuse_inspection_id IS NULL) AND (artwork_change_request_id IS NULL)) OR (fidelized AND (flag_production_new_units = 0) AND (flag_unit_reference_cents > 0) AND (flag_production_charge_cents = 0) AND (((flag_reuse_set_id IS NOT NULL) AND (flag_reuse_inspection_id IS NOT NULL) AND (artwork_change_request_id IS NULL)) OR ((flag_reuse_set_id IS NULL) AND (flag_reuse_inspection_id IS NULL) AND (artwork_change_request_id IS NOT NULL))))))", "ceo_nfse_taker_formato": "CHECK (((nfse_taker_cnpj IS NULL) OR (nfse_taker_cnpj ~ '^[0-9]{14}$'::text))) NOT VALID", "ceo_pagamento_coerente": "CHECK ((((payment_status = 'pending'::text) AND (payment_confirmed_at IS NULL) AND (payment_confirmed_by IS NULL) AND (payment_amount_cents IS NULL) AND (payment_confirmed_source IS NULL)) OR ((payment_status = 'confirmed'::text) AND (payment_confirmed_at IS NOT NULL) AND (payment_amount_cents IS NOT NULL) AND (((payment_confirmed_source = 'admin_manual'::text) AND (payment_confirmed_by IS NOT NULL)) OR ((payment_confirmed_source = 'payment_provider'::text) AND (payment_confirmed_by IS NULL))))))", "ceo_assinatura_coerente": "CHECK (((status <> 'signed'::text) OR ((signed_at IS NOT NULL) AND (signatory_name IS NOT NULL) AND (length(btrim(signatory_name)) >= 3) AND (order_version IS NOT NULL) AND (((document_reference IS NOT NULL) AND (length(btrim(document_reference)) > 0)) OR ((document_hash IS NOT NULL) AND (length(btrim(document_hash)) > 0))))))", "ceo_pool_bps_por_versao": "CHECK ((((pricing_rule_version = 1) AND (pool_bps IS NOT NULL)) OR ((pricing_rule_version >= 2) AND (pool_bps IS NULL))))", "ceo_invariante_economica": "CHECK ((economic_value_cents = (contractual_pool_cents + bdflow_due_cents)))", "ceo_snapshot_hash_sha256": "CHECK (((instrument_snapshot_hash IS NULL) OR (instrument_snapshot_hash ~ '^[0-9a-f]{64}$'::text))) NOT VALID", "ceo_outros_exige_segmento": "CHECK (((niche_code <> 'others'::text) OR (segment_id IS NOT NULL)))", "ceo_valores_nao_negativos": "CHECK (((economic_value_cents > 0) AND (contractual_pool_cents >= 0) AND (bdflow_due_cents >= 0)))", "ceo_instrument_code_format": "CHECK (((instrument_code IS NULL) OR (instrument_code ~ '^SF-[0-9]{4,}$'::text))) NOT VALID", "ceo_payment_status_allowed": "CHECK ((payment_status = ANY (ARRAY['pending'::text, 'confirmed'::text])))", "ceo_pool_decomposition_sums": "CHECK (((mei_consideration_cents IS NULL) OR (smallflags_qa_cents IS NULL) OR ((mei_consideration_cents + smallflags_qa_cents) = contractual_pool_cents))) NOT VALID", "ceo_financiamento_v2_coerente": "CHECK (((pricing_rule_version >= 3) OR (benefit_settlement_mode IS NULL) OR ((benefit_settlement_mode = 'direct_benefits'::text) AND (cash_user_pool_funding_cents = 0) AND (total_monetary_funding_required_cents = bdflow_due_cents)) OR ((benefit_settlement_mode = 'cash'::text) AND (cash_user_pool_funding_cents = contractual_pool_cents) AND (total_monetary_funding_required_cents = (bdflow_due_cents + contractual_pool_cents)))))", "ceo_liquidacao_modalidade_v15": "CHECK (((pricing_rule_version IS NULL) OR (pricing_rule_version < 4) OR ((benefit_settlement_mode IS NOT NULL) AND (settlement_terms_id IS NOT NULL) AND (qa_policy = 'in_kind_direct_benefits_only'::text) AND (mei_consideration_cents IS NOT NULL) AND (smallflags_main_fee_cents IS NOT NULL) AND (smallflags_qa_cents IS NOT NULL) AND (smallflags_total_remuneration_cents IS NOT NULL) AND (mei_cash_funding_cents IS NOT NULL) AND (cash_user_pool_funding_cents IS NOT NULL) AND (total_monetary_funding_required_cents IS NOT NULL) AND (mei_in_kind_cents IS NOT NULL) AND (qa_in_kind_cents IS NOT NULL) AND (qa_cash_cents IS NOT NULL) AND (cash_adjustment_cents IS NOT NULL) AND (qa_cash_cents = 0) AND (smallflags_qa_cents = qa_in_kind_cents) AND (smallflags_total_remuneration_cents = smallflags_main_fee_cents) AND (economic_value_cents = (((mei_consideration_cents + smallflags_main_fee_cents) + qa_in_kind_cents) + cash_adjustment_cents)) AND (contractual_pool_cents = (mei_consideration_cents + qa_in_kind_cents)) AND (bdflow_due_cents = (smallflags_main_fee_cents + cash_adjustment_cents)) AND (((benefit_settlement_mode = 'direct_benefits'::text) AND (mei_in_kind_cents = mei_consideration_cents) AND (mei_cash_funding_cents = 0) AND (cash_user_pool_funding_cents = 0) AND (cash_adjustment_cents = 0) AND (total_monetary_funding_required_cents = smallflags_main_fee_cents)) OR ((benefit_settlement_mode = 'cash'::text) AND (qa_in_kind_cents = 0) AND (mei_in_kind_cents = 0) AND (mei_cash_funding_cents = mei_consideration_cents) AND (cash_user_pool_funding_cents = contractual_pool_cents) AND (total_monetary_funding_required_cents = economic_value_cents))))))", "ceo_pool_decomposition_nonneg": "CHECK ((((mei_consideration_cents IS NULL) OR (mei_consideration_cents >= 0)) AND ((smallflags_qa_cents IS NULL) OR (smallflags_qa_cents >= 0)))) NOT VALID", "ceo_segmento_posicao_elegivel": "CHECK (((segment_id IS NULL) OR (niche_code = ANY (ARRAY['pharmacy'::text, 'womens_clothing'::text, 'mens_clothing'::text, 'footwear'::text, 'others'::text]))))", "ceo_supermercado_sem_segmento": "CHECK (((niche_code <> 'supermarket'::text) OR (segment_id IS NULL)))", "ceo_financiamento_v14_coerente": "CHECK (((pricing_rule_version >= 4) OR (pricing_rule_version < 3) OR (benefit_settlement_mode IS NULL) OR ((mei_consideration_cents IS NOT NULL) AND (smallflags_qa_cents IS NOT NULL) AND (smallflags_main_fee_cents IS NOT NULL) AND (smallflags_total_remuneration_cents IS NOT NULL) AND (mei_cash_funding_cents IS NOT NULL) AND (smallflags_total_remuneration_cents = (smallflags_qa_cents + smallflags_main_fee_cents)) AND (economic_value_cents = ((mei_consideration_cents + smallflags_qa_cents) + smallflags_main_fee_cents)) AND (contractual_pool_cents = (mei_consideration_cents + smallflags_qa_cents)) AND (bdflow_due_cents = smallflags_main_fee_cents) AND (((benefit_settlement_mode = 'direct_benefits'::text) AND (mei_cash_funding_cents = 0) AND (total_monetary_funding_required_cents = smallflags_total_remuneration_cents)) OR ((benefit_settlement_mode = 'cash'::text) AND (mei_cash_funding_cents = mei_consideration_cents) AND (total_monetary_funding_required_cents = economic_value_cents)))))) NOT VALID", "ceo_liquidacao_v15_so_versao_4": "CHECK (((pricing_rule_version >= 4) OR ((settlement_terms_id IS NULL) AND (qa_policy IS NULL) AND (mei_in_kind_cents IS NULL) AND (qa_in_kind_cents IS NULL) AND (qa_cash_cents IS NULL) AND (cash_adjustment_cents IS NULL))))", "ceo_pagamento_exige_assinatura": "CHECK (((payment_status = 'pending'::text) OR (status = 'signed'::text)))", "ceo_segmento_snapshot_coerente": "CHECK ((((segment_id IS NULL) AND (segment_code_snapshot IS NULL) AND (segment_name_snapshot IS NULL) AND (segment_classification_snapshot IS NULL)) OR ((segment_id IS NOT NULL) AND (segment_code_snapshot IS NOT NULL) AND (segment_name_snapshot IS NOT NULL) AND (segment_classification_snapshot IS NOT NULL))))", "ceo_snapshot_hash_nao_e_do_modelo": "CHECK (((instrument_snapshot_hash IS NULL) OR (instrument_template_hash IS NULL) OR (instrument_snapshot_hash <> instrument_template_hash))) NOT VALID", "commercial_exclusivity_orders_pkey": "PRIMARY KEY (id)", "ceo_instrumento_completo_ou_ausente": "CHECK ((((instrument_code IS NULL) AND (instrument_template_id IS NULL) AND (instrument_template_version IS NULL) AND (instrument_template_hash IS NULL) AND (instrument_template_date IS NULL) AND (instrument_snapshot IS NULL) AND (instrument_snapshot_hash IS NULL)) OR ((instrument_code IS NOT NULL) AND (instrument_template_id IS NOT NULL) AND (instrument_template_version IS NOT NULL) AND (instrument_template_hash IS NOT NULL) AND (instrument_template_date IS NOT NULL) AND (instrument_snapshot IS NOT NULL) AND (instrument_snapshot_hash IS NOT NULL)))) NOT VALID", "commercial_exclusivity_orders_region_id_fkey": "FOREIGN KEY (region_id) REFERENCES public.commercial_regions(id)", "commercial_exclusivity_orders_company_id_fkey": "FOREIGN KEY (company_id) REFERENCES public.site_partner_companies(id)", "commercial_exclusivity_orders_niche_code_fkey": "FOREIGN KEY (niche_code) REFERENCES public.commercial_niches(code)", "commercial_exclusivity_orders_segment_id_fkey": "FOREIGN KEY (segment_id) REFERENCES public.commercial_segments(id)", "commercial_exclusivity_orders_opportunity_id_key": "UNIQUE (opportunity_id)", "commercial_exclusivity_orders_exclusivity_id_fkey": "FOREIGN KEY (exclusivity_id) REFERENCES public.commercial_exclusivities(id)", "commercial_exclusivity_orders_opportunity_id_fkey": "FOREIGN KEY (opportunity_id) REFERENCES public.commercial_opportunities(id)", "commercial_exclusivity_orders_execution_unit_id_fkey": "FOREIGN KEY (execution_unit_id) REFERENCES public.site_partner_units(id)", "commercial_exclusivity_orders_flag_reuse_set_id_fkey": "FOREIGN KEY (flag_reuse_set_id) REFERENCES public.commercial_flag_sets(id)", "commercial_exclusivity_orders_checkout_intent_id_fkey": "FOREIGN KEY (checkout_intent_id) REFERENCES public.commercial_checkout_intents(id)", "commercial_exclusivity_orders_legal_acceptance_id_fkey": "FOREIGN KEY (legal_acceptance_id) REFERENCES public.legal_acceptances(id)", "commercial_exclusivity_orders_master_agreement_id_fkey": "FOREIGN KEY (master_agreement_id) REFERENCES public.commercial_master_agreements(id)", "commercial_exclusivity_orders_settlement_terms_id_fkey": "FOREIGN KEY (settlement_terms_id) REFERENCES public.commercial_settlement_terms(id)", "commercial_exclusivity_orders_pricing_rule_version_fkey": "FOREIGN KEY (pricing_rule_version) REFERENCES public.commercial_pricing_rules(version)", "commercial_exclusivity_orders_instrument_template_id_fkey": "FOREIGN KEY (instrument_template_id) REFERENCES public.commercial_instrument_templates(id)", "commercial_exclusivity_orders_flag_reuse_inspection_id_fkey": "FOREIGN KEY (flag_reuse_inspection_id) REFERENCES public.commercial_flag_set_inspections(id)", "commercial_exclusivity_orders_artwork_change_request_id_fkey": "FOREIGN KEY (artwork_change_request_id) REFERENCES public.commercial_artwork_change_requests(id)"}, "columns_sha256": "9e29eadb5be1b20b81b6574ded0a3f8df275f493eda6312d971ee0a304b12dc7"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_flag_set_inspections", "indexes": {"cfi_conjunto_idx": "CREATE INDEX cfi_conjunto_idx ON public.commercial_flag_set_inspections USING btree (flag_set_id, inspected_at DESC, created_at DESC)", "commercial_flag_set_inspections_pkey": "CREATE UNIQUE INDEX commercial_flag_set_inspections_pkey ON public.commercial_flag_set_inspections USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cfi_contagem": "CHECK (((pieces_inspected > 0) AND (pieces_fit >= 0) AND (pieces_unfit >= 0) AND ((pieces_fit + pieces_unfit) = pieces_inspected)))", "cfi_inspetor": "CHECK ((length(btrim(inspector_name)) >= 3))", "cfi_evidencia": "CHECK ((evidence_hash ~ '^[0-9a-f]{64}$'::text))", "cfi_categorias_validas": "CHECK ((unfit_categories <@ ARRAY['damaged'::text, 'lost'::text, 'worn'::text, 'unfit_for_display'::text, 'art_incompatible'::text, 'unsafe'::text]))", "cfi_categorias_coerentes": "CHECK ((((pieces_unfit = 0) AND (cardinality(unfit_categories) = 0)) OR ((pieces_unfit > 0) AND (cardinality(unfit_categories) > 0))))", "commercial_flag_set_inspections_pkey": "PRIMARY KEY (id)", "commercial_flag_set_inspections_flag_set_id_fkey": "FOREIGN KEY (flag_set_id) REFERENCES public.commercial_flag_sets(id)"}, "columns_sha256": "722db6010ebf0c5076f95ff4a2f51fe101a8cd0955164fba1ef82402f117d346"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_flag_sets", "indexes": {"commercial_flag_sets_pkey": "CREATE UNIQUE INDEX commercial_flag_sets_pkey ON public.commercial_flag_sets USING btree (id)", "cfs_empresa_identidade_idx": "CREATE INDEX cfs_empresa_identidade_idx ON public.commercial_flag_sets USING btree (company_id, fidelity_identity, produced_at DESC)", "commercial_flag_sets_origin_order_id_key": "CREATE UNIQUE INDEX commercial_flag_sets_origin_order_id_key ON public.commercial_flag_sets USING btree (origin_order_id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cfs_arte_hash": "CHECK (((artwork_hash IS NULL) OR (artwork_hash ~ '^[0-9a-f]{64}$'::text)))", "cfs_fornecedor": "CHECK ((length(btrim(supplier_name)) >= 2))", "cfs_status_valido": "CHECK ((status = ANY (ARRAY['active'::text, 'retired'::text])))", "cfs_custo_positivo": "CHECK ((unit_cost_cents > 0))", "cfs_pecas_positivas": "CHECK ((pieces_count > 0))", "cfs_retirada_coerente": "CHECK ((((status = 'active'::text) AND (retired_at IS NULL) AND (retired_reason IS NULL)) OR ((status = 'retired'::text) AND (retired_at IS NOT NULL) AND (retired_reason IS NOT NULL) AND (length(btrim(retired_reason)) >= 3))))", "cfs_identidade_formato": "CHECK (((fidelity_identity ~ '^[a-z][a-z_]{2,63}$'::text) OR (fidelity_identity ~ '^segment:[a-z][a-z0-9_]{2,63}$'::text)))", "commercial_flag_sets_pkey": "PRIMARY KEY (id)", "commercial_flag_sets_company_id_fkey": "FOREIGN KEY (company_id) REFERENCES public.site_partner_companies(id)", "commercial_flag_sets_origin_order_id_key": "UNIQUE (origin_order_id)", "commercial_flag_sets_origin_order_id_fkey": "FOREIGN KEY (origin_order_id) REFERENCES public.commercial_exclusivity_orders(id)"}, "columns_sha256": "4ff367f9c61d7cefd8072f2511e8a1c6c45bf8f4de1ec0426dad106c766f84c7"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_guard_manifests", "indexes": {"commercial_guard_manifests_pkey": "CREATE UNIQUE INDEX commercial_guard_manifests_pkey ON public.commercial_guard_manifests USING btree (id)", "commercial_guard_manifests_manifest_label_key": "CREATE UNIQUE INDEX commercial_guard_manifests_manifest_label_key ON public.commercial_guard_manifests USING btree (manifest_label)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cgm_ref": "CHECK ((length(btrim(source_reference)) >= 10))", "cgm_label": "CHECK ((length(btrim(manifest_label)) >= 2))", "cgm_sha256": "CHECK ((catalog_sha256 ~ '^[0-9a-f]{64}$'::text))", "commercial_guard_manifests_pkey": "PRIMARY KEY (id)", "commercial_guard_manifests_manifest_label_key": "UNIQUE (manifest_label)"}, "columns_sha256": "49004aefdafd02b01451653b59efd7b6f2884bd50fecbd1ac34cda373689dd21"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_instrument_template_approvals", "indexes": {"citap_unica": "CREATE UNIQUE INDEX citap_unica ON public.commercial_instrument_template_approvals USING btree (template_id, contract_economics_version)", "commercial_instrument_template_approvals_pkey": "CREATE UNIQUE INDEX commercial_instrument_template_approvals_pkey ON public.commercial_instrument_template_approvals USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"citap_hash": "CHECK ((content_sha256 ~ '^[0-9a-f]{64}$'::text))", "citap_unica": "UNIQUE (template_id, contract_economics_version)", "citap_modelo": "CHECK ((settlement_model = 'in_kind_direct_benefits_only'::text))", "citap_aprovador": "CHECK ((length(btrim(approved_by_name)) >= 3))", "citap_referencia": "CHECK ((length(btrim(legal_approval_reference)) >= 10))", "citap_modalidades": "CHECK (((cardinality(settlement_modes) >= 1) AND (settlement_modes <@ ARRAY['direct_benefits'::text, 'cash'::text])))", "commercial_instrument_template_approvals_pkey": "PRIMARY KEY (id)", "commercial_instrument_template_approvals_template_id_fkey": "FOREIGN KEY (template_id) REFERENCES public.commercial_instrument_templates(id)"}, "columns_sha256": "04cf04326efea7aeb4c7a3a79225a4772f883f5bdaf0d244957b7b21ab4f5c56"}, {"acl": ["authenticated:SELECT", "service_role:DELETE", "service_role:INSERT", "service_role:REFERENCES", "service_role:SELECT", "service_role:TRIGGER", "service_role:TRUNCATE", "service_role:UPDATE"], "rls": true, "table": "public.commercial_payments", "indexes": {"cp_idem_idx": "CREATE UNIQUE INDEX cp_idem_idx ON public.commercial_payments USING btree (idempotency_key)", "cp_provider_order_idx": "CREATE INDEX cp_provider_order_idx ON public.commercial_payments USING btree (provider, provider_order_id) WHERE (provider_order_id IS NOT NULL)", "cp_tentativa_viva_idx": "CREATE UNIQUE INDEX cp_tentativa_viva_idx ON public.commercial_payments USING btree (commercial_order_id) WHERE (status = ANY (ARRAY['created'::text, 'pending'::text, 'paid'::text]))", "cp_provider_charge_idx": "CREATE INDEX cp_provider_charge_idx ON public.commercial_payments USING btree (provider, provider_charge_id) WHERE (provider_charge_id IS NOT NULL)", "commercial_payments_pkey": "CREATE UNIQUE INDEX commercial_payments_pkey ON public.commercial_payments USING btree (id)"}, "present": true, "policies": {"cp_owner_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "(public.is_site_admin() OR (EXISTS ( SELECT 1\n   FROM public.commercial_exclusivity_orders o\n  WHERE ((o.id = commercial_payments.commercial_order_id) AND public.m2_is_company_owner(o.company_id)))))", "permissive": true}}, "rls_forced": false, "constraints": {"cp_timestamps": "CHECK ((updated_at >= created_at))", "cp_idem_nonempty": "CHECK ((length(btrim(idempotency_key)) > 0))", "cp_pago_coerente": "CHECK (((status = 'paid'::text) = (paid_at IS NOT NULL)))", "cp_method_allowed": "CHECK ((payment_method = ANY (ARRAY['pix'::text, 'credit_card'::text])))", "cp_status_allowed": "CHECK ((status = ANY (ARRAY['created'::text, 'pending'::text, 'paid'::text, 'expired'::text, 'cancelled'::text, 'failed'::text, 'late_unreconciled'::text])))", "cp_amount_positivo": "CHECK ((amount_cents > 0))", "cp_excecao_coerente": "CHECK (((status <> 'late_unreconciled'::text) OR ((exception_reason IS NOT NULL) AND (length(btrim(exception_reason)) > 0))))", "cp_provider_allowed": "CHECK ((provider = ANY (ARRAY['pagarme'::text])))", "cp_parcelas_coerentes": "CHECK ((((payment_method = 'pix'::text) AND (installments IS NULL)) OR ((payment_method = 'credit_card'::text) AND (installments IS NOT NULL) AND ((installments >= 1) AND (installments <= 6)))))", "commercial_payments_pkey": "PRIMARY KEY (id)", "commercial_payments_checkout_intent_id_fkey": "FOREIGN KEY (checkout_intent_id) REFERENCES public.commercial_checkout_intents(id)", "commercial_payments_commercial_order_id_fkey": "FOREIGN KEY (commercial_order_id) REFERENCES public.commercial_exclusivity_orders(id)"}, "columns_sha256": "bfbe4feecc3d84610387218fa86476e8478237dbc39de68da4ee0ef31c3c30ef"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_pricing_activation_approvals", "indexes": {"commercial_pricing_activation_approvals_pkey": "CREATE UNIQUE INDEX commercial_pricing_activation_approvals_pkey ON public.commercial_pricing_activation_approvals USING btree (id)", "commercial_pricing_activation_approvals_approval_reference_key": "CREATE UNIQUE INDEX commercial_pricing_activation_approvals_approval_reference_key ON public.commercial_pricing_activation_approvals USING btree (approval_reference)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cpaa_ref": "CHECK ((length(btrim(approval_reference)) >= 10))", "cpaa_sha256": "CHECK ((approval_document_sha256 ~ '^[0-9a-f]{64}$'::text))", "cpaa_aprovador": "CHECK ((length(btrim(approver_as_stated)) >= 3))", "commercial_pricing_activation_approvals_pkey": "PRIMARY KEY (id)", "commercial_pricing_activation_approvals_approval_reference_key": "UNIQUE (approval_reference)", "commercial_pricing_activation_approva_pricing_rule_version_fkey": "FOREIGN KEY (pricing_rule_version) REFERENCES public.commercial_pricing_rules(version)"}, "columns_sha256": "4523a4910edb7533925e9551892fd2d569f09e133e38cea2c67d02397802ddf8"}, {"acl": [], "rls": true, "table": "public.commercial_pricing_activation_log", "indexes": {"commercial_pricing_activation_log_pkey": "CREATE UNIQUE INDEX commercial_pricing_activation_log_pkey ON public.commercial_pricing_activation_log USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cpal_autorizacao": "CHECK ((length(btrim(authorization_reference)) >= 10))", "commercial_pricing_activation_log_pkey": "PRIMARY KEY (id)", "commercial_pricing_activation_log_guard_manifest_id_fkey": "FOREIGN KEY (guard_manifest_id) REFERENCES public.commercial_guard_manifests(id)", "commercial_pricing_activation_log_pricing_rule_version_fkey": "FOREIGN KEY (pricing_rule_version) REFERENCES public.commercial_pricing_rules(version)", "commercial_pricing_activation_log_activation_approval_id_fkey": "FOREIGN KEY (activation_approval_id) REFERENCES public.commercial_pricing_activation_approvals(id)"}, "columns_sha256": "39ae0939578be5004faa9683c251f83cbd39c8c87e34eb53c0bc77c99139b8f1"}, {"acl": [], "rls": true, "table": "public.commercial_pricing_rules", "indexes": {"cpr_uma_ativa_idx": "CREATE UNIQUE INDEX cpr_uma_ativa_idx ON public.commercial_pricing_rules USING btree (status) WHERE (status = 'active'::text)", "commercial_pricing_rules_pkey": "CREATE UNIQUE INDEX commercial_pricing_rules_pkey ON public.commercial_pricing_rules USING btree (id)", "commercial_pricing_rules_version_key": "CREATE UNIQUE INDEX commercial_pricing_rules_version_key ON public.commercial_pricing_rules USING btree (version)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cpr_positivos": "CHECK (((block_units > 0) AND (block_price_cents > 0) AND (extra_unit_price_cents > 0) AND (fidelized_unit_price_cents > 0)))", "cpr_bps_validos": "CHECK ((((pool_bps_supermarket >= 0) AND (pool_bps_supermarket <= 10000)) AND ((pool_bps_common >= 0) AND (pool_bps_common <= 10000))))", "cpr_status_allowed": "CHECK ((status = ANY (ARRAY['prepared'::text, 'active'::text, 'superseded'::text])))", "cpr_modelo_coerente": "CHECK ((((pool_precision_model = 'basis_points'::text) AND (pool_bps_supermarket IS NOT NULL) AND (pool_bps_common IS NOT NULL)) OR ((pool_precision_model = 'exact_ratio'::text) AND (pool_bps_supermarket IS NULL) AND (pool_bps_common IS NULL)) OR ((pool_precision_model = 'explicit_schedule'::text) AND (pool_bps_supermarket IS NULL) AND (pool_bps_common IS NULL))))", "cpr_qa_policy_so_v4": "CHECK (((qa_policy IS NULL) OR (version >= 4)))", "cpr_qa_policy_valida": "CHECK (((qa_policy IS NULL) OR (qa_policy = 'in_kind_direct_benefits_only'::text)))", "cpr_modelo_precisao_valido": "CHECK ((pool_precision_model = ANY (ARRAY['basis_points'::text, 'exact_ratio'::text, 'explicit_schedule'::text])))", "commercial_pricing_rules_pkey": "PRIMARY KEY (id)", "commercial_pricing_rules_version_key": "UNIQUE (version)"}, "columns_sha256": "cfaf917690d1fc3c91f1b1d5e69205174c3692c247afd2a04ba250a26286e070"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_pricing_schedule", "indexes": {"cps_chave_unica": "CREATE UNIQUE INDEX cps_chave_unica ON public.commercial_pricing_schedule USING btree (pricing_rule_version, commercial_category, fidelized)", "commercial_pricing_schedule_pkey": "CREATE UNIQUE INDEX commercial_pricing_schedule_pkey ON public.commercial_pricing_schedule USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cps_chave_unica": "UNIQUE (pricing_rule_version, commercial_category, fidelized)", "cps_categoria_valida": "CHECK ((commercial_category = ANY (ARRAY['supermarket'::text, 'common'::text])))", "cps_bandeiras_coerente": "CHECK ((((new_flag_units IS NULL) AND (flag_unit_reference_cents IS NULL) AND (flag_production_charge_cents IS NULL)) OR ((new_flag_units IS NOT NULL) AND (flag_unit_reference_cents IS NOT NULL) AND (flag_production_charge_cents IS NOT NULL) AND (new_flag_units >= 0) AND (flag_unit_reference_cents > 0) AND (flag_production_charge_cents = (new_flag_units * flag_unit_reference_cents)) AND (flag_production_charge_cents <= smallflags_main_fee_cents) AND ((NOT fidelized) OR (new_flag_units = 0)) AND (fidelized OR (new_flag_units > 0)))))", "cps_invariante_economica": "CHECK ((economic_value_cents = ((mei_consideration_cents + smallflags_qa_cents) + smallflags_main_fee_cents)))", "cps_participacao_positiva": "CHECK (((ordinary_participation_value_cents IS NULL) OR (ordinary_participation_value_cents > 0)))", "cps_valores_nao_negativos": "CHECK (((economic_value_cents > 0) AND (mei_consideration_cents >= 0) AND (smallflags_qa_cents >= 0) AND (smallflags_main_fee_cents >= 0) AND (smallflags_total_remuneration_cents >= 0)))", "cps_invariante_remuneracao": "CHECK ((smallflags_total_remuneration_cents = (smallflags_qa_cents + smallflags_main_fee_cents)))", "commercial_pricing_schedule_pkey": "PRIMARY KEY (id)", "commercial_pricing_schedule_pricing_rule_version_fkey": "FOREIGN KEY (pricing_rule_version) REFERENCES public.commercial_pricing_rules(version)"}, "columns_sha256": "3e5593532c7a7a18c5bec6a87136f24a7e3642f2dec9484d611cafb1645c376b"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_qa_operational_procedures", "indexes": {"commercial_qa_operational_procedures_pkey": "CREATE UNIQUE INDEX commercial_qa_operational_procedures_pkey ON public.commercial_qa_operational_procedures USING btree (id)", "commercial_qa_operational_procedures_procedure_reference_key": "CREATE UNIQUE INDEX commercial_qa_operational_procedures_procedure_reference_key ON public.commercial_qa_operational_procedures USING btree (procedure_reference)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cqop_ref": "CHECK ((length(btrim(procedure_reference)) >= 10))", "cqop_sha256": "CHECK ((procedure_document_sha256 ~ '^[0-9a-f]{64}$'::text))", "cqop_aprovador": "CHECK ((length(btrim(approver_as_stated)) >= 3))", "cqop_cobertura_completa": "CHECK ((covers_authorization AND covers_product_receipt AND covers_test_execution AND covers_evidence_validation AND covers_noncompliance))", "commercial_qa_operational_procedures_pkey": "PRIMARY KEY (id)", "commercial_qa_operational_procedures_procedure_reference_key": "UNIQUE (procedure_reference)"}, "columns_sha256": "8272b2973f5e841a2c7146d50c88e5461492b41221cf6f87a2f17b417e6f96d1"}, {"acl": ["service_role:SELECT"], "rls": true, "table": "public.commercial_settlement_terms", "indexes": {"cst_chave_unica": "CREATE UNIQUE INDEX cst_chave_unica ON public.commercial_settlement_terms USING btree (pricing_rule_version, commercial_category, fidelized, benefit_settlement_mode)", "commercial_settlement_terms_pkey": "CREATE UNIQUE INDEX commercial_settlement_terms_pkey ON public.commercial_settlement_terms USING btree (id)"}, "present": true, "policies": {}, "rls_forced": false, "constraints": {"cst_dinheiro": "CHECK (((benefit_settlement_mode <> 'cash'::text) OR ((qa_in_kind_cents = 0) AND (mei_in_kind_cents = 0) AND (mei_cash_cents = mei_consideration_cents) AND (economic_value_cents = ((mei_consideration_cents + smallflags_main_fee_cents) + cash_adjustment_cents)) AND (total_monetary_funding_required_cents = economic_value_cents))))", "cst_chave_unica": "UNIQUE (pricing_rule_version, commercial_category, fidelized, benefit_settlement_mode)", "cst_nao_negativos": "CHECK (((economic_value_cents > 0) AND (mei_consideration_cents >= 0) AND (mei_in_kind_cents >= 0) AND (mei_cash_cents >= 0) AND (smallflags_main_fee_cents >= 0) AND (qa_in_kind_cents >= 0) AND (cash_adjustment_cents >= 0) AND (total_monetary_funding_required_cents >= 0) AND (ordinary_participation_value_cents > 0)))", "cst_beneficio_direto": "CHECK (((benefit_settlement_mode <> 'direct_benefits'::text) OR ((mei_in_kind_cents = mei_consideration_cents) AND (mei_cash_cents = 0) AND (cash_adjustment_cents = 0) AND (economic_value_cents = ((mei_consideration_cents + smallflags_main_fee_cents) + qa_in_kind_cents)) AND (total_monetary_funding_required_cents = smallflags_main_fee_cents))))", "cst_categoria_valida": "CHECK ((commercial_category = ANY (ARRAY['supermarket'::text, 'common'::text])))", "cst_modalidade_valida": "CHECK ((benefit_settlement_mode = ANY (ARRAY['direct_benefits'::text, 'cash'::text])))", "cst_decisao_registrada": "CHECK ((length(btrim(decision_reference)) >= 10))", "cst_sem_qa_em_dinheiro": "CHECK ((qa_cash_cents = 0))", "cst_ajuste_fundamentado": "CHECK ((((cash_adjustment_cents = 0) AND (cash_adjustment_basis IS NULL)) OR ((cash_adjustment_cents > 0) AND (cash_adjustment_basis IS NOT NULL) AND (length(btrim(cash_adjustment_basis)) >= 20))))", "cst_versao_com_politica": "CHECK ((pricing_rule_version >= 4))", "commercial_settlement_terms_pkey": "PRIMARY KEY (id)", "commercial_settlement_terms_pricing_rule_version_fkey": "FOREIGN KEY (pricing_rule_version) REFERENCES public.commercial_pricing_rules(version)"}, "columns_sha256": "f5ecbbe053814ea99dcb11da5ac7c63bdb6f2123dcd734d799ba0cfd761c0f10"}], "storage": {"buckets": {"supplier-quote-documents": {"public": false, "file_size_limit": 20971520, "allowed_mime_types": ["application/pdf", "image/png", "image/jpeg"]}, "partner-customization-images": {"public": false, "file_size_limit": 10485760, "allowed_mime_types": ["image/jpeg", "image/png", "image/webp"]}}, "policies": {"cacd_admin_insert": {"cmd": "a", "check": "((bucket_id = 'supplier-quote-documents'::text) AND public.is_site_admin())", "roles": ["authenticated"], "using": null, "permissive": true}, "cacd_admin_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "((bucket_id = 'supplier-quote-documents'::text) AND public.is_site_admin())", "permissive": true}, "cacd_owner_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "((bucket_id = 'supplier-quote-documents'::text) AND public.commercial_artwork_change_document_readable(name))", "permissive": true}, "m2_custom_img_admin_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "((bucket_id = 'partner-customization-images'::text) AND public.is_site_admin())", "permissive": true}, "m2_custom_img_owner_insert": {"cmd": "a", "check": "((bucket_id = 'partner-customization-images'::text) AND (EXISTS ( SELECT 1\n   FROM public.commercial_exclusivity_orders o\n  WHERE (((o.id)::text = split_part(objects.name, '/'::text, 1)) AND public.m2_is_company_owner(o.company_id)))))", "roles": ["authenticated"], "using": null, "permissive": true}, "m2_custom_img_owner_select": {"cmd": "r", "check": null, "roles": ["authenticated"], "using": "((bucket_id = 'partner-customization-images'::text) AND (EXISTS ( SELECT 1\n   FROM public.commercial_exclusivity_orders o\n  WHERE (((o.id)::text = split_part(objects.name, '/'::text, 1)) AND public.m2_is_company_owner(o.company_id)))))", "permissive": true}}, "objects_rls": true}, "triggers": {"public.commercial_flag_sets.cfs_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_flag_sets_protect()", "deferrable": false, "definition": "CREATE TRIGGER cfs_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_flag_sets FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_sets_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "2690264d59ff4dcb2b76e2e13059b8de8f7a7f474d2a256ba426b665fc817626", "definition_sha256": "d7cd3099ed10f7b31ea2d47f792af9d1690504e1154a997b9dde56edf6bd848b", "initially_deferred": false}, "public.commercial_payments.trg_cp_touch": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.fase2a_touch_updated_at()", "deferrable": false, "definition": "CREATE TRIGGER trg_cp_touch BEFORE UPDATE ON public.commercial_payments FOR EACH ROW EXECUTE FUNCTION public.fase2a_touch_updated_at()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "f0fd417ae71a52338a298bf853ce507a8bc036c54c4f14cfea417ffffb7abc8f", "definition_sha256": "61b182d54029d5ebd2d91dfe1ae7abc80e1afc974323bb7180cabdb2bc6b604d", "initially_deferred": false}, "public.commercial_payments.trg_cp_proteger": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.cp_proteger()", "deferrable": false, "definition": "CREATE TRIGGER trg_cp_proteger BEFORE DELETE OR UPDATE ON public.commercial_payments FOR EACH ROW EXECUTE FUNCTION public.cp_proteger()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "4f74486afa623f948f78ff3a90c8301892aed7da6e769c4a8d8c8e213d0f27be", "definition_sha256": "e6299f3b45f6c28dd9491915580a6f6d4d979a4a18f28dc232fe6a2312a4ae7f", "initially_deferred": false}, "public.commercial_pricing_rules.cpr_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_pricing_rules_protect()", "deferrable": false, "definition": "CREATE TRIGGER cpr_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_pricing_rules FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_rules_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "dcf4da0f184fe75d5919610690b0331d60b7c3145addd4d663a24ff4f6f31146", "definition_sha256": "b4aa3089c0860976b792a242dd2e300c8620cad898bdbc473ceec950cefca990", "initially_deferred": false}, "public.commercial_guard_manifests.cgm_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_guard_manifests_protect()", "deferrable": false, "definition": "CREATE TRIGGER cgm_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_guard_manifests FOR EACH ROW EXECUTE FUNCTION public.commercial_guard_manifests_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "bc270768c7a81a5923a3bc1d303253925e1765e27540bf26b8618222d16b916e", "definition_sha256": "fc0ea03fced5b0738eed71512ebc1ef291d7a1ed2766bacf3a2d7364e21145b1", "initially_deferred": false}, "public.commercial_pricing_schedule.cps_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_pricing_schedule_protect()", "deferrable": false, "definition": "CREATE TRIGGER cps_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_pricing_schedule FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_schedule_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "334a31ec2adb96c33c47f422ab3a85a736ad18221dc55a1a99dec9811a8fc041", "definition_sha256": "b5e464973ac583f9d65585baaa82799341c4d54eaad6248466531244333e42a6", "initially_deferred": false}, "public.commercial_settlement_terms.cst_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_settlement_terms_protect()", "deferrable": false, "definition": "CREATE TRIGGER cst_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_settlement_terms FOR EACH ROW EXECUTE FUNCTION public.commercial_settlement_terms_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "3a5c45565bec15feeaa7863a01015351f1638acbe2bd77a882960c56a2d00da2", "definition_sha256": "da68b0fe1a20e56776f08a2a3e3d7f188db6861b6e32f2b465e22dc55100cdb7", "initially_deferred": false}, "public.commercial_flag_sets.cfs_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_flag_inventory_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cfs_protect_truncate BEFORE TRUNCATE ON public.commercial_flag_sets FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_flag_inventory_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "bb12a8f32a55d6e71a5971e089e8756e9b2e86ddf007c999ea73076d1fe7baf4", "definition_sha256": "19bd053108da69913fa618a37e798e0fe21fbf2234ea75cc465ff9058cf4ba81", "initially_deferred": false}, "public.commercial_exclusivity_orders.trg_ceo_touch": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.fase2a_touch_updated_at()", "deferrable": false, "definition": "CREATE TRIGGER trg_ceo_touch BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.fase2a_touch_updated_at()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "f0fd417ae71a52338a298bf853ce507a8bc036c54c4f14cfea417ffffb7abc8f", "definition_sha256": "563bc51d7a8a6bf51168d2b2580dcb6bdf86f1adf6b7d22c85748076aaedf5e7", "initially_deferred": false}, "public.commercial_flag_set_inspections.cfi_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_flag_set_inspections_protect()", "deferrable": false, "definition": "CREATE TRIGGER cfi_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_flag_set_inspections FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_set_inspections_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "da606f958f5af26fdf2b0ce9ba2d45aa2056aa76d9f7b9e641bc97e2b3e58932", "definition_sha256": "5dcde04f40a706b69419c37b0b0e5d3ea5d91f6c6793a2028630b3c871011726", "initially_deferred": false}, "public.commercial_payments.cp_valor_confere_pedido": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.cp_valor_confere_pedido()", "deferrable": false, "definition": "CREATE TRIGGER cp_valor_confere_pedido BEFORE INSERT ON public.commercial_payments FOR EACH ROW EXECUTE FUNCTION public.cp_valor_confere_pedido()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "8aa0dccba55b27866c768dd03fbf8d8e3b03d72af60de9a8058094a2bbf61c28", "definition_sha256": "65dced9887329d202bfec38886491be8ac81797b041ebf2d8ad3d8a037677f5c", "initially_deferred": false}, "public.commercial_exclusivity_orders.trg_ceo_protect": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.m2_orders_protect()", "deferrable": false, "definition": "CREATE TRIGGER trg_ceo_protect BEFORE DELETE OR UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.m2_orders_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "760f2f2de477e05f7d735d87cf49773ff3833347bfcb2b5a12cb3f160fb1f89f", "definition_sha256": "58b552a3c0a00efa697f439c30492979a23290b0c77938456b54a1bf36cec7bd", "initially_deferred": false}, "public.commercial_pricing_rules.cpr_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cpr_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_rules FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "5ac37ebab8b0edc8ae8ffc5decf8710e4f6b08b62136b80060c7874e4477cb8e", "initially_deferred": false}, "public.commercial_artwork_change_quotes.cacq_concilia": {"when": null, "state": "O", "tgtype": 5, "columns": "", "function": "public.commercial_artwork_change_quote_reconcile()", "deferrable": true, "definition": "CREATE CONSTRAINT TRIGGER cacq_concilia AFTER INSERT ON public.commercial_artwork_change_quotes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_quote_reconcile()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "40569c55130577f77705194ef664d77b6864700e229d992776dbc81410e3ec74", "definition_sha256": "8a8c516ea969a4aa4f3b5005ea4bfc2a0a6c7c06623fb720c414bfcb93359f37", "initially_deferred": true}, "public.commercial_pricing_activation_log.cpal_protect": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.commercial_pricing_activation_log_protect()", "deferrable": false, "definition": "CREATE TRIGGER cpal_protect BEFORE DELETE OR UPDATE ON public.commercial_pricing_activation_log FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_activation_log_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "14f69adce2ca6f8db8aeff765f2586090c7915b493ef22607b4cd16e6d3ce76f", "definition_sha256": "8a2cd7c2fa9b6a526ab177710d8a6e47362162b459daffcacca1e40b9c7ad908", "initially_deferred": false}, "public.commercial_artwork_change_requests.cacr_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_artwork_change_requests_protect()", "deferrable": false, "definition": "CREATE TRIGGER cacr_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_artwork_change_requests FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_requests_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "1463eb5c43b8da830538baa5fe472e50eedec6d7feecfca329ab3ca077063e69", "definition_sha256": "6c1076d43f19120796544c406f03f2ebef4650d214d22ba4f86efcd8e709d497", "initially_deferred": false}, "public.commercial_checkout_intents.cci_preencher_fatos": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.cci_preencher_fatos_materiais()", "deferrable": false, "definition": "CREATE TRIGGER cci_preencher_fatos BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_preencher_fatos_materiais()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "e8f11915eee4edce7f485b10659a3b55e3648ec49456a5f98cd4a2d345307a2b", "definition_sha256": "4eb75e7db1801bef5f3eee45ab10a784a44f3ff701d082ce4d2c118cb66493ea", "initially_deferred": false}, "public.commercial_guard_manifests.cgm_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cgm_protect_truncate BEFORE TRUNCATE ON public.commercial_guard_manifests FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "e4e5c71d6746a5bb0ba5b58fdff3af610476f53f1a67c55ce797f0906e9148a6", "initially_deferred": false}, "public.commercial_pricing_schedule.cps_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cps_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_schedule FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "6633728ebde5056762302b66ff4f6b145f20b34b6e8a3e2cc194329f504e3632", "initially_deferred": false}, "public.commercial_settlement_terms.cst_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cst_protect_truncate BEFORE TRUNCATE ON public.commercial_settlement_terms FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "33a5d29ca46da23a1b977d44cb55ab9444291cade69880187f8a2ca63cfbfa4f", "initially_deferred": false}, "public.commercial_artwork_change_events.cace_append_only": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.commercial_artwork_change_append_only()", "deferrable": false, "definition": "CREATE TRIGGER cace_append_only BEFORE DELETE OR UPDATE ON public.commercial_artwork_change_events FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_append_only()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "47101e525a49c878b3b873353e2ee6fad4e13cbf57fa93f0567632590a4a04b0", "definition_sha256": "c90585b4fea343bf907b60a7796e588b0b9ee41445da0147311420cce2a13dad", "initially_deferred": false}, "public.commercial_artwork_change_quotes.cacq_append_only": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.commercial_artwork_change_append_only()", "deferrable": false, "definition": "CREATE TRIGGER cacq_append_only BEFORE DELETE OR UPDATE ON public.commercial_artwork_change_quotes FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_append_only()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "47101e525a49c878b3b873353e2ee6fad4e13cbf57fa93f0567632590a4a04b0", "definition_sha256": "647585be17191fd3ea7aec5d35b17717bc7ddf4c9121ba0c94e0c3d1eea2261a", "initially_deferred": false}, "public.commercial_checkout_intents.cci_segmento_imutavel": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.commercial_segment_snapshot_imutavel()", "deferrable": false, "definition": "CREATE TRIGGER cci_segmento_imutavel BEFORE UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.commercial_segment_snapshot_imutavel()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "044adf339fe704030567db9f03719eb1546c7f716c49930cb69816923be555a9", "definition_sha256": "092bf8d532482a93d8723d2cd5f5c637e772154eb7fd959e55235f0d30cd3ce3", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_preencher_fatos": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.ceo_preencher_fatos_materiais()", "deferrable": false, "definition": "CREATE TRIGGER ceo_preencher_fatos BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_preencher_fatos_materiais()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "4ec5ce9bd2913a981fd30937ee7765d8081db0afd844a92e1c2160ec13cfb972", "definition_sha256": "2b28b94bff75e42db350d501b02a3b7e837ad291e10c67455753e288a40cb5e4", "initially_deferred": false}, "public.commercial_qa_operational_procedures.cqop_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_qa_operational_procedures_protect()", "deferrable": false, "definition": "CREATE TRIGGER cqop_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_qa_operational_procedures FOR EACH ROW EXECUTE FUNCTION public.commercial_qa_operational_procedures_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "86436f51ea9a9a189569ac28e5980cd0074eb12cb75bf892bad96206fb80a591", "definition_sha256": "62aaf291f5148b0dc0ae32e74415441ac2ec1e31a82f6e21973614f0c0495311", "initially_deferred": false}, "public.commercial_artwork_change_versions.cacv_append_only": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.commercial_artwork_change_append_only()", "deferrable": false, "definition": "CREATE TRIGGER cacv_append_only BEFORE DELETE OR UPDATE ON public.commercial_artwork_change_versions FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_append_only()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "47101e525a49c878b3b873353e2ee6fad4e13cbf57fa93f0567632590a4a04b0", "definition_sha256": "7de2fb52028890dcc14bf45e39d809e6301fae90c8cc4ca30ca20359f0f8605b", "initially_deferred": false}, "public.commercial_checkout_intents.cci_bandeiras_imutaveis": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.commercial_flag_facts_imutaveis()", "deferrable": false, "definition": "CREATE TRIGGER cci_bandeiras_imutaveis BEFORE UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_facts_imutaveis()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "133b41d9abe71ee744c00f877e5e80bafc5307b6bcab95f6e7ad6b4d8a70d070", "definition_sha256": "081aad32c1ed444a205ec4c43a002d6a71a16fdedd4a20889fce477f22c93b85", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_segmento_imutavel": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.commercial_segment_snapshot_imutavel()", "deferrable": false, "definition": "CREATE TRIGGER ceo_segmento_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.commercial_segment_snapshot_imutavel()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "044adf339fe704030567db9f03719eb1546c7f716c49930cb69816923be555a9", "definition_sha256": "a97532e32009ae2e02e7f429e232e371902c282cd4e144ed3106ac372580aaf6", "initially_deferred": false}, "public.commercial_artwork_change_quote_items.cacqi_concilia": {"when": null, "state": "O", "tgtype": 5, "columns": "", "function": "public.commercial_artwork_change_quote_reconcile()", "deferrable": true, "definition": "CREATE CONSTRAINT TRIGGER cacqi_concilia AFTER INSERT ON public.commercial_artwork_change_quote_items DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_quote_reconcile()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "40569c55130577f77705194ef664d77b6864700e229d992776dbc81410e3ec74", "definition_sha256": "b47abb8435b41e16bd5a4fd6385f11fd36dacdf706a292994cbc616a2cc3319d", "initially_deferred": true}, "public.commercial_exclusivity_orders.ceo_emitir_instrumento": {"when": null, "state": "O", "tgtype": 5, "columns": "", "function": "public.ceo_emitir_instrumento()", "deferrable": false, "definition": "CREATE TRIGGER ceo_emitir_instrumento AFTER INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_emitir_instrumento()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "722fce1aeab8bc66225a7bef9556fe38d308e9478a0eb3ea3649224345897ae7", "definition_sha256": "cb1564e9f602799017054547d8b3c157761491755bc6017940d960669ed5e177", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_exigir_instrumento": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.ceo_exigir_instrumento_quando_assinavel()", "deferrable": false, "definition": "CREATE TRIGGER ceo_exigir_instrumento BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_exigir_instrumento_quando_assinavel()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "26f7000b7047e0a52eaa701d53cd09e2e351cd4a87d59c5af5c98702196e8308", "definition_sha256": "afed0e0d33d4379e5e1ceb589aecc7225e12723cd63a09fe7315d793ec16f07e", "initially_deferred": false}, "public.commercial_flag_set_inspections.cfi_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_flag_inventory_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cfi_protect_truncate BEFORE TRUNCATE ON public.commercial_flag_set_inspections FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_flag_inventory_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "bb12a8f32a55d6e71a5971e089e8756e9b2e86ddf007c999ea73076d1fe7baf4", "definition_sha256": "6a342d851c3f5982542f5e63090acbe944c24ddee180731074fd8bb43308acfe", "initially_deferred": false}, "public.commercial_pricing_activation_approvals.cpaa_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_pricing_activation_approvals_protect()", "deferrable": false, "definition": "CREATE TRIGGER cpaa_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_pricing_activation_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_activation_approvals_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "131059cb96fbcb894a09cb3e551282b9b5144d4c793f4150029afa1e7f71da27", "definition_sha256": "dc5099952532325cd2ee6347f8b9af9f4de20199d2ec291a8b2a2f1a3ee3982a", "initially_deferred": false}, "public.commercial_checkout_intents.cci_proteger_snapshot_trg": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.cci_proteger_snapshot()", "deferrable": false, "definition": "CREATE TRIGGER cci_proteger_snapshot_trg BEFORE UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_proteger_snapshot()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "fdb064d35ad871f0071b8d0d4f9d99d080ae1f09826f68ad4e86d9fee412ab40", "definition_sha256": "68427d6a4f344d8eaae271acb39819d48fc451a900005af8a1ff82203030b585", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_bandeiras_imutaveis": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.commercial_flag_facts_imutaveis()", "deferrable": false, "definition": "CREATE TRIGGER ceo_bandeiras_imutaveis BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_facts_imutaveis()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "133b41d9abe71ee744c00f877e5e80bafc5307b6bcab95f6e7ad6b4d8a70d070", "definition_sha256": "48d0c9cd0a2251cb20181a0ffb79277c54f7e261cfe0ac7679f07a631d34b997", "initially_deferred": false}, "public.commercial_flag_set_inspections.cfi_bloquear_conjunto": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.commercial_flag_set_lock_for_inspection()", "deferrable": false, "definition": "CREATE TRIGGER cfi_bloquear_conjunto BEFORE INSERT ON public.commercial_flag_set_inspections FOR EACH ROW EXECUTE FUNCTION public.commercial_flag_set_lock_for_inspection()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "2271272d240a23dcd3007c6b7ce742459afb326d1102433995df2b4142301674", "definition_sha256": "a623c8387cf050cc6bfca4f318f92d3571c346bac0eb10216c0eff1ec0916218", "initially_deferred": false}, "public.commercial_artwork_change_events.cace_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cace_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_events FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "ce57f51ee1c230455ebd6e22d8ef2a87245e98593caee99753335eb070189716", "initially_deferred": false}, "public.commercial_artwork_change_quotes.cacq_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cacq_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_quotes FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "19dd9204928bdbac8a7a51e54258a595e40743e5844cde0039d87a5477730a89", "initially_deferred": false}, "public.commercial_checkout_intents.cci_aplicar_autoridade_v14": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.cci_aplicar_autoridade_v14()", "deferrable": false, "definition": "CREATE TRIGGER cci_aplicar_autoridade_v14 BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_aplicar_autoridade_v14()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "d71265048360c982d951e77de2830fd3d23e0c97929b57605d1d4faa3a909f90", "definition_sha256": "a1421ae18d7ff1efcf4d66a74a71086aa412c8281905c4c7dda4eae085adcb67", "initially_deferred": false}, "public.commercial_checkout_intents.cci_portao_autoatendimento": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.cci_portao_autoatendimento()", "deferrable": false, "definition": "CREATE TRIGGER cci_portao_autoatendimento BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_portao_autoatendimento()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "55f3678fdd292f426142f8a31fc8a49c023312b025bd1478251ea86756f52ae1", "definition_sha256": "79adddb7c04966063432e3d8575d14a437f84500a23a7ccb97cb01406da901a7", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_instrumento_imutavel": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.ceo_instrumento_imutavel()", "deferrable": false, "definition": "CREATE TRIGGER ceo_instrumento_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_instrumento_imutavel()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "bfdcb2188b8757ec8b4e55d40db7eef435f9e8456575343eb8e4e455981dea0d", "definition_sha256": "f78c4e15a45d01b052d372ef8c1327dfb0f3a41ba813f0724c9b0f24744ba7a5", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_segmento_da_intencao": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.ceo_segmento_da_intencao()", "deferrable": false, "definition": "CREATE TRIGGER ceo_segmento_da_intencao BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_segmento_da_intencao()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "a544f81886260476dfec5995d3ec1215bbc17e541042c21ba4492607e4657df8", "definition_sha256": "71938d7bced8dbc77639420a0373eb5b258c5b9bc2b33e96ab40ff86e237c9b2", "initially_deferred": false}, "public.commercial_exclusivity_orders.trg_ceo_origem_pagamento": {"when": null, "state": "O", "tgtype": 23, "columns": "", "function": "public.ceo_marcar_origem_manual()", "deferrable": false, "definition": "CREATE TRIGGER trg_ceo_origem_pagamento BEFORE INSERT OR UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_marcar_origem_manual()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "c52e0d3ac23ab3c33151edc905b25346d0cf812b412533bcb9dd7bd574ff9086", "definition_sha256": "77895cf9ce3d11af7c0312ab6ac8e595722e91072bc931da4d3f3b4a1eb9e777", "initially_deferred": false}, "public.commercial_instrument_template_approvals.citap_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_instrument_template_approvals_protect()", "deferrable": false, "definition": "CREATE TRIGGER citap_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_instrument_template_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_instrument_template_approvals_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "c77e8e880308a73f9f6ee9751e501c189b1226539b56f8278c2328af0abb803e", "definition_sha256": "d8d67c88181ba5672a4ee1bf1e5b15236028b1c5d4e8764cbb7417b80cb5cb45", "initially_deferred": false}, "public.commercial_artwork_change_quote_items.cacqi_append_only": {"when": null, "state": "O", "tgtype": 27, "columns": "", "function": "public.commercial_artwork_change_append_only()", "deferrable": false, "definition": "CREATE TRIGGER cacqi_append_only BEFORE DELETE OR UPDATE ON public.commercial_artwork_change_quote_items FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_append_only()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "47101e525a49c878b3b873353e2ee6fad4e13cbf57fa93f0567632590a4a04b0", "definition_sha256": "c858b4f922cc9bdd12b499f3316fc98fe9d97f7a8901ed66e04ffb167787690b", "initially_deferred": false}, "public.commercial_checkout_intents.cci_liquidar_modalidade_v15": {"when": null, "state": "O", "tgtype": 23, "columns": "", "function": "public.cci_liquidar_modalidade_v15()", "deferrable": false, "definition": "CREATE TRIGGER cci_liquidar_modalidade_v15 BEFORE INSERT OR UPDATE ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_liquidar_modalidade_v15()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "0bdce46677c0c4047c97f1ac0d8db2696b7eeff926a393e393a07fd49f4ab909", "definition_sha256": "4f99069e57b8738572a7c3c1a5cfb6749c2787c24a040241392b5f817918d32f", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_snapshot_v14_imutavel": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.ceo_snapshot_v14_imutavel()", "deferrable": false, "definition": "CREATE TRIGGER ceo_snapshot_v14_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_snapshot_v14_imutavel()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "5c68326fdceca35d2fe6f5e573e6c677e7560d6b59289fd02db5324d7a21a4e7", "definition_sha256": "4764bf11bfe33265cc07c405c4cc4127e3d554f164de50965561a2396e706678", "initially_deferred": false}, "public.commercial_pricing_activation_log.cpal_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cpal_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_activation_log FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "3d7a811c361d8583b8643363348fa7663c799408fa89740984026e0a8fb68185", "initially_deferred": false}, "public.commercial_artwork_change_requests.cacr_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cacr_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_requests FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "177954ecb25644424d98bdbb0d9e6bd48936799d23cd252fa042e31f1a318b14", "initially_deferred": false}, "public.commercial_artwork_change_versions.cacv_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cacv_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_versions FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "310e3469dbff5201fa33bd032ef704d62388fbdbdae91609ad887f7f04638756", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_aplicar_autoridade_v14": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.ceo_aplicar_autoridade_v14()", "deferrable": false, "definition": "CREATE TRIGGER ceo_aplicar_autoridade_v14 BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_aplicar_autoridade_v14()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "aae838a149a33f7d720406fc023dc2eb2f6ac807507ac8eeab68527564423bb0", "definition_sha256": "47945a7ec8bc97e34feebda0dbf3c022d0b34333260c16e9cc7827175e0b6977", "initially_deferred": false}, "public.commercial_artwork_change_supplier_documents.cacd_protect": {"when": null, "state": "O", "tgtype": 31, "columns": "", "function": "public.commercial_artwork_change_supplier_document_protect()", "deferrable": false, "definition": "CREATE TRIGGER cacd_protect BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_artwork_change_supplier_documents FOR EACH ROW EXECUTE FUNCTION public.commercial_artwork_change_supplier_document_protect()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "4bcec2964240de699a3d2a66cc2d4756362051c8a7feafb3a4a5fc34f55a6b83", "definition_sha256": "06612089db8e4313877098740a163bd0bceb9691b14523cf6e341c181f692620", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_liquidacao_v15_imutavel": {"when": null, "state": "O", "tgtype": 19, "columns": "", "function": "public.ceo_liquidacao_v15_imutavel()", "deferrable": false, "definition": "CREATE TRIGGER ceo_liquidacao_v15_imutavel BEFORE UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_liquidacao_v15_imutavel()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "69ea27bbd7eac181b8f976f4f74237c96682b4ba2a4674503eb92638e35675e1", "definition_sha256": "bc7f62b342dc0799ff7986c3857060ec05adc36cfca9bd3609c5b8fb10837f49", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_liquidar_modalidade_v15": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.ceo_liquidar_modalidade_v15()", "deferrable": false, "definition": "CREATE TRIGGER ceo_liquidar_modalidade_v15 BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_liquidar_modalidade_v15()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b879abd9a8f44d9f497ac6b2601e813a6583bd2428e57b0c4f166a13d2681003", "definition_sha256": "8d86138970115b4bf658d16fa6041989aad9e089d910bd01940f31828037bbf3", "initially_deferred": false}, "public.commercial_checkout_intents.cci_validar_producao_bandeiras": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.cci_validar_producao_bandeiras()", "deferrable": false, "definition": "CREATE TRIGGER cci_validar_producao_bandeiras BEFORE INSERT ON public.commercial_checkout_intents FOR EACH ROW EXECUTE FUNCTION public.cci_validar_producao_bandeiras()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "31fc7a2453ae6a2b337d1be25de97385d0e97b352c2f8b27a1f6284c6783863b", "definition_sha256": "beec37717a26e5671f4aa82ae697cab44339e50622115143579a5a7647335a7d", "initially_deferred": false}, "public.commercial_qa_operational_procedures.cqop_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cqop_protect_truncate BEFORE TRUNCATE ON public.commercial_qa_operational_procedures FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "54dfcd5195584c7f474d1eed88bd6c32edb0ee1dc79ac212420cc00da38a1401", "initially_deferred": false}, "public.commercial_artwork_change_quote_items.cacqi_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cacqi_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_quote_items FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "82e2d6e0fb3379fdb1dcf41f8e7a920e19f0bf43c324422469170c01e80b24b4", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_pagamento_confere_snapshot": {"when": null, "state": "O", "tgtype": 23, "columns": "", "function": "public.ceo_pagamento_confere_snapshot()", "deferrable": false, "definition": "CREATE TRIGGER ceo_pagamento_confere_snapshot BEFORE INSERT OR UPDATE ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_pagamento_confere_snapshot()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "44759806656f355ffff3d0f0bcc72f3127ac196b7dd0361f4910beca6b964962", "definition_sha256": "385a7e6b153d7700bc86913f88d6a498eb46b1dd7602ea0dd909fd8c34257d3c", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_validar_producao_bandeiras": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.ceo_validar_producao_bandeiras()", "deferrable": false, "definition": "CREATE TRIGGER ceo_validar_producao_bandeiras BEFORE INSERT ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_validar_producao_bandeiras()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "2a7ab8b842d0e4865e3df56da62634ed4369fad84638f86eb055dd5a6801b834", "definition_sha256": "13090adec88f0356015f17a73b044e441e25ed47a0a2b4c0dd1224da0848c00d", "initially_deferred": false}, "public.commercial_pricing_activation_approvals.cpaa_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cpaa_protect_truncate BEFORE TRUNCATE ON public.commercial_pricing_activation_approvals FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "9f0587c3ec343af7a50674986e2bd4599a6563b2258e40884e73c56667a2e0f6", "initially_deferred": false}, "public.commercial_instrument_template_approvals.citap_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER citap_protect_truncate BEFORE TRUNCATE ON public.commercial_instrument_template_approvals FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "69bf7c3e038f1d5fe80dc97f0844f68504ca2f9760d0abb2b615154a3be40605", "initially_deferred": false}, "public.commercial_pricing_activation_log.cpal_somente_pelo_procedimento": {"when": null, "state": "O", "tgtype": 7, "columns": "", "function": "public.commercial_pricing_activation_log_guard()", "deferrable": false, "definition": "CREATE TRIGGER cpal_somente_pelo_procedimento BEFORE INSERT ON public.commercial_pricing_activation_log FOR EACH ROW EXECUTE FUNCTION public.commercial_pricing_activation_log_guard()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "e35df937f3a0064e62fab1eb576b3c4fea5f75eccd58e05569264931654c8fe2", "definition_sha256": "32359304d51ccb227c25884421d42087a26579f22382264e3bfc29a7c9d61bc7", "initially_deferred": false}, "public.commercial_artwork_change_supplier_documents.cacd_protect_truncate": {"when": null, "state": "O", "tgtype": 34, "columns": "", "function": "public.commercial_pricing_protect_truncate()", "deferrable": false, "definition": "CREATE TRIGGER cacd_protect_truncate BEFORE TRUNCATE ON public.commercial_artwork_change_supplier_documents FOR EACH STATEMENT EXECUTE FUNCTION public.commercial_pricing_protect_truncate()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b", "definition_sha256": "7c269f17a01a727ad02464cf7b7db120b76af85175d8591076567b3ce740bc28", "initially_deferred": false}, "public.commercial_exclusivity_orders.ceo_revalidar_reutilizacao_bandeiras": {"when": null, "state": "O", "tgtype": 21, "columns": "23", "function": "public.ceo_revalidar_reutilizacao_bandeiras()", "deferrable": false, "definition": "CREATE TRIGGER ceo_revalidar_reutilizacao_bandeiras AFTER INSERT OR UPDATE OF payment_status ON public.commercial_exclusivity_orders FOR EACH ROW EXECUTE FUNCTION public.ceo_revalidar_reutilizacao_bandeiras()", "args_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "function_sha256": "3e5b9e40d240d9914949ed322ce3b8abdc54f147aa866bc29b6136f75568ddc5", "definition_sha256": "97c03227b4a9bd27fc536217d3971ff0549bc795a22f60257762c2f39d7377c2", "initially_deferred": false}}, "functions": {"public.cp_proteger()": {"definition_sha256": "4f74486afa623f948f78ff3a90c8301892aed7da6e769c4a8d8c8e213d0f27be"}, "public.is_site_admin()": {"execute": ["authenticated", "service_role"], "definition_sha256": "c067fab2c0977cb65b3b3d0895a9064f29ad1da8fe71070abbd49093174ad899"}, "public.m2_orders_protect()": {"definition_sha256": "760f2f2de477e05f7d735d87cf49773ff3833347bfcb2b5a12cb3f160fb1f89f"}, "public.cci_proteger_snapshot()": {"definition_sha256": "fdb064d35ad871f0071b8d0d4f9d99d080ae1f09826f68ad4e86d9fee412ab40"}, "public.ceo_emitir_instrumento()": {"definition_sha256": "722fce1aeab8bc66225a7bef9556fe38d308e9478a0eb3ea3649224345897ae7"}, "public.cp_valor_confere_pedido()": {"definition_sha256": "8aa0dccba55b27866c768dd03fbf8d8e3b03d72af60de9a8058094a2bbf61c28"}, "public.fase2a_touch_updated_at()": {"definition_sha256": "f0fd417ae71a52338a298bf853ce507a8bc036c54c4f14cfea417ffffb7abc8f"}, "public.m2_is_company_owner(uuid)": {"execute": ["authenticated"], "definition_sha256": "ca8138b569978a25f1cc49f0ee04974ca0bb223955fb540d220a84a7b0c0d1d4"}, "public.ceo_instrumento_imutavel()": {"definition_sha256": "bfdcb2188b8757ec8b4e55d40db7eef435f9e8456575343eb8e4e455981dea0d"}, "public.ceo_marcar_origem_manual()": {"definition_sha256": "c52e0d3ac23ab3c33151edc905b25346d0cf812b412533bcb9dd7bd574ff9086"}, "public.ceo_segmento_da_intencao()": {"definition_sha256": "a544f81886260476dfec5995d3ec1215bbc17e541042c21ba4492607e4657df8"}, "public.commercial_guard_catalog()": {"execute": ["service_role"], "definition_sha256": "7a4b8f150c21ba797f9569c2251f102fbb2bbbed946a1c5e3cfb7ba9f94449de"}, "public.m2_is_company_member(uuid)": {"execute": ["authenticated"], "definition_sha256": "60344eb0135339ccb5e8dffcb5544a8f9a475766d85ce65884658ac58b91d0c9"}, "public.ceo_snapshot_v14_imutavel()": {"definition_sha256": "5c68326fdceca35d2fe6f5e573e6c677e7560d6b59289fd02db5324d7a21a4e7"}, "public.cci_aplicar_autoridade_v14()": {"definition_sha256": "d71265048360c982d951e77de2830fd3d23e0c97929b57605d1d4faa3a909f90"}, "public.cci_portao_autoatendimento()": {"definition_sha256": "55f3678fdd292f426142f8a31fc8a49c023312b025bd1478251ea86756f52ae1"}, "public.ceo_aplicar_autoridade_v14()": {"definition_sha256": "aae838a149a33f7d720406fc023dc2eb2f6ac807507ac8eeab68527564423bb0"}, "public.cci_liquidar_modalidade_v15()": {"definition_sha256": "0bdce46677c0c4047c97f1ac0d8db2696b7eeff926a393e393a07fd49f4ab909"}, "public.ceo_liquidacao_v15_imutavel()": {"definition_sha256": "69ea27bbd7eac181b8f976f4f74237c96682b4ba2a4674503eb92638e35675e1"}, "public.ceo_liquidar_modalidade_v15()": {"definition_sha256": "b879abd9a8f44d9f497ac6b2601e813a6583bd2428e57b0c4f166a13d2681003"}, "public.commercial_flag_sets_protect()": {"definition_sha256": "2690264d59ff4dcb2b76e2e13059b8de8f7a7f474d2a256ba426b665fc817626"}, "public.artwork_change_image_path(uuid)": {"execute": ["authenticated"], "definition_sha256": "112f46cefe1ab9e2def9493cb534b4c407f2bda8876d74e2f78bc69537b76e77"}, "public.cci_preencher_fatos_materiais()": {"definition_sha256": "e8f11915eee4edce7f485b10659a3b55e3648ec49456a5f98cd4a2d345307a2b"}, "public.ceo_preencher_fatos_materiais()": {"definition_sha256": "4ec5ce9bd2913a981fd30937ee7765d8081db0afd844a92e1c2160ec13cfb972"}, "public.cci_validar_producao_bandeiras()": {"definition_sha256": "31fc7a2453ae6a2b337d1be25de97385d0e97b352c2f8b27a1f6284c6783863b"}, "public.ceo_pagamento_confere_snapshot()": {"definition_sha256": "44759806656f355ffff3d0f0bcc72f3127ac196b7dd0361f4910beca6b964962"}, "public.ceo_validar_producao_bandeiras()": {"definition_sha256": "2a7ab8b842d0e4865e3df56da62634ed4369fad84638f86eb055dd5a6801b834"}, "public.commercial_flag_facts_imutaveis()": {"definition_sha256": "133b41d9abe71ee744c00f877e5e80bafc5307b6bcab95f6e7ad6b4d8a70d070"}, "public.commercial_pricing_rules_protect()": {"definition_sha256": "dcf4da0f184fe75d5919610690b0331d60b7c3145addd4d663a24ff4f6f31146"}, "public.artwork_change_submit(uuid,integer)": {"execute": ["authenticated"], "definition_sha256": "6ef9630ec59ac648013c17bb3d8728aeb5c0a822f6349b4c7b519d0034f77372"}, "public.commercial_guard_manifests_protect()": {"definition_sha256": "bc270768c7a81a5923a3bc1d303253925e1765e27540bf26b8618222d16b916e"}, "public.commercial_artwork_change_actor(uuid)": {"execute": [], "definition_sha256": "f9b5ef77b6404359ddf2400609c524df3af32e69f69f0b82e1a9840a545516fa"}, "public.commercial_guard_integrity_failures()": {"execute": ["service_role"], "definition_sha256": "5fedfba9494017b822a42818e69aa1cfb1fc7859980df60c3b8dc88dc1ad4fbd"}, "public.commercial_order_artwork_locked(uuid)": {"execute": [], "definition_sha256": "4db3f6f7ce157673d8559d7991b69495d31ae6f01ee2334d29aa822f00c273e6"}, "public.commercial_pricing_protect_truncate()": {"definition_sha256": "b8e1316f7e7b8d7e64cb0db52dd2bc48d0c0c08e729384bfcf6b563fee3e941b"}, "public.commercial_pricing_schedule_protect()": {"definition_sha256": "334a31ec2adb96c33c47f422ab3a85a736ad18221dc55a1a99dec9811a8fc041"}, "public.commercial_settlement_terms_protect()": {"definition_sha256": "3a5c45565bec15feeaa7863a01015351f1638acbe2bd77a882960c56a2d00da2"}, "public.ceo_revalidar_reutilizacao_bandeiras()": {"definition_sha256": "3e5b9e40d240d9914949ed322ce3b8abdc54f147aa866bc29b6136f75568ddc5"}, "public.commercial_segment_snapshot_imutavel()": {"definition_sha256": "044adf339fe704030567db9f03719eb1546c7f716c49930cb69816923be555a9"}, "public.request_customization_image_path(uuid)": {"execute": ["authenticated"], "definition_sha256": "7f6b9e760f4d5d5dfde748bf31d4d60c6a9a72941e3b92beea684b4ab553115d"}, "public.artwork_change_requests_for_order(uuid)": {"execute": ["authenticated"], "definition_sha256": "633466808f803bbb6b9a7595f4c11cf5a3059360c286d77fded0a29180d8a17b"}, "public.commercial_artwork_change_append_only()": {"definition_sha256": "47101e525a49c878b3b873353e2ee6fad4e13cbf57fa93f0567632590a4a04b0"}, "public.commercial_fidelity_identity(text,uuid)": {"execute": [], "definition_sha256": "e405eb1ecdcead69bfc3c9a049afada7eda00c60a449aac0239b4accc12d2527"}, "public.commercial_order_settlement_check(uuid)": {"execute": [], "definition_sha256": "d030911805a1013982a5006a56446d3719f6bbf0bcabf0abb56cd2f4e982a76f"}, "public.artwork_change_cancel(uuid,integer,text)": {"execute": ["authenticated"], "definition_sha256": "e546cda1f5c272fc10769ca2f65ec00e1faf1d14a5cbd47788817696f609696e"}, "public.admin_activate_pricing_rule(integer,text)": {"execute": [], "definition_sha256": "ebb745215956a07cb6b63342edb3695313dedfa90db6156c0f78af22f733c424"}, "public.ceo_exigir_instrumento_quando_assinavel()": {"definition_sha256": "26f7000b7047e0a52eaa701d53cd09e2e351cd4a87d59c5af5c98702196e8308"}, "public.commercial_activation_guard_fingerprint()": {"execute": ["service_role"], "definition_sha256": "d18cfaf581560a16cef2e51e512de74c5216b13310c9396ff9080fd2ec296336"}, "public.commercial_artwork_change_lock(uuid,text)": {"execute": [], "definition_sha256": "ee7d976bd24a752413c445a3c70b4f483eb7004a28720215768ea3ea23eabda4"}, "public.commercial_artwork_change_readiness(uuid)": {"execute": [], "definition_sha256": "e68ba5e7221f94bafb193a9bd0f0b32041968511a2aa55c1afe87344cc9954d0"}, "public.commercial_flag_set_inspections_protect()": {"definition_sha256": "da606f958f5af26fdf2b0ce9ba2d45aa2056aa76d9f7b9e641bc97e2b3e58932"}, "public.commercial_flag_set_lock_for_inspection()": {"definition_sha256": "2271272d240a23dcd3007c6b7ce742459afb326d1102433995df2b4142301674"}, "public.commercial_pricing_activation_log_guard()": {"definition_sha256": "e35df937f3a0064e62fab1eb576b3c4fea5f75eccd58e05569264931654c8fe2"}, "public.commercial_activation_called_by_procedure()": {"execute": [], "definition_sha256": "c914658faee4fb50110c29838e3d0081b74294d75506f060096bb8ed882e0eea"}, "public.commercial_artwork_change_quote_reconcile()": {"definition_sha256": "40569c55130577f77705194ef664d77b6864700e229d992776dbc81410e3ec74"}, "public.commercial_flag_reuse_resolution(uuid,text)": {"execute": [], "definition_sha256": "2141e8ed338e763c928fe20460a3853700b2e08e041dd540035a255dd92eb3a2"}, "public.commercial_pricing_activation_log_protect()": {"definition_sha256": "14f69adce2ca6f8db8aeff765f2586090c7915b493ef22607b4cd16e6d3ce76f"}, "public.commercial_artwork_change_requests_protect()": {"definition_sha256": "1463eb5c43b8da830538baa5fe472e50eedec6d7feecfca329ab3ca077063e69"}, "public.commercial_flag_inventory_protect_truncate()": {"definition_sha256": "bb12a8f32a55d6e71a5971e089e8756e9b2e86ddf007c999ea73076d1fe7baf4"}, "public.commercial_guard_function_entry(regprocedure)": {"execute": [], "definition_sha256": "2a73088e7683c3b65ccdc9903187fec65f03dd32129965a9198a058cb670f63a"}, "public.admin_artwork_change_reject(uuid,integer,text)": {"execute": ["authenticated"], "definition_sha256": "c8f9ecd16e6519efc1b68f6dd9ec3a8a3f34a2d2500f09fe7da76bfc0a5faf04"}, "public.commercial_qa_operational_procedures_protect()": {"definition_sha256": "86436f51ea9a9a189569ac28e5980cd0074eb12cb75bf892bad96206fb80a591"}, "public.admin_artwork_change_start_review(uuid,integer)": {"execute": ["authenticated"], "definition_sha256": "f3b90cad44341c2530a8437a10fe0fbba102bc49007e03f8d362d82d498e6f2b"}, "public.commercial_build_instrument_snapshot(uuid,uuid)": {"execute": ["service_role"], "definition_sha256": "43d17fca7b2f8caac9f77777ff06496f44eeca7259375bad77706c3715eb37ad"}, "public.commercial_pricing_activation_preflight(integer)": {"execute": [], "definition_sha256": "3378beea9ae0d6b7f6ee3810958381e41e6a5a4bb83cf9091b8132741eb6d6b6"}, "public.admin_artwork_change_supplier_document_path(uuid)": {"execute": ["authenticated"], "definition_sha256": "5cf4fa75ea0f54ece83b073918ddb98b366b62a600a6d7808eab20e65dedb0cf"}, "public.commercial_artwork_change_document_readable(text)": {"execute": ["authenticated"], "definition_sha256": "55d4e3200c52370add65b49b2ff0c5fe66b0667da5de181318993fff197f025c"}, "public.commercial_pricing_activation_approvals_protect()": {"definition_sha256": "131059cb96fbcb894a09cb3e551282b9b5144d4c793f4150029afa1e7f71da27"}, "public.artwork_change_request_create(uuid,text,text,text)": {"execute": ["authenticated"], "definition_sha256": "2d7346dccf6ff08206a4d4c40ddd0b9a7dc1619dbf78f1f00ad86124be9c6d63"}, "public.commercial_instrument_template_approvals_protect()": {"definition_sha256": "c77e8e880308a73f9f6ee9751e501c189b1226539b56f8278c2328af0abb803e"}, "public.commercial_artwork_change_document_valid(uuid,uuid)": {"execute": [], "definition_sha256": "584b0245a17bb6ef4a45684a62fb8552631932f7c7654813be4e169a2338c30a"}, "public.commercial_artwork_change_supplier_document_protect()": {"definition_sha256": "4bcec2964240de699a3d2a66cc2d4756362051c8a7feafb3a4a5fc34f55a6b83"}, "public.create_commercial_checkout_intent(uuid,text,text,uuid)": {"execute": ["authenticated"], "definition_sha256": "a00520fb303f80bac53159647cd0119d85b5d5b4edf9e0badd3ea9a54cb33695"}, "public.admin_artwork_change_authorize_production(uuid,integer)": {"execute": ["authenticated"], "definition_sha256": "fc9d335d8e3145f706bbe21db0a89b0ed755fa5bfd71d19d74071387b0276e50"}, "public.commercial_artwork_change_renewal_state(uuid,text,uuid)": {"execute": [], "definition_sha256": "54e330c820953e20ca337e8c8c770f514a7ddeb51fa5671c64d74728e313fbbb"}, "public.register_customization_image(uuid,text,text,bigint,text)": {"execute": ["authenticated"], "definition_sha256": "a596d9a6a0347703d195288d7ae3af97ca4f58eede71117605d8f683cc5d8899"}, "public.admin_confirm_manual_bdflow_payment(uuid,bigint,text,text)": {"execute": ["authenticated"], "definition_sha256": "07de6c5a333db89699234ffbebe222c54d38dad16995a531fd69f26327ea5ffb"}, "public.artwork_change_accept_quote(uuid,integer,uuid,bigint,text)": {"execute": ["authenticated"], "definition_sha256": "cb9f6efa725726077713a985710335ee8321cf13544174d17033633b2100da52"}, "public.commercial_artwork_change_gate(uuid,integer,text[],text[])": {"execute": [], "definition_sha256": "5adabe33b69283fbe8a7cce6610526981be40f52b8fa1719b25fccb083054eef"}, "public.artwork_change_register_version(uuid,integer,text,text,text)": {"execute": ["authenticated"], "definition_sha256": "deac7e60e9a921fcec03041a8ea8bc2f31163a0a11674092817e0befe60f12ba"}, "public.admin_artwork_change_approve_exception(uuid,integer,text,text)": {"execute": ["authenticated"], "definition_sha256": "98d9344342ebc2d6f27956da018f5fec80c3339662fed2580acba16f1b58b641"}, "public.admin_artwork_change_register_supplier_document(uuid,text,text)": {"execute": ["authenticated"], "definition_sha256": "11f7befe7ff820012802f40809ceb42e2df2c28ee34951d97b5f0a719f0600ab"}, "public.commercial_artwork_change_event(uuid,text,text,text,text,jsonb)": {"execute": [], "definition_sha256": "9baaefd0d8b69bfd68811142480cda37a3ba18bdedafb0af1c41348836fa790c"}, "public.service_artwork_change_attest_supplier_document(uuid,uuid,text,bigint)": {"execute": ["service_role"], "definition_sha256": "6c483293c5138c408ae4ec06a2c8c260d8156d7110a82488d2a82f4d7b602d6f"}, "public.admin_artwork_change_register_quote(uuid,integer,uuid,text,text,text,jsonb,bigint)": {"execute": ["authenticated"], "definition_sha256": "bbc4d338eba2965385f65895e33e714ac09bef41e5fc8c65d4428e09654b365f"}}}$manifesto_r421$::jsonb,
+        'migration 20261116180000 / docs/release/R421_MANIFESTO_GUARDAS.json');
+
+-- ===========================================================================
+-- Z. AUTOVERIFICAÇÃO R4.2.1
+-- ===========================================================================
+DO $verifica_r421$
+DECLARE
+  v_pre jsonb;
+BEGIN
+  IF (SELECT status FROM public.commercial_pricing_rules WHERE version = 3) <> 'active'
+     OR (SELECT status FROM public.commercial_pricing_rules WHERE version = 4) <> 'prepared' THEN
+    RAISE EXCEPTION 'r421_verificacao: estado das regras inesperado';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.commercial_settlement_terms WHERE benefit_settlement_mode = 'cash')
+     OR EXISTS (SELECT 1 FROM public.commercial_pricing_activation_log)
+     OR EXISTS (SELECT 1 FROM public.commercial_pricing_activation_approvals)
+     OR EXISTS (SELECT 1 FROM public.commercial_qa_operational_procedures)
+     OR EXISTS (SELECT 1 FROM public.commercial_artwork_change_requests)
+     OR EXISTS (SELECT 1 FROM public.commercial_artwork_change_supplier_documents) THEN
+    RAISE EXCEPTION 'r421_verificacao: preco, ativacao, aprovacao, procedimento de QA, solicitacao ou documento nao nascem aqui';
+  END IF;
+  IF (SELECT string_agg(manifest_label, ',' ORDER BY id) FROM public.commercial_guard_manifests) <> 'R4.1,R4.2,R4.2.1'
+     OR (SELECT manifest_label || '|' || catalog_sha256 FROM public.commercial_guard_manifests ORDER BY id DESC LIMIT 1)
+        <> 'R4.2.1|812e47cd2f22b27c27d2cfbeca3cfca8f624bbda87fd6a27f594a411f98e662f' THEN
+    RAISE EXCEPTION 'r421_verificacao: historico de manifestos ou manifesto vigente diferente do publicado';
+  END IF;
+  IF coalesce(array_length(public.commercial_guard_integrity_failures(), 1), 0) > 0 THEN
+    RAISE EXCEPTION 'r421_verificacao: guardas divergentes: %', public.commercial_guard_integrity_failures();
+  END IF;
+  v_pre := public.commercial_pricing_activation_preflight(4);
+  IF (v_pre->>'ok')::boolean OR NOT (v_pre->'failures' ? 'qa_operational_procedure_missing:SF-v1.5') THEN
+    RAISE EXCEPTION 'r421_verificacao: a versao 4 nao pode estar apta a ativar (trava da QA): %', v_pre;
+  END IF;
+END $verifica_r421$;

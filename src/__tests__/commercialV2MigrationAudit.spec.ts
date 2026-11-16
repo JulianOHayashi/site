@@ -213,7 +213,7 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
   const sql = readFileSync(resolve(RAIZ, "supabase/migrations", NOVA), "utf8");
   const codigo = semComentarios(sql);
 
-  it("exatamente 64 migrations", () => {
+  it("exatamente 71 migrations", () => {
     // 28 ate a Comercial V2; 20260907190000 aposenta a RPC legada;
     // 20260908120000 endurece o snapshot de provisionamento; 20260909120000
     // acrescenta a RPC de autoridade de uso de beneficio; 20260915120000
@@ -261,8 +261,24 @@ describe("Auditoria estática da migration 28 — invariantes gerais", () => {
     // aceites para depois do cadastro. 20261103120000 separa posição comercial
     // de segmento (Calçados unificado, Outros e substituição). 20261110120000
     // prepara os contratos V2 de publicidade visual em veículos (autoridade da
-    // especificação técnica, sem ativar nada). Total = 64.
-    expect(arquivos.length).toBe(64);
+    // especificação técnica, sem ativar nada). 20261112120000 prepara a
+    // SF-v1.5 (produção de bandeiras e reutilização por fidelização) como
+    // versão 'prepared', sem ativá-la. 20261113150000 (R3) torna a QA
+    // condicional à modalidade (só em produtos no benefício direto; inexistente
+    // no dinheiro), unifica a conferência de pagamento pelo snapshot e trava
+    // ativação e autoatendimento no banco. 20261113180000 (R4) restringe o
+    // registro de ativação ao procedimento (com impressão digital das guardas),
+    // exige aprovação jurídica por minuta × versão econômica × modalidade e
+    // serializa inspeção/retirada de bandeiras com o pedido. 20261113200000
+    // (R4.1) exige guardas iguais ao manifesto aprovado (estado, definição,
+    // função executada), aprovação de lançamento externa e procedimento de
+    // QA aprovado antes de ativar. 20261116120000 (R4.2) cria a solicitação
+    // de alteração de frase/arte (custo do fornecedor, sem margem; próxima
+    // campanha ou exceção) e separa fidelidade de reutilização. Total = 69.
+    // 20261116180000 (R4.2.1) corrige prontidão, campanha alvo, prova do custo
+    // e amplia o catálogo das guardas (manifesto R4.2.1).
+    // 20261116210000 (R4.3) habilitação por modalidade (somente DINHEIRO preparável).
+    expect(arquivos.length).toBe(71);
   });
 
   it("a migration 30 traz os marcadores do endurecimento V2", () => {

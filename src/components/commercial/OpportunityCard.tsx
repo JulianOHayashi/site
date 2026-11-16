@@ -1,8 +1,6 @@
 import { Link } from "react-router-dom";
 import { formatarCentavos, type PublicNichePricing } from "../../domain/pricing/contractPricing";
-import { previaIndividualSF15 } from "../../domain/pricing/previewSF15";
-import { beneficiosPorOportunidade } from "../../domain/pricing/beneficiosAppPorOportunidade";
-import QuadroBeneficiosApp from "./QuadroBeneficiosApp";
+import { apresentacaoOportunidade } from "../../domain/pricing/apresentacaoComercial";
 import type { CommercialOpportunity } from "../../domain/commercial/types";
 import {
   nicheByCode,
@@ -15,12 +13,20 @@ import {
 } from "../../domain/commercial/status";
 
 /**
- * Card de uma oportunidade comercial (um nicho completo).
+ * Card de uma oportunidade comercial (uma posição inteira).
  *
- * Mostra nome, quantidade completa (server-side), status, descrição curta
- * e a indicação de contratação integral. "Ver oportunidade" só aparece
- * para status available — e ainda assim NÃO permite reservar nem pagar
- * (contratação será liberada em fase posterior).
+ * Hierarquia comercial, nesta ordem:
+ *   1. posição, quantidade contratual e situação;
+ *   2. valor total da contratação, em destaque;
+ *   3. quanto desse valor são contraprestações potenciais aos motoristas, e
+ *      que a empresa pode cumpri-las com benefícios em produtos das suas lojas;
+ *   4. a alternativa de contratar tudo em dinheiro (sem QA: o valor pode
+ *      diferir do benefício direto; só o servidor diz se é igual);
+ *   5. o link para o detalhe.
+ *
+ * Os números vêm do servidor (via `apresentacaoOportunidade`). Resposta
+ * incompleta: o card mostra a oportunidade sem nenhum valor. Nada aqui
+ * reserva, contrata ou muda preço.
  */
 export default function OpportunityCard({
   opportunity,
@@ -34,97 +40,134 @@ export default function OpportunityCard({
     : null;
   const nome = meta?.displayName ?? opportunity.displayName;
   const statusLabel = OPPORTUNITY_STATUS_LABEL[opportunity.status];
-  const dadosBeneficios = precoVigente ? beneficiosPorOportunidade(precoVigente) : null;
-  const previa = dadosBeneficios?.estado === "previa" && precoVigente ? previaIndividualSF15(precoVigente) : null;
+  const ap = apresentacaoOportunidade(precoVigente);
+  const somenteDinheiro = ap?.estado === "vigente" && !ap.beneficioDiretoHabilitado && ap.novo.valorDinheiroCentavos !== null;
+  const tituloId = `oportunidade-${opportunity.nicheCode}`;
 
   return (
-    <div className="card flex h-full flex-col p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="text-2xl">
+    <article
+      aria-labelledby={tituloId}
+      className="card flex h-full flex-col p-5 sm:p-6"
+      data-testid={`card-${opportunity.nicheCode}`}
+    >
+      {/* 1. Posição, quantidade e situação */}
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span aria-hidden className="text-2xl leading-none">
             {meta?.icon ?? "•"}
           </span>
-          <h3 className="text-lg font-bold">{nome}</h3>
+          <div className="min-w-0">
+            <h3 id={tituloId} className="text-lg font-bold leading-tight">
+              {nome}
+            </h3>
+            <p className="mt-0.5 text-sm text-tinta/60">
+              {opportunity.contractedQuantity} unidades comerciais
+            </p>
+          </div>
         </div>
         <span
-          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${opportunityStatusTone(
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${opportunityStatusTone(
             opportunity.status
           )}`}
         >
           {statusLabel}
         </span>
-      </div>
+      </header>
 
-      <p className="mt-3 text-sm text-tinta/60">
-        {meta?.shortDescription ?? "Oportunidade comercial da região."}
-      </p>
-
-      <dl className="mt-4 space-y-1 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-tinta/60">Quantidade</dt>
-          <dd className="font-bold">{opportunity.contractedQuantity} unidades</dd>
-        </div>
-        {opportunity.segment && (
-          <div className="flex justify-between">
-            <dt className="text-tinta/60">Segmento</dt>
-            <dd className="font-semibold">{opportunity.segment.name}</dd>
+      {ap ? (
+        <>
+          {/* 2. Valor total, em destaque */}
+          <div className="mt-5" data-testid="valor-total">
+            <p className="text-xs font-semibold uppercase tracking-wide text-tinta/55">
+              Valor total da contratação
+            </p>
+            <p className="mt-1 font-display text-[2rem] font-bold leading-none tabular-nums sm:text-4xl">
+              {formatarCentavos(somenteDinheiro ? ap.novo.valorDinheiroCentavos! : ap.novo.valorTotalCentavos)}
+            </p>
+            <p className="mt-1.5 text-xs text-tinta/60">
+              Para novo anunciante{somenteDinheiro ? ", em dinheiro" : ap.mesmoValorNasDuasFormas ? "" : ", com benefício direto"}
+            </p>
+            {ap.estado === "previa" && (
+              <p
+                className="mt-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900"
+                data-testid="selo-previa"
+              >
+                Novo valor proposto · ainda não contratável
+              </p>
+            )}
           </div>
-        )}
-      </dl>
 
-      {opportunity.acceptsSegment && !opportunity.segment && (
-        <p className="mt-3 text-xs text-tinta/60">
-          {opportunity.requiresSegment
-            ? "Posição para um segmento comercial autorizado pela SmallFlags."
-            : "Também pode ser ocupada por um segmento de Outros."}
+          {/* 3. Benefício direto: a vantagem operacional, sem promessa */}
+          <div
+            className="mt-4 rounded-xl border-l-4 border-vivo-ciano bg-vivo-ciano/10 px-4 py-3"
+            data-testid="destaque-beneficio-direto"
+          >
+            <p className="text-sm text-tinta">
+              Até{" "}
+              <strong className="tabular-nums">
+                {formatarCentavos(ap.participantes.contraprestacaoPotencialCentavos)}
+              </strong>{" "}
+              deste valor são contraprestações potenciais aos motoristas
+              participantes.
+            </p>
+            <p className="mt-1.5 text-sm text-tinta/75">
+              {somenteDinheiro
+                ? "Na contratação disponível, essa contraprestação é financiada em dinheiro."
+                : "Sua empresa pode cumprir essa parte com benefícios em produtos das suas lojas."}
+            </p>
+          </div>
+
+          {/* 4. Alternativa em dinheiro */}
+          <p className="mt-3 text-sm text-tinta/70" data-testid="alternativa-dinheiro">
+            {somenteDinheiro
+              ? "Somente DINHEIRO está disponível no momento, sem QA em produtos. A SmallFlags administra os repasses aos participantes elegíveis."
+              : ap.mesmoValorNasDuasFormas
+              ? "Prefere tudo em dinheiro? Também é possível: a SmallFlags administra os repasses aos participantes."
+              : `Prefere tudo em dinheiro? Também é possível, sem os testes com produtos (${
+                  ap.novo.valorDinheiroCentavos === null
+                    ? "valor confirmado na proposta comercial"
+                    : `valor total ${formatarCentavos(ap.novo.valorDinheiroCentavos)}`
+                }): a SmallFlags administra os repasses aos participantes.`}
+          </p>
+
+          <p className="mt-3 text-xs text-tinta/55">
+            {somenteDinheiro
+              ? "Benefício direto indisponível no momento."
+              : "Benefício direto não reduz o valor total e depende do contrato e da elegibilidade dos participantes."}
+          </p>
+        </>
+      ) : (
+        <p className="mt-5 text-sm text-tinta/60" data-testid="valor-indisponivel">
+          Valores em atualização. Consulte o detalhe da oportunidade.
         </p>
       )}
 
-      {precoVigente?.founding.pricingRuleVersion === 4 && precoVigente?.fidelized.pricingRuleVersion === 4 && (
-        <div className="mt-4 rounded-xl border border-tinta/15 p-3 text-sm">
-          <p className="font-semibold">Preços vigentes · servidor</p>
-          <div className="mt-2 flex justify-between gap-2">
-            <span className="text-tinta/70">Novo anunciante</span>
-            <strong className="tabular-nums">{formatarCentavos(precoVigente.founding.economicValueCents)}</strong>
-          </div>
-          <div className="mt-1 flex justify-between gap-2">
-            <span className="text-tinta/70">Fidelizado</span>
-            <strong className="tabular-nums">{formatarCentavos(precoVigente.fidelized.economicValueCents)}</strong>
-          </div>
-        </div>
-      )}
+      {/* 5. Detalhe (o aviso de segmento fica aqui para alinhar os preços) */}
+      <div className="mt-auto space-y-3 pt-5">
+        {opportunity.segment ? (
+          <p className="text-sm text-tinta/70">
+            Segmento: <span className="font-semibold">{opportunity.segment.name}</span>
+          </p>
+        ) : opportunity.acceptsSegment ? (
+          <p className="text-xs text-tinta/60">
+            {opportunity.requiresSegment
+              ? "Para um segmento comercial autorizado pela SmallFlags."
+              : "Também pode ser ocupada por um segmento de Outros."}
+          </p>
+        ) : null}
 
-      {previa && (
-        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-          <p className="font-bold">Novos preços em preparação · SF-v1.5</p>
-          <div className="mt-2 flex justify-between gap-2">
-            <span>Novo anunciante</span>
-            <strong className="tabular-nums">{formatarCentavos(previa.novoCentavos)}</strong>
-          </div>
-          <div className="mt-1 flex justify-between gap-2">
-            <span>Fidelizado com reutilização</span>
-            <strong className="tabular-nums">{formatarCentavos(previa.fidelizadoReutilizacaoCentavos)}</strong>
-          </div>
-          <p className="mt-2 text-xs">Inclui 84 bandeiras novas por anunciante não fidelizado. Reutilização condicionada à inspeção. Valores ainda não disponíveis para contratação; o checkout está bloqueado até a ativação no servidor.</p>
-        </div>
-      )}
-
-      {dadosBeneficios && <QuadroBeneficiosApp dados={dadosBeneficios} compacto />}
-
-      <p className="mt-3 rounded-xl bg-papel2 px-3 py-2 text-xs text-tinta/70">
-        Nicho contratado integralmente — não há venda de unidades avulsas.
-      </p>
-
-      <div className="mt-auto pt-4">
         <Link
           to={`/oportunidades/${slugByCode(opportunity.nicheCode)}`}
           className="btn-secondary w-full text-center"
+          aria-label={`${
+            opportunity.status === "available" ? "Ver oportunidade" : "Ver próxima exclusividade"
+          }: ${nome}`}
         >
           {opportunity.status === "available"
             ? "Ver oportunidade"
             : "Ver próxima exclusividade"}
         </Link>
       </div>
-    </div>
+    </article>
   );
 }

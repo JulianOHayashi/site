@@ -69,12 +69,85 @@ export type NichePricing = {
    */
   directBenefitDeliverableCents: number;
   fundingDirectBenefitsCents: number;
-  fundingCashCents: number;
+  /**
+   * Dinheiro exigível na modalidade DINHEIRO. `null` só na versão >= 4 (R3)
+   * quando o preço dessa modalidade ainda não foi aprovado no servidor: a
+   * modalidade não é contratável e nada é estimado no navegador.
+   */
+  fundingCashCents: number | null;
   /** Descritores de exibição da V2. Nunca autoridade de cálculo. */
   displayPoolPercent?: string;
   displayBdflowPercent?: string;
   /** Trilho de pagamento derivado da fidelidade, no servidor. */
   paymentMethod?: "pix" | "credit_card";
+  /**
+   * Política de QA declarada pelo servidor (R3, versão >= 4):
+   * `in_kind_direct_benefits_only` = QA existe só no benefício direto, em
+   * produtos para testes locais; não existe QA em dinheiro nem na modalidade
+   * DINHEIRO. `null` nas versões históricas (a SF-v1.4 mantém a QA monetária).
+   */
+  qaPolicy: QaPolicy | null;
+  /**
+   * Composição POR MODALIDADE, como o servidor publica (R3). `null` nas
+   * versões históricas. `cash: null` = preço da modalidade DINHEIRO ainda não
+   * aprovado: nada é presumido e a contratação não é liberada.
+   */
+  settlementModes: SettlementModes | null;
+  /**
+   * Produção de bandeiras (SF-v1.5), como o servidor declara. `null` quando a
+   * economia vigente não prevê produção (SF-v1.4 e anteriores): nada é
+   * presumido nem calculado no navegador.
+   */
+  flagProduction: FlagProduction | null;
+};
+
+/**
+ * Fatos de produção de bandeiras de uma condição comercial.
+ *
+ * `newFlagUnits` é a quantidade de PEÇAS FÍSICAS (84 por anunciante novo). Não
+ * é a quantidade comercial do nicho (24 ou 12): as duas nunca se confundem.
+ * `flagProductionChargeCents` é a parte do preço que corresponde ao custo
+ * nominal de fabricação; ela já está dentro da parcela operacional principal
+ * da SmallFlags e nunca é somada de novo.
+ */
+export type QaPolicy = "in_kind_direct_benefits_only";
+
+/** Composição contratual de UMA modalidade (centavos do servidor). */
+export type SettlementModeTerms = {
+  economicValueCents: number;
+  meiConsiderationCents: number;
+  /** Parte dos participantes cumprida em benefícios diretos. */
+  meiInKindCents: number;
+  /** Parte dos participantes financiada em dinheiro. */
+  meiCashCents: number;
+  smallflagsMainFeeCents: number;
+  /** QA em produtos para testes locais (só benefício direto). */
+  qaInKindCents: number;
+  /** Sempre 0: não existe QA em dinheiro. */
+  qaCashCents: number;
+  /** Componente de outra natureza, só no dinheiro e só com fundamento aprovado. */
+  cashAdjustmentCents: number;
+  totalMonetaryFundingRequiredCents: number;
+  ordinaryParticipationValueCents: number;
+};
+
+export type SettlementModes = {
+  directBenefits: SettlementModeTerms;
+  cash: SettlementModeTerms | null;
+  /**
+   * R4.3: modalidades VENDIDAS nesta versão, publicadas pelo servidor
+   * (`enabled_settlement_modes`). Ausente = as duas (servidor anterior).
+   * O site só oferece as habilitadas; o banco recusa as demais.
+   */
+  habilitadas?: readonly ("direct_benefits" | "cash")[];
+};
+
+export type FlagProduction = {
+  newFlagUnits: number;
+  flagUnitReferenceCents: number;
+  flagProductionChargeCents: number;
+  /** Fidelizado: o preço pressupõe reutilização verificada das peças. */
+  reuseRequired: boolean;
 };
 
 export function poolBpsForNiche(rule: PricingRule, nicheCode: string): number {
@@ -124,6 +197,10 @@ export function computeNichePricing(
     directBenefitDeliverableCents: pool,
     fundingDirectBenefitsCents: economic - pool,
     fundingCashCents: economic,
+    qaPolicy: null,
+    settlementModes: null,
+    // A V1 não tinha produção de bandeiras: nada a declarar.
+    flagProduction: null,
   };
 }
 
@@ -134,6 +211,54 @@ export type PublicNichePricing = {
   founding: NichePricing;
   fidelized: NichePricing;
 };
+
+/**
+ * Composição de uma modalidade (R3). Impõe as MESMAS invariantes do CHECK do
+ * servidor: QA só em produtos e só no benefício direto; nenhuma QA em
+ * dinheiro; nenhum centavo atribuído duas vezes.
+ */
+function interpretarModalidade(
+  data: unknown,
+  modo: "direct_benefits" | "cash",
+): SettlementModeTerms | null {
+  if (!data || typeof data !== "object") return null;
+  const o = data as Record<string, unknown>;
+  if (o.benefit_settlement_mode !== modo) return null;
+  const n = (k: string): number | null => {
+    const v = o[k];
+    const x = typeof v === "string" ? Number(v) : v;
+    if (typeof x !== "number" || !Number.isFinite(x) || !Number.isInteger(x) || x < 0) return null;
+    return x;
+  };
+  const t = {
+    economicValueCents: n("economic_value_cents"),
+    meiConsiderationCents: n("mei_consideration_cents"),
+    meiInKindCents: n("mei_in_kind_cents"),
+    meiCashCents: n("mei_cash_cents"),
+    smallflagsMainFeeCents: n("smallflags_main_fee_cents"),
+    qaInKindCents: n("qa_in_kind_cents"),
+    qaCashCents: n("qa_cash_cents"),
+    cashAdjustmentCents: n("cash_adjustment_cents"),
+    totalMonetaryFundingRequiredCents: n("total_monetary_funding_required_cents"),
+    ordinaryParticipationValueCents: n("ordinary_participation_value_cents"),
+  };
+  if (Object.values(t).some((v) => v === null)) return null;
+  const m = t as SettlementModeTerms;
+  if (m.economicValueCents <= 0 || m.ordinaryParticipationValueCents <= 0) return null;
+  if (m.qaCashCents !== 0) return null;
+  if (modo === "direct_benefits") {
+    if (m.meiInKindCents !== m.meiConsiderationCents || m.meiCashCents !== 0) return null;
+    if (m.cashAdjustmentCents !== 0) return null;
+    if (m.economicValueCents !== m.meiConsiderationCents + m.smallflagsMainFeeCents + m.qaInKindCents) return null;
+    if (m.totalMonetaryFundingRequiredCents !== m.smallflagsMainFeeCents) return null;
+  } else {
+    if (m.qaInKindCents !== 0 || m.meiInKindCents !== 0) return null;
+    if (m.meiCashCents !== m.meiConsiderationCents) return null;
+    if (m.economicValueCents !== m.meiConsiderationCents + m.smallflagsMainFeeCents + m.cashAdjustmentCents) return null;
+    if (m.totalMonetaryFundingRequiredCents !== m.economicValueCents) return null;
+  }
+  return m;
+}
 
 /** Parser ESTRITO: formato inesperado devolve null e a UI omite o preço. */
 function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricing | null {
@@ -158,8 +283,12 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
   if (versao === null || qtd === null) return null;
   // Essas três chaves fazem parte do contrato atual da autoridade. Se o
   // backend ainda não estiver migrado, a UI falha fechada em vez de recompor.
-  if (entregavel === null || fundingDirect === null || fundingCash === null) return null;
-  if (fundingCash !== economic) return null;
+  // R3 (versão >= 4): o dinheiro da modalidade DINHEIRO pode ainda não ter
+  // preço aprovado (null); nas versões históricas ele é sempre o econômico.
+  const r3 = versao >= 4;
+  if (entregavel === null || fundingDirect === null) return null;
+  if (!r3 && (fundingCash === null || fundingCash !== economic)) return null;
+  if (r3 && o.funding_cash_cents !== null && fundingCash === null) return null;
 
   // pool_bps é exigido na V1 e PROIBIDO na V2. Um retorno que traga
   // pontos-base sob a V2 está misturando modelos e falha fechado.
@@ -197,17 +326,101 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
   if (temDecomposicao) {
     if (mei + qa !== pool) return null;
     if (taxa === null || remun === null) return null;
-    if (remun !== taxa + qa) return null;
     if (taxa !== due) return null;
     if (econVer === null) return null;
-    // Sob SF-v1.4, somente a contraprestação do MEI pode ser cumprida como
-    // benefício. QA continua dinheiro da SmallFlags.
-    if (versao >= 3 && entregavel !== mei) return null;
-    if (versao >= 3 && fundingDirect !== remun) return null;
+    if (r3) {
+      // R3: a remuneração MONETÁRIA da SmallFlags é a parcela principal; a QA
+      // (só em produtos, só no benefício direto) fica fora dela e fora do
+      // dinheiro devido. As chaves legadas descrevem o benefício direto.
+      if (remun !== taxa) return null;
+      if (entregavel !== mei) return null;
+      if (fundingDirect !== taxa) return null;
+    } else {
+      // SF-v1.4 (histórico preservado): QA dentro da remuneração monetária;
+      // só a contraprestação do MEI pode ser cumprida como benefício.
+      if (remun !== taxa + qa) return null;
+      if (versao >= 3 && entregavel !== mei) return null;
+      if (versao >= 3 && fundingDirect !== remun) return null;
+    }
   } else {
     // V1/V2: o pool inteiro era a parcela entregável; o pagamento em benefício
     // direto correspondia ao devido operacional histórico.
     if (entregavel !== pool || fundingDirect !== due) return null;
+  }
+
+  // A chave `qa_settlement_mode` (R2) foi substituída pela política e pelos
+  // blocos por modalidade da R3. Um servidor que ainda a envie está fora do
+  // contrato atual: falha fechada.
+  if ("qa_settlement_mode" in o) return null;
+
+  // R3: política de QA e composição POR MODALIDADE, só na versão >= 4.
+  let qaPolicy: QaPolicy | null = null;
+  let settlementModes: SettlementModes | null = null;
+  if (r3) {
+    if (o.qa_policy !== "in_kind_direct_benefits_only") return null;
+    const modos = o.settlement_modes as Record<string, unknown> | null | undefined;
+    if (!modos || typeof modos !== "object") return null;
+    const direto = interpretarModalidade(modos.direct_benefits, "direct_benefits");
+    if (!direto) return null;
+    if (!("cash" in modos)) return null;
+    const dinheiro = modos.cash === null ? null : interpretarModalidade(modos.cash, "cash");
+    if (modos.cash !== null && !dinheiro) return null;
+    // As chaves legadas e o bloco do benefício direto descrevem o MESMO fato.
+    if (!temDecomposicao || taxa === null) return null;
+    if (direto.economicValueCents !== economic || direto.meiConsiderationCents !== mei
+        || direto.smallflagsMainFeeCents !== taxa || direto.qaInKindCents !== qa
+        || direto.totalMonetaryFundingRequiredCents !== fundingDirect) return null;
+    if (dinheiro) {
+      // Mesmos participantes e mesma parcela principal: a retirada da QA não
+      // vira remuneração por inferência.
+      if (dinheiro.meiConsiderationCents !== mei || dinheiro.smallflagsMainFeeCents !== taxa) return null;
+      if (dinheiro.ordinaryParticipationValueCents !== direto.ordinaryParticipationValueCents) return null;
+      if (fundingCash !== dinheiro.totalMonetaryFundingRequiredCents) return null;
+    } else if (fundingCash !== null) {
+      return null;
+    }
+    // R4.3: modalidades habilitadas. Valor fora do contrato: falha fechada.
+    const hab = o.enabled_settlement_modes;
+    let habilitadas: ("direct_benefits" | "cash")[];
+    if (hab === undefined || hab === null) {
+      habilitadas = ["direct_benefits", "cash"];
+    } else if (Array.isArray(hab) && hab.length >= 1 && hab.length <= 2
+               && hab.every((x) => x === "direct_benefits" || x === "cash")
+               && new Set(hab).size === hab.length) {
+      habilitadas = hab as ("direct_benefits" | "cash")[];
+    } else {
+      return null;
+    }
+    qaPolicy = "in_kind_direct_benefits_only";
+    settlementModes = { directBenefits: direto, cash: dinheiro, habilitadas };
+  } else if ("qa_policy" in o || "settlement_modes" in o) {
+    // Versões históricas não têm QA por modalidade.
+    return null;
+  }
+
+  // Produção de bandeiras: tudo ou nada, e coerente com a regra do servidor.
+  const pecas = inteiro("new_flag_units");
+  const unitario = inteiro("flag_unit_reference_cents");
+  const fabricacao = inteiro("flag_production_charge_cents");
+  const algumaChave = ["new_flag_units", "flag_unit_reference_cents",
+    "flag_production_charge_cents", "flag_reuse_required"].some((k) => k in o);
+  let flagProduction: FlagProduction | null = null;
+  if (algumaChave) {
+    if (pecas === null || unitario === null || fabricacao === null) return null;
+    if (typeof o.flag_reuse_required !== "boolean") return null;
+    if (!temDecomposicao || taxa === null) return null;
+    if (pecas < 0 || unitario <= 0 || fabricacao !== pecas * unitario) return null;
+    if (fabricacao > taxa) return null;
+    // Fidelizado: zero peças novas e reutilização exigida. Não fidelizado:
+    // peças novas e nenhuma reutilização.
+    if (esperaFidelizado !== o.flag_reuse_required) return null;
+    if (esperaFidelizado ? pecas !== 0 : pecas <= 0) return null;
+    flagProduction = {
+      newFlagUnits: pecas,
+      flagUnitReferenceCents: unitario,
+      flagProductionChargeCents: fabricacao,
+      reuseRequired: o.flag_reuse_required,
+    };
   }
 
   return {
@@ -232,6 +445,9 @@ function interpretarBloco(data: unknown, esperaFidelizado: boolean): NichePricin
     displayBdflowPercent:
       typeof o.display_bdflow_percent === "string" ? o.display_bdflow_percent : undefined,
     paymentMethod: typeof metodo === "string" ? (metodo as "pix" | "credit_card") : undefined,
+    qaPolicy,
+    settlementModes,
+    flagProduction,
   };
 }
 

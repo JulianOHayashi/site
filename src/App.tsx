@@ -27,6 +27,7 @@ import PortalSolicitacoes from "./pages/portal/PortalSolicitacoes";
 import PortalDocumentos from "./pages/portal/PortalDocumentos";
 import PortalPedidos from "./pages/portal/PortalPedidos";
 import PortalPedidoPersonalizacao from "./pages/portal/PortalPedidoPersonalizacao";
+import PortalPedidoAlteracaoArte from "./pages/portal/PortalPedidoAlteracaoArte";
 import SelecionarLocalidade from "./pages/SelecionarLocalidade";
 import Oportunidades from "./pages/Oportunidades";
 import OportunidadeDetalhe from "./pages/OportunidadeDetalhe";
@@ -163,6 +164,7 @@ export default function App() {
           <Route path="/portal/documentos" element={<PortalGuard><PortalDocumentos /></PortalGuard>} />
           <Route path="/portal/pedidos" element={<PortalGuard><PortalPedidos /></PortalGuard>} />
           <Route path="/portal/pedidos/:orderId/personalizacao" element={<PortalGuard><PortalPedidoPersonalizacao /></PortalGuard>} />
+          <Route path="/portal/pedidos/:orderId/alteracao-arte" element={<PortalGuard><PortalPedidoAlteracaoArte /></PortalGuard>} />
         </Route>
         {/* Compatibilidade temporária do antigo endereço do painel. */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />

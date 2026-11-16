@@ -57,6 +57,8 @@ const MENSAGENS_MOTIVO: Record<string, string> = {
   invalid_size: "A imagem precisa ter até 10 MB.",
   upload_failed: "Falha ao enviar a imagem. Verifique a conexão e tente novamente.",
   not_configured: "Envio indisponível no momento.",
+  artwork_locked_use_change_request:
+    "As bandeiras deste pedido já foram produzidas com a arte atual. Para mudar a frase ou a arte, use “Solicitar alteração de frase ou arte”.",
 };
 const MENSAGEM_INESPERADA = "Não foi possível concluir agora. Tente novamente em instantes.";
 

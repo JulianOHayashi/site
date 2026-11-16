@@ -118,12 +118,21 @@ function ListaOwner({ companyId }: { companyId: string }) {
             <h2 className="mt-1 text-lg font-bold">{p.nicho}</h2>
             <SeloImagem registrada={p.temImagem} />
           </div>
-          <Link
-            to={`/portal/pedidos/${encodeURIComponent(p.orderId)}/personalizacao`}
-            className="btn-primary"
-          >
-            Imagem para personalização
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to={`/portal/pedidos/${encodeURIComponent(p.orderId)}/personalizacao`}
+              className="btn-primary"
+            >
+              Imagem para personalização
+            </Link>
+            {/* R4.2: abre a solicitação/orçamento; não troca a arte em execução. */}
+            <Link
+              to={`/portal/pedidos/${encodeURIComponent(p.orderId)}/alteracao-arte`}
+              className="btn-secondary"
+            >
+              Solicitar alteração de frase ou arte
+            </Link>
+          </div>
         </li>
       ))}
     </ul>

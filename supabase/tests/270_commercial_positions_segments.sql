@@ -16,6 +16,9 @@
 -- ===========================================================================
 \set ON_ERROR_STOP on
 select tests.reset_results();
+-- R3: a reserva sob a SF-v1.4 esta travada no banco (portao do autoatendimento);
+-- esta suite exercita esse caminho historico e abre o portao so para si.
+select tests.abrir_portao_autoatendimento_qa();
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -573,4 +576,5 @@ select tests.check('pre-compra nao cria reserva nem pedido',
     not exists (select 1 from public.commercial_checkout_intents where company_id = :'c7')
     and not exists (select 1 from public.commercial_exclusivity_orders where company_id = :'c7'));
 
+select tests.fechar_portao_autoatendimento_qa();
 select tests.finish('270_commercial_positions_segments');
