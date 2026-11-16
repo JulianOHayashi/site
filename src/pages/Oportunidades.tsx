@@ -152,11 +152,18 @@ export default function Oportunidades() {
               <h1 className="mt-2 text-3xl sm:text-4xl">
                 Oportunidades comerciais
               </h1>
+              <p className="mt-3 max-w-2xl text-base text-tinta/75">
+                Publicidade visual da sua marca com bandeiras instaladas sobre
+                veículos de motoristas participantes do SmallFlags App. Parte do valor de
+                cada oportunidade são contraprestações aos motoristas, que sua
+                empresa pode cumprir com benefícios em produtos das suas lojas
+                ou integralmente em dinheiro.
+              </p>
               <p className="mt-2 max-w-2xl text-sm text-tinta/60">
-                As oportunidades destinam-se à publicidade visual por meio de
-                bandeiras instaladas sobre veículos de divulgadores. Cada nicho
-                é contratado integralmente. Abra uma oportunidade para revisar
-                as condições e, como titular autenticado, avançar ao checkout.
+                Cada posição é contratada integralmente. Abra uma oportunidade
+                para ver as duas formas de cumprimento em detalhe; quando a
+                contratação estiver disponível, o titular autenticado pode avançar
+                dali ao checkout.
               </p>
               {estado.dados.exclusivity.plannedStartAt && (
                 <p className="mt-2 text-sm font-semibold">

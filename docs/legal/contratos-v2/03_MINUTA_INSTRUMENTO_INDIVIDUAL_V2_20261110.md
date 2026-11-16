@@ -2,7 +2,8 @@
 
 **Instrumento Individual de Contratação de Publicidade Visual em Veículos — Modelo V2**
 
-- Data da minuta: 2026-11-10.
+- Data da minuta: 2026-11-10. Revisada em 2026-11-12 (produção e reutilização
+  de bandeiras, SF-v1.5).
 - Status: **RASCUNHO**. Este modelo **não** está registrado em
   `commercial_instrument_templates`. Quando for aprovado, entrará como **novo
   modelo**, `draft` até a promoção deliberada, com `advertising_modality =
@@ -119,6 +120,7 @@ Valores calculados pelo servidor segundo a regra vigente (regra
 | Contraprestação dos MEIs | `{{mei_consideration_cents}}` |
 | Parcela de QA da SmallFlags | `{{smallflags_qa_cents}}` |
 | Remuneração principal da SmallFlags | `{{smallflags_main_fee_cents}}` |
+| dos quais, fabricação nominal de bandeiras | `{{flag_production_charge_cents}}` |
 | Remuneração total da SmallFlags | `{{smallflags_total_remuneration_cents}}` |
 | Aporte monetário total exigido | `{{total_monetary_funding_required_cents}}` |
 | Valor de participação | `{{participation_value_cents}}` |
@@ -142,6 +144,25 @@ autorização de circulação.
 
 6.3. **Sem especificação aprovada, este instrumento não é emitido.** O servidor
 recusa com `commercial_advertising_spec_not_approved`.
+
+## 6A. Produção e reutilização das bandeiras
+
+6A.1. **Bandeiras novas exigidas por este pedido:** `{{flag_production_new_units}}`.
+Valor nominal de referência por peça: `{{flag_unit_reference_cents}}`.
+Fabricação nominal incluída no preço: `{{flag_production_charge_cents}}`. A
+quantidade de bandeiras não é derivada da quantidade contratual do item 4.1.
+
+6A.2. **Pedido não fidelizado:** o conjunto é fabricado para esta contratação
+e o custo nominal entra no preço uma única vez (Acordo Mestre, Cláusula 7A.2).
+
+6A.3. **Pedido fidelizado:** nenhuma bandeira nova é fabricada; a contratação
+reutiliza o conjunto `{{flag_reuse_set_id}}`, aprovado pela inspeção de
+conservação `{{flag_reuse_inspection_id}}`, ambos registrados pelo servidor.
+Essa inspeção autoriza **somente** esta contratação. Sem ela, o servidor não
+emite este instrumento.
+
+6A.4. **Reposição:** este instrumento não cria cobrança de reposição nem
+promete reposição gratuita. **PENDENTE DE DECISÃO (D-N5).**
 
 ## 7. Instalação, exibição e comprovação
 

@@ -8,13 +8,13 @@
 export default function ReferenciaOperacional() {
   const itens = [
     "84 usuários-produto na operação de referência",
-    "Seis nichos",
+    "Seis posições comerciais",
     "Referência de 28 dias de operação",
     "Supermercado: capacidade de 24",
     "Demais nichos: capacidade de 12 cada",
     "Supermercado: referência de 8 dias",
     "Demais nichos: referência de 4 dias cada",
-    "Seis benefícios por usuário, um por nicho",
+    "Sete participações potenciais por usuário: duas no supermercado e uma em cada uma das outras cinco posições",
     "Liberação progressiva",
     "Execução administrada pelo aplicativo SmallFlags",
   ];

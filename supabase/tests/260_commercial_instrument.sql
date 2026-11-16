@@ -8,6 +8,9 @@
 -- ===========================================================================
 \set ON_ERROR_STOP on
 select tests.reset_results();
+-- R3: a reserva sob a SF-v1.4 esta travada no banco (portao do autoatendimento);
+-- esta suite exercita esse caminho historico e abre o portao so para si.
+select tests.abrir_portao_autoatendimento_qa();
 
 -- ---------------------------------------------------------------------------
 -- 1. A MINUTA REAL ESTÁ REGISTRADA E NÃO É ASSINÁVEL
@@ -690,4 +693,5 @@ select tests.check('a minuta v1.4 real continua em draft, intocada',
     (select lifecycle_status = 'draft' from public.commercial_instrument_templates
       where template_code = 'SF-MINUTA-PRESENCIAL-v1.4'));
 
+select tests.fechar_portao_autoatendimento_qa();
 select tests.finish('260_commercial_instrument');

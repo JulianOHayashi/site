@@ -165,7 +165,8 @@ const montar = (ui: React.ReactElement, rota = "/") =>
 describe("PREÇOS COMERCIAIS — histórico não exibido na vitrine", () => {
   it("não publica preços da versão 2 nem link de contratação quando economia é histórica", async () => {
     montar(<PainelPreco nicheCode="supermarket" />);
-    await waitFor(() => expect(screen.getByText(/Novas condições comerciais/)).toBeDefined());
+    await waitFor(() => expect(screen.getByText(/não estão disponíveis no momento/)).toBeDefined());
+    expect(screen.queryByText(/R\$/)).toBeNull();
     expect(screen.queryByText("R$ 35.587,00")).toBeNull();
     expect(screen.queryByText("R$ 25.543,05")).toBeNull();
     expect(screen.queryByRole("link", { name: /Solicitar contratação/i })).toBeNull();
@@ -173,7 +174,7 @@ describe("PREÇOS COMERCIAIS — histórico não exibido na vitrine", () => {
 
   it("versão 2 do nicho comum não exibe os preços antigos", async () => {
     montar(<PainelPreco nicheCode="pharmacy" />);
-    await waitFor(() => expect(screen.getByText(/Valores em atualização/)).toBeDefined());
+    await waitFor(() => expect(screen.getByText(/não estão disponíveis no momento/)).toBeDefined());
     expect(screen.queryByText("R$ 19.999,00")).toBeNull();
   });
 });
@@ -189,7 +190,10 @@ describe("SF-v1.4 UI — prévia individual SF-v1.5, sem os preços antigos", ()
     temTexto("R$ 28.176,00");
     expect(screen.queryByText("R$ 29.999,00")).toBeNull();
     temTexto("R$ 23.854,32"); // contraprestações potenciais ao App voltam a ser transparentes
-    temTexto("R$ 9.084,68"); // remuneração própria com QA, para o novo anunciante
+    // R3: parcela da SmallFlags em dinheiro, sem a QA; QA em produtos à parte.
+    temTexto("R$ 8.963,00");
+    expect(screen.getAllByText("R$ 121,68").length).toBeGreaterThan(0);
+    expect(screen.queryByText("R$ 9.084,68")).toBeNull(); // QA nunca somada à remuneração
     expect(screen.queryByRole("link", { name: /Solicitar contratação/i })).toBeNull();
   });
 
@@ -199,13 +203,19 @@ describe("SF-v1.4 UI — prévia individual SF-v1.5, sem os preços antigos", ()
     temTexto("R$ 16.188,00");
     expect(screen.queryByText("R$ 19.999,00")).toBeNull();
     temTexto("R$ 11.927,16"); // contraprestações potenciais ao App
-    temTexto("R$ 11.011,84"); // remuneração própria com QA, para o novo anunciante
+    temTexto("R$ 10.951,00"); // R3: parcela da SmallFlags, sem a QA
+    expect(screen.getAllByText("R$ 60,84").length).toBeGreaterThan(0);
+    expect(screen.queryByText("R$ 11.011,84")).toBeNull();
   });
 
-  it("a regra antiga de blocos permanece apenas em código histórico, nunca no preço público da SF-v1.4", () => {
+  it("a regra antiga de blocos não volta: o painel lê só a apresentação validada", () => {
     const fonte = semComentarios(lerFonte("src/components/commercial/PainelPreco.tsx"));
-    expect(fonte).toContain("founding.pricingRuleVersion !== 4");
-    expect(fonte).toContain("previaIndividualSF15");
+    expect(fonte).toContain("apresentacaoOportunidade");
+    expect(fonte).not.toMatch(/FOUNDING_BLOCK|EXTRA_UNIT_PRICE|bdflowDueCents/);
+    const dominio = semComentarios(lerFonte("src/domain/pricing/apresentacaoComercial.ts"));
+    expect(dominio).toContain("beneficiosPorOportunidade");
+    const beneficios = semComentarios(lerFonte("src/domain/pricing/beneficiosAppPorOportunidade.ts"));
+    expect(beneficios).toContain("previaIndividualSF15");
   });
 });
 

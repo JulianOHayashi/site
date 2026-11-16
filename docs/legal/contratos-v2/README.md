@@ -15,6 +15,7 @@
 | `05_MATRIZ_REGULATORIA_GRANDE_VITORIA_20261110.md` | Normas federais e matriz por município, com fontes e situação |
 | `06_DECISOES_PENDENTES_20261110.md` | Quadro de decisões jurídicas, de negócio, técnicas e regulatórias |
 | `07_PLANO_PUBLICACAO_VERSIONAMENTO_20261110.md` | Ordem exata de publicação e regras de versionamento |
+| `08_ANEXO_PRODUCAO_REUTILIZACAO_BANDEIRAS_PRELIMINAR_20261112.md` | Produção inicial, inspeção de conservação, reutilização e reposição (SF-v1.5) |
 
 **Código preparatório:**
 - `supabase/migrations/20261110120000_contract_v2_vehicle_visual_advertising.sql`
@@ -22,3 +23,6 @@
 - suíte `supabase/tests/280_…`
 - ensaio `scripts/db-test/contract-v2-upgrade-check.sh`
 - testes dos documentos em `src/__tests__/contratosV2Minutas.spec.ts`
+- SF-v1.5 (produção e reutilização de bandeiras):
+  `supabase/migrations/20261112120000_commercial_flag_production_pricing_sf_v15.sql`,
+  suíte `supabase/tests/290_…`, ensaio `scripts/db-test/flag-pricing-upgrade-check.sh`

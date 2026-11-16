@@ -20,6 +20,13 @@ export type PrecoVigenteParaProposta = {
 export type PreviaIndividualSF15 = {
   novoCentavos: number;
   fidelizadoReutilizacaoCentavos: number;
+  /**
+   * Modalidade DINHEIRO, Cenário A (decisão comercial de 15/11/2026, R4.2):
+   * sem QA, sem substituto monetário de QA e sem ajuste. Editorial como o
+   * resto da prévia; o valor contratável só vem do servidor na versão 4.
+   */
+  dinheiroNovoCentavos: number;
+  dinheiroFidelizadoCentavos: number;
   bandeirasNovas: 84;
   custoProducaoIncluidoCentavos: 294000;
 };
@@ -30,8 +37,10 @@ const POSICOES = new Set([
 ]);
 
 const REFERENCIA = {
-  supermarket: { atualNovo: 2999900, atualFidelizado: 2817600, propostoNovo: 3293900, propostoFidelizado: 2817600 },
-  common: { atualNovo: 1999900, atualFidelizado: 1618800, propostoNovo: 2293900, propostoFidelizado: 1618800 },
+  supermarket: { atualNovo: 2999900, atualFidelizado: 2817600, propostoNovo: 3293900, propostoFidelizado: 2817600,
+                 dinheiroNovo: 3281732, dinheiroFidelizado: 2805432 },
+  common: { atualNovo: 1999900, atualFidelizado: 1618800, propostoNovo: 2293900, propostoFidelizado: 1618800,
+            dinheiroNovo: 2287816, dinheiroFidelizado: 1612716 },
 } as const;
 
 export function previaIndividualSF15(preco: PrecoVigenteParaProposta): PreviaIndividualSF15 | null {
@@ -43,6 +52,8 @@ export function previaIndividualSF15(preco: PrecoVigenteParaProposta): PreviaInd
   return {
     novoCentavos: esperado.propostoNovo,
     fidelizadoReutilizacaoCentavos: esperado.propostoFidelizado,
+    dinheiroNovoCentavos: esperado.dinheiroNovo,
+    dinheiroFidelizadoCentavos: esperado.dinheiroFidelizado,
     bandeirasNovas: 84,
     custoProducaoIncluidoCentavos: 294000,
   };

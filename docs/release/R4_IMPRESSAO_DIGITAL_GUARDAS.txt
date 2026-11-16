@@ -1,0 +1,57 @@
+SUPERADO pela R4.1: o manifesto de integridade vigente e docs/release/R41_MANIFESTO_GUARDAS.json
+(SHA-256 bc3f7441b780b6b66fa6086b21633dc52bd942401f2e61da74ac0a85e1cb11d7). Este arquivo registra a linha de base da R4.
+
+# R4 — impressão digital das guardas de ativação (linha de base desta versão)
+#
+# Gerada por public.commercial_activation_guard_fingerprint() logo após aplicar
+# 20261113180000 sobre 20261113150000 (PG16.15 e PG17.6 conferidos idênticos).
+# O ato de ativação grava o mesmo JSON em commercial_pricing_activation_log.guard_fingerprint;
+# divergência = código ou gatilho de guarda alterado antes da ativação (limite de confiança do dono).
+#
+# md5 do JSON canônico: fd2d2c38f81741a1e79b4178a0cd7ebd
+
+{
+    "triggers": {
+        "public.commercial_pricing_rules.cpr_protect": "O",
+        "public.commercial_pricing_schedule.cps_protect": "O",
+        "public.commercial_settlement_terms.cst_protect": "O",
+        "public.commercial_payments.cp_valor_confere_pedido": "O",
+        "public.commercial_pricing_activation_log.cpal_protect": "O",
+        "public.commercial_exclusivity_orders.ceo_emitir_instrumento": "O",
+        "public.commercial_checkout_intents.cci_proteger_snapshot_trg": "O",
+        "public.commercial_flag_set_inspections.cfi_bloquear_conjunto": "O",
+        "public.commercial_checkout_intents.cci_portao_autoatendimento": "O",
+        "public.commercial_exclusivity_orders.ceo_instrumento_imutavel": "O",
+        "public.commercial_instrument_template_approvals.citap_protect": "O",
+        "public.commercial_checkout_intents.cci_liquidar_modalidade_v15": "O",
+        "public.commercial_exclusivity_orders.ceo_liquidacao_v15_imutavel": "O",
+        "public.commercial_exclusivity_orders.ceo_liquidar_modalidade_v15": "O",
+        "public.commercial_checkout_intents.cci_validar_producao_bandeiras": "O",
+        "public.commercial_exclusivity_orders.ceo_pagamento_confere_snapshot": "O",
+        "public.commercial_exclusivity_orders.ceo_validar_producao_bandeiras": "O",
+        "public.commercial_pricing_activation_log.cpal_somente_pelo_procedimento": "O",
+        "public.commercial_exclusivity_orders.ceo_revalidar_reutilizacao_bandeiras": "O"
+    },
+    "functions": {
+        "public.cp_valor_confere_pedido()": "ec78b709ce5c4644350dcd439aa55cbb",
+        "public.cci_portao_autoatendimento()": "8a57f7a475fdf1edee145d191595c4c5",
+        "public.cci_liquidar_modalidade_v15()": "67924828c2ed6ffa6a42a21ec4b7b09d",
+        "public.ceo_liquidacao_v15_imutavel()": "2c9a0599c7d1354b6b5f226273c96d92",
+        "public.ceo_liquidar_modalidade_v15()": "02f5942cd884b0fdcadaa104d4f915ab",
+        "public.ceo_pagamento_confere_snapshot()": "29fd305c9bd17651034a6ba6bbd2e6a2",
+        "public.commercial_pricing_rules_protect()": "d3aa1e4ef7d7391527e11d6c18aff150",
+        "public.commercial_settlement_terms_protect()": "9efd5b79646b63b5f71bd879610deb8f",
+        "public.ceo_revalidar_reutilizacao_bandeiras()": "6dc0c61b642f002b276a7ed508019bc1",
+        "public.commercial_order_settlement_check(uuid)": "355d5ffe952b3fac810b34be48f5af56",
+        "public.admin_activate_pricing_rule(integer,text)": "fa4e5af3d0016888d70bcbabbd11bcab",
+        "public.commercial_activation_guard_fingerprint()": "320bcfd45425eb78506851886aa9f2f9",
+        "public.commercial_flag_set_lock_for_inspection()": "97f83daa307dd62bad39a802b4bbe7ac",
+        "public.commercial_pricing_activation_log_guard()": "ac13e02a95fd2cf23c40d7b7db6f7ed7",
+        "public.commercial_activation_called_by_procedure()": "356adab81e130dc5e0c11d1d349d75c6",
+        "public.commercial_pricing_activation_log_protect()": "128ef49694e6893bf32f6e71004c6d15",
+        "public.commercial_build_instrument_snapshot(uuid,uuid)": "53d4b43b4238efe3de81e7bebe15aa19",
+        "public.commercial_pricing_activation_preflight(integer)": "aa19baa4103c963496d060d99ce5a772",
+        "public.commercial_instrument_template_approvals_protect()": "6254e3db3a908452b98ab07520de1015",
+        "public.admin_confirm_manual_bdflow_payment(uuid,bigint,text,text)": "c4f6b15f9cbf53d2a725a641e607f883"
+    }
+}
