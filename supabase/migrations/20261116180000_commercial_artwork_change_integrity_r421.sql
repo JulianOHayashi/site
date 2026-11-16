@@ -1583,6 +1583,10 @@ BEGIN
 END $function$;
 
 -- ===========================================================================
+-- Fix prod: checkout ACL R4.2.1. Sem este GRANT o manifesto aprovado diverge.
+-- Acesso somente ao papel autenticado; anon e PUBLIC permanecem sem EXECUTE.
+GRANT EXECUTE ON FUNCTION public.create_commercial_checkout_intent(uuid,text,text,uuid) TO authenticated;
+
 -- G. MANIFESTO APROVADO R4.2.1 — docs/release/R421_MANIFESTO_GUARDAS.json
 --    (SHA-256 812e47cd2f22b27c27d2cfbeca3cfca8f624bbda87fd6a27f594a411f98e662f). Catálogo versão 2: inclui as
 --    tabelas da alteração de arte, RPCs, restrições, índices, colunas, RLS,
