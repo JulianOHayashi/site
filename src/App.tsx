@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import EmBreve from "./pages/EmBreve";
+import NaoEncontrada from "./pages/NaoEncontrada";
+import SeoCabecalho from "./seo/SeoCabecalho";
 import RevisaoContratacao from "./pages/RevisaoContratacao";
 import CheckoutPrecificacaoGuard from "./components/CheckoutPrecificacaoGuard";
 import Admin from "./pages/Admin";
@@ -51,6 +53,7 @@ import LegalAcordoMestre from "./pages/legal/LegalAcordoMestre";
 export default function App() {
   return (
     <BrowserRouter>
+      <SeoCabecalho />
       <Routes>
         {/* Domínio público e comercial vigente. */}
         <Route path="/" element={<Home />} />
@@ -86,12 +89,12 @@ export default function App() {
         <Route path="/legal" element={<LegalIndice />} />
         <Route path="/legal/acordo-mestre-parceiros" element={<LegalAcordoMestre />} />
 
-        {/* Compatibilidade temporária para links da antiga loja. */}
+        {/* Endereço anterior com destino equivalente. Em produção o servidor
+            responde 308 (vercel.json); a rota aqui cobre só a navegação local.
+            As URLs da antiga loja de camisas (/classica, /produtos,
+            /produto/:slug, /personalizar/:slug) não têm conteúdo equivalente:
+            caem em "Página não encontrada" e o servidor responde 404. */}
         <Route path="/selecionar-estado" element={<Navigate to="/selecionar-localidade" replace />} />
-        <Route path="/classica" element={<Navigate to="/" replace />} />
-        <Route path="/produtos" element={<Navigate to="/oportunidades" replace />} />
-        <Route path="/produto/:slug" element={<Navigate to="/oportunidades" replace />} />
-        <Route path="/personalizar/:slug" element={<Navigate to="/oportunidades" replace />} />
         {/* Comercial V2: revisão pública da tabela vigente. Não cria pedido,
             não escolhe fidelidade nem trilho, não aceita valor por URL. */}
         <Route
@@ -168,7 +171,7 @@ export default function App() {
         </Route>
         {/* Compatibilidade temporária do antigo endereço do painel. */}
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
-        <Route path="*" element={<EmBreve />} />
+        <Route path="*" element={<NaoEncontrada />} />
       </Routes>
     </BrowserRouter>
   );
