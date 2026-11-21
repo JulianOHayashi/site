@@ -1,0 +1,258 @@
+{
+  "$comentario": "Fonte única de SEO das rotas do Site (HTML inicial, cabeçalhos, sitemap e cliente). Toda rota do App.tsx precisa estar aqui ou em 'redirecionamentos'/'removidas'.",
+  "origem": "https://www.smallflags.com.br",
+  "nomeSite": "SmallFlags",
+  "imagemOg": "/brand/smallflags-icon.png",
+  "padrao": {
+    "titulo": "SmallFlags",
+    "descricao": "A SmallFlags conecta empresas anunciantes à publicidade visual por meio de bandeiras instaladas em veículos. Conheça oportunidades comerciais por nicho e região."
+  },
+  "naoEncontrada": {
+    "titulo": "Página não encontrada | SmallFlags",
+    "robots": "noindex, nofollow"
+  },
+  "rotas": [
+    {
+      "caminho": "/",
+      "titulo": "SmallFlags | Publicidade em Veículos com Bandeiras",
+      "robots": "index, follow",
+      "descricao": "A SmallFlags conecta empresas anunciantes à publicidade visual por meio de bandeiras instaladas em veículos. Conheça oportunidades comerciais por nicho e região."
+    },
+    {
+      "caminho": "/quem-somos",
+      "titulo": "Quem somos | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "A SmallFlags organiza publicidade visual em veículos por meio de bandeiras publicitárias instaladas sobre os veículos dos divulgadores."
+    },
+    {
+      "caminho": "/como-funciona",
+      "titulo": "Como funciona | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "Entenda, em cinco etapas, como uma empresa anunciante vai da sua localidade até a exclusividade comercial de um nicho na SmallFlags."
+    },
+    {
+      "caminho": "/parceiros",
+      "titulo": "Seja parceiro | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "Divulgue sua marca com bandeiras publicitárias instaladas sobre veículos de divulgadores, em uma região e um nicho definidos. Solicite a análise da sua empresa."
+    },
+    {
+      "caminho": "/contato",
+      "titulo": "Contato | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "Canais de atendimento da SmallFlags na Grande Vitória (ES) e acessos para cadastro e acompanhamento de parceria."
+    },
+    {
+      "caminho": "/ajuda",
+      "titulo": "Ajuda | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "Respostas rápidas sobre parceria, oportunidades comerciais e o Portal do Parceiro SmallFlags."
+    },
+    {
+      "caminho": "/trabalhe-conosco",
+      "titulo": "Trabalhe conosco | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "Conheça as áreas de atuação da SmallFlags. Quando houver processos seletivos abertos, eles serão publicados nesta página."
+    },
+    {
+      "caminho": "/legal",
+      "titulo": "Documentos legais | SmallFlags",
+      "robots": "index, follow",
+      "descricao": "Documentos publicados pela SmallFlags, com versão, data e hash de conteúdo."
+    },
+    {
+      "caminho": "/oportunidades",
+      "titulo": "Oportunidades comerciais | SmallFlags",
+      "robots": "noindex, follow"
+    },
+    {
+      "caminho": "/oportunidades/:nicheSlug",
+      "titulo": "Oportunidade comercial | SmallFlags",
+      "robots": "noindex, follow",
+      "modelo": "oportunidade-nicho"
+    },
+    {
+      "caminho": "/selecionar-localidade",
+      "titulo": "Selecionar localidade | SmallFlags",
+      "robots": "noindex, follow"
+    },
+    {
+      "caminho": "/em-breve",
+      "titulo": "Em breve | SmallFlags",
+      "robots": "noindex, follow"
+    },
+    {
+      "caminho": "/legal/acordo-mestre-parceiros",
+      "titulo": "Acordo Mestre de Parceria Comercial | SmallFlags",
+      "robots": "noindex, follow"
+    },
+    {
+      "caminho": "/checkout",
+      "titulo": "Revisão da contratação | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/admin/login",
+      "titulo": "Administração | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/admin",
+      "titulo": "Administração | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/admin/solicitacoes",
+      "titulo": "Administração | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/admin/segmentos",
+      "titulo": "Administração | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/acesso",
+      "titulo": "Acesso do parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/painel",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/cadastro",
+      "titulo": "Solicitar parceria | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/confirmar",
+      "titulo": "Confirmar e-mail | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/recuperar",
+      "titulo": "Recuperar acesso | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/convite",
+      "titulo": "Convite | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/parceiros/solicitacao",
+      "titulo": "Solicitação de parceria | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/login",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/recuperar-senha",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/redefinir-senha",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/cadastro",
+      "titulo": "Solicitar parceria | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/dashboard",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/equipe",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/validar",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/beneficios/validar/:publicLookupId",
+      "titulo": "Validação de benefício | SmallFlags",
+      "robots": "noindex, nofollow",
+      "modelo": "beneficio-validar"
+    },
+    {
+      "caminho": "/portal/solicitacoes",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/documentos",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/pedidos",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    },
+    {
+      "caminho": "/portal/pedidos/:orderId/personalizacao",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow",
+      "modelo": "portal-pedido"
+    },
+    {
+      "caminho": "/portal/pedidos/:orderId/alteracao-arte",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow",
+      "modelo": "portal-pedido"
+    },
+    {
+      "caminho": "/portal/painel",
+      "titulo": "Portal do Parceiro | SmallFlags",
+      "robots": "noindex, nofollow"
+    }
+  ],
+  "redirecionamentos": [
+    {
+      "de": "/selecionar-estado",
+      "para": "/selecionar-localidade",
+      "motivo": "seleção de estado substituída pela seleção de localidade (mesma função)"
+    },
+    {
+      "de": "/previa/precos-bandeiras",
+      "para": "/oportunidades",
+      "motivo": "prévia de preços substituída pelas oportunidades, onde os valores são apresentados"
+    }
+  ],
+  "removidas": [
+    {
+      "caminho": "/classica",
+      "motivo": "home da antiga loja de camisas; sem conteúdo equivalente"
+    },
+    {
+      "caminho": "/produtos",
+      "motivo": "catálogo da antiga loja de camisas; sem conteúdo equivalente"
+    },
+    {
+      "caminho": "/produto/:slug",
+      "motivo": "produto da antiga loja de camisas; sem conteúdo equivalente"
+    },
+    {
+      "caminho": "/personalizar/:slug",
+      "motivo": "personalização de camisa da antiga loja; sem conteúdo equivalente"
+    }
+  ]
+}

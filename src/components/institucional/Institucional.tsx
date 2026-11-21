@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import SiteHeader from "../SiteHeader";
 import SiteFooter from "../SiteFooter";
@@ -14,24 +14,20 @@ import SiteFooter from "../SiteFooter";
  * Nada aqui coleta dados, autentica ou consulta o Supabase.
  */
 
-const TITULO_BASE = "SmallFlags";
-
-/** Casca: header global, <main> com um único h1 vindo da Abertura, footer global. */
+/**
+ * Casca: header global, <main> com um único h1 vindo da Abertura, footer global.
+ *
+ * `titulo` identifica a página no código. O <title>, a descrição, o canonical
+ * e o robots vêm da fonte única de SEO (src/seo/rotasSeo.json): no HTML
+ * inicial gerado no build e, na navegação da SPA, pelo SeoCabecalho.
+ */
 export function PaginaInstitucional({
-  titulo,
+  titulo: _titulo,
   children,
 }: {
   titulo: string;
   children: ReactNode;
 }) {
-  useEffect(() => {
-    const anterior = document.title;
-    document.title = `${titulo} | ${TITULO_BASE}`;
-    return () => {
-      document.title = anterior;
-    };
-  }, [titulo]);
-
   return (
     <>
       <SiteHeader />
