@@ -1,4 +1,10 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "seo/p0-identidade-publica-20261121": false
+    }
+  },
+  "buildCommand": "echo 'BLOQUEADO: branch SEO protegida (SEO P0.1A fase 1); build proibido' && exit 1",
   "rewrites": [
     {
       "source": "/((?!api/).*)",
