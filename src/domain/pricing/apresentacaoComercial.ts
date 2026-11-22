@@ -61,9 +61,23 @@ export type ApresentacaoOportunidade = {
   novo: CondicaoApresentada & {
     /** A primeira contratação inclui a produção das bandeiras da marca. */
     incluiProducaoDeBandeiras: boolean;
+    /**
+     * Produção inicial, só quando validada (prévia auditada ou servidor v4):
+     * quantidade de PEÇAS FÍSICAS e custo NOMINAL TOTAL, já contido no valor
+     * total. `null` = não exibir. Nunca carrega valor por peça, fornecedor,
+     * margem ou outra composição interna.
+     */
+    producaoInicial: { bandeirasFisicas: number; custoNominalCentavos: number } | null;
   };
   /** Renovação fidelizada: condição definida pelo servidor, nunca escolhida. */
-  fidelizado: CondicaoApresentada;
+  fidelizado: CondicaoApresentada & {
+    /**
+     * O valor da renovação pressupõe a reutilização das peças já produzidas
+     * (zero bandeiras novas), conforme declarado/validado. `false` = não
+     * afirmar "sem novas bandeiras".
+     */
+    reutilizaBandeiras: boolean;
+  };
   /** Contraprestação POTENCIAL dos participantes do App — igual nas duas condições e modalidades. */
   participantes: {
     contraprestacaoPotencialCentavos: number;
@@ -73,6 +87,25 @@ export type ApresentacaoOportunidade = {
   /** QA em produtos (só benefício direto): da SmallFlags, nunca dos participantes. */
   qaEmProdutosCentavos: number;
 };
+
+/** Peças físicas por anunciante novo (SF-v1.5). Não é a quantidade comercial. */
+const BANDEIRAS_POR_ANUNCIANTE_NOVO = 84;
+
+/**
+ * Produção inicial íntegra ou nada: 84 peças, custo nominal positivo e dentro
+ * da parcela da SmallFlags (é parte dela, nunca soma). A renovação precisa
+ * declarar zero peças novas para o par ser coerente.
+ */
+function producaoInicial(novo: ParcelaPorContratacao, fid: ParcelaPorContratacao):
+  ApresentacaoOportunidade["novo"]["producaoInicial"] {
+  const pecas = novo.bandeirasFisicasNovas;
+  const custo = novo.fabricacaoIncluidaCentavos;
+  if (pecas === null || custo === null) return null;
+  if (pecas !== BANDEIRAS_POR_ANUNCIANTE_NOVO) return null;
+  if (!Number.isInteger(custo) || custo <= 0 || custo > novo.principalSmallFlagsCentavos) return null;
+  if (fid.bandeirasFisicasNovas !== 0 || fid.fabricacaoIncluidaCentavos !== 0) return null;
+  return { bandeirasFisicas: pecas, custoNominalCentavos: custo };
+}
 
 function condicao(c: ParcelaPorContratacao): CondicaoApresentada {
   return {
@@ -125,8 +158,11 @@ export function apresentacaoOportunidade(
       || (preco.founding.settlementModes?.habilitadas?.includes("direct_benefits") ?? true),
     mesmoValorNasDuasFormas: mesmoValor,
     contratavel: definidas,
-    novo: { ...condicao(b.novo), incluiProducaoDeBandeiras: true },
-    fidelizado: condicao(b.fidelizado),
+    novo: { ...condicao(b.novo), incluiProducaoDeBandeiras: true,
+            producaoInicial: producaoInicial(b.novo, b.fidelizado) },
+    fidelizado: { ...condicao(b.fidelizado),
+                  reutilizaBandeiras: b.fidelizado.bandeirasFisicasNovas === 0 &&
+                    b.fidelizado.fabricacaoIncluidaCentavos === 0 },
     participantes: {
       contraprestacaoPotencialCentavos: mei,
       participacoesPotenciais: b.participacoesPotenciais,

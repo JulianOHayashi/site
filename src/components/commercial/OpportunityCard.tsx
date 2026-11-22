@@ -17,9 +17,15 @@ import {
  *
  * Hierarquia comercial, nesta ordem:
  *   1. posição, quantidade contratual e situação;
- *   2. valor total da contratação, em destaque;
- *   3. quanto desse valor são contraprestações potenciais aos motoristas, e
- *      que a empresa pode cumpri-las com benefícios em produtos das suas lojas;
+ *   2. valor total da contratação, em destaque (o MAIOR número do card);
+ *   3. três informações, sempre dentro do total e nunca somadas a ele:
+ *      a. produção inicial das bandeiras (peças físicas e custo NOMINAL total,
+ *         só quando validados; nunca valor por peça, fornecedor ou margem);
+ *      b. contraprestação por participação aprovada (R$ 141,99 × participações
+ *         POTENCIAIS — não são motoristas distintos nem pagamentos garantidos),
+ *         e que a empresa pode cumpri-la com benefícios em produtos das lojas;
+ *      c. renovação fidelizada sem novas bandeiras, na modalidade que o
+ *         servidor habilita (condição aplicada pela SmallFlags, não escolha);
  *   4. a alternativa de contratar tudo em dinheiro (sem QA: o valor pode
  *      diferir do benefício direto; só o servidor diz se é igual);
  *   5. o link para o detalhe.
@@ -43,6 +49,13 @@ export default function OpportunityCard({
   const ap = apresentacaoOportunidade(precoVigente);
   const somenteDinheiro = ap?.estado === "vigente" && !ap.beneficioDiretoHabilitado && ap.novo.valorDinheiroCentavos !== null;
   const tituloId = `oportunidade-${opportunity.nicheCode}`;
+  // Renovação fidelizada na modalidade habilitada; sem valor validado, não aparece.
+  const renovacaoCentavos = !ap ? null
+    : somenteDinheiro ? ap.fidelizado.valorDinheiroCentavos
+    : ap.fidelizado.valorTotalCentavos;
+  const mostrarRenovacao = !!ap && ap.fidelizado.reutilizaBandeiras && renovacaoCentavos !== null;
+  const modalidadeRotulo = somenteDinheiro ? ", em dinheiro"
+    : ap?.mesmoValorNasDuasFormas ? "" : ", com benefício direto";
 
   return (
     <article
@@ -97,18 +110,58 @@ export default function OpportunityCard({
             )}
           </div>
 
-          {/* 3. Benefício direto: a vantagem operacional, sem promessa */}
+          {/* 3a. Produção inicial das bandeiras (já dentro do total) */}
+          {ap.novo.producaoInicial && (
+            <div
+              className="mt-4 rounded-xl border border-tinta/10 bg-tinta/[0.03] px-4 py-3"
+              data-testid="producao-inicial"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-tinta/55">
+                Produção inicial das bandeiras
+              </p>
+              <p className="mt-1 text-base font-bold text-tinta">
+                <span className="tabular-nums">{ap.novo.producaoInicial.bandeirasFisicas}</span> bandeiras físicas
+              </p>
+              <p className="mt-1 text-sm text-tinta/75">
+                Custo nominal de{" "}
+                <strong className="tabular-nums text-tinta">
+                  {formatarCentavos(ap.novo.producaoInicial.custoNominalCentavos)}
+                </strong>
+                , já incluído no valor total acima. Não some esse valor de novo.
+              </p>
+              <p className="mt-1 text-xs text-tinta/60">
+                Só na primeira contratação. São peças físicas: não se confundem com as
+                unidades comerciais da posição nem com as participações.
+              </p>
+            </div>
+          )}
+
+          {/* 3b. Contraprestação por participação: a vantagem operacional, sem promessa */}
           <div
             className="mt-4 rounded-xl border-l-4 border-vivo-ciano bg-vivo-ciano/10 px-4 py-3"
             data-testid="destaque-beneficio-direto"
           >
-            <p className="text-sm text-tinta">
-              Até{" "}
+            <p className="text-xs font-semibold uppercase tracking-wide text-tinta/55">
+              Contraprestação por participação
+            </p>
+            <p className="mt-1 text-base font-bold text-tinta" data-testid="valor-por-participacao">
+              <span className="tabular-nums">
+                {formatarCentavos(ap.participantes.valorPorParticipacaoCentavos)}
+              </span>{" "}
+              por participação aprovada
+            </p>
+            <p className="mt-1 text-sm text-tinta">
+              <span className="tabular-nums">{ap.participantes.participacoesPotenciais}</span>{" "}
+              participações potenciais: até{" "}
               <strong className="tabular-nums">
                 {formatarCentavos(ap.participantes.contraprestacaoPotencialCentavos)}
               </strong>{" "}
               deste valor são contraprestações potenciais aos motoristas
               participantes.
+            </p>
+            <p className="mt-1 text-xs text-tinta/60">
+              Participações potenciais não são motoristas distintos nem pagamentos
+              garantidos: cada uma depende de uma participação aprovada.
             </p>
             <p className="mt-1.5 text-sm text-tinta/75">
               {somenteDinheiro
@@ -116,6 +169,34 @@ export default function OpportunityCard({
                 : "Sua empresa pode cumprir essa parte com benefícios em produtos das suas lojas."}
             </p>
           </div>
+
+          {/* 3c. Renovação fidelizada sem novas bandeiras (condição, não escolha) */}
+          {mostrarRenovacao && (
+            <div
+              className="mt-4 rounded-xl border border-tinta/10 bg-tinta/[0.03] px-4 py-3"
+              data-testid="renovacao-fidelizada"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-tinta/55">
+                Renovação fidelizada sem novas bandeiras
+              </p>
+              <p className="mt-1 text-base font-bold tabular-nums text-tinta">
+                {formatarCentavos(renovacaoCentavos!)}
+              </p>
+              <p className="text-xs text-tinta/60">
+                Na renovação{modalidadeRotulo}
+                {ap.estado === "previa" ? " · valor proposto na prévia" : ""}
+              </p>
+              <p className="mt-1.5 text-sm text-tinta/75">
+                Reutiliza as bandeiras já produzidas. Depende da aprovação na inspeção,
+                do histórico de fidelidade e da manutenção da posição. É uma condição
+                aplicada pela SmallFlags, não uma opção a escolher.
+              </p>
+              <p className="mt-1 text-xs text-tinta/60">
+                Novas bandeiras solicitadas voluntariamente são orçadas e aceitas
+                separadamente, sem margem de fabricação da SmallFlags.
+              </p>
+            </div>
+          )}
 
           {/* 4. Alternativa em dinheiro */}
           <p className="mt-3 text-sm text-tinta/70" data-testid="alternativa-dinheiro">

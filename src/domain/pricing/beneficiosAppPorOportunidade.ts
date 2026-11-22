@@ -22,7 +22,17 @@ export type ParcelaPorContratacao = {
   remuneracaoSmallFlagsCentavos: number;
   /** QA em produtos para testes locais — só no benefício direto. */
   qaEmProdutosCentavos: number;
+  /**
+   * Custo NOMINAL de produção das bandeiras já contido no valor total (nunca
+   * somado de novo). `null` = não declarado de forma validada: nada é exibido.
+   */
   fabricacaoIncluidaCentavos: number | null;
+  /**
+   * PEÇAS FÍSICAS novas desta condição (84 no anunciante novo, 0 na renovação
+   * fidelizada). Não é a quantidade comercial (24/12) nem as participações.
+   * `null` = não declarado de forma validada.
+   */
+  bandeirasFisicasNovas: number | null;
   /**
    * Modalidade integralmente em DINHEIRO (sem QA). `null` = preço dessa
    * modalidade ainda não aprovado: nada é estimado.
@@ -99,7 +109,7 @@ function validaBlocoR3(p: NichePricing, mei: number, qa: number): boolean {
 }
 
 function parcela(economico: number, mei: number, qa: number, principal: number,
-                 fabricacao: number | null,
+                 producao: { pecas: number; centavos: number } | null,
                  dinheiro: ParcelaPorContratacao["dinheiro"]): ParcelaPorContratacao {
   return {
     valorEconomicoCentavos: economico,
@@ -107,9 +117,21 @@ function parcela(economico: number, mei: number, qa: number, principal: number,
     principalSmallFlagsCentavos: principal,
     remuneracaoSmallFlagsCentavos: principal,
     qaEmProdutosCentavos: qa,
-    fabricacaoIncluidaCentavos: fabricacao,
+    fabricacaoIncluidaCentavos: producao ? producao.centavos : null,
+    bandeirasFisicasNovas: producao ? producao.pecas : null,
     dinheiro,
   };
+}
+
+/**
+ * Produção declarada pelo servidor (versão 4), já validada pelo parser
+ * (peças × referência = cobrança, cobrança ≤ parcela principal, fidelizado
+ * sem peças novas e com reutilização). Só a QUANTIDADE e o TOTAL nominal saem
+ * daqui: a referência por peça nunca é repassada à apresentação.
+ */
+function producaoDeclarada(b: NichePricing): { pecas: number; centavos: number } | null {
+  const f = b.flagProduction;
+  return f ? { pecas: f.newFlagUnits, centavos: f.flagProductionChargeCents } : null;
 }
 
 /** Fail-closed: sem dados econômicos completos da RPC, não expõe discriminação estimada.
@@ -140,18 +162,19 @@ export function beneficiosPorOportunidade(p: PublicNichePricing): BeneficiosPorO
       participacoesPotenciais: regra.participacoes,
       valorPorParticipacaoCentavos: VALOR_POR_PARTICIPACAO,
       novo: parcela(previa.novoCentavos, regra.mei, regra.qa, regra.v15NovoPrincipal,
-                    previa.custoProducaoIncluidoCentavos,
+                    { pecas: previa.bandeirasNovas, centavos: previa.custoProducaoIncluidoCentavos },
                     { valorEconomicoCentavos: previa.dinheiroNovoCentavos, ajusteCentavos: 0 }),
+      // Renovação fidelizada da prévia: reutilização das peças, nenhuma nova.
       fidelizado: parcela(previa.fidelizadoReutilizacaoCentavos, regra.mei, regra.qa,
-                          regra.v15FidelizadoPrincipal, 0,
+                          regra.v15FidelizadoPrincipal, { pecas: 0, centavos: 0 },
                           { valorEconomicoCentavos: previa.dinheiroFidelizadoCentavos, ajusteCentavos: 0 }),
     };
   }
 
   if (p.founding.pricingRuleVersion === 4 && p.fidelized.pricingRuleVersion === 4) {
     if (!validaBlocoR3(p.founding, regra.mei, regra.qa) || !validaBlocoR3(p.fidelized, regra.mei, regra.qa)) return null;
-    // É proibido inventar quantia de fabricação: o parser público atual não
-    // expõe esse campo separadamente na versão ativa. Tudo o mais é do servidor.
+    // É proibido inventar quantia de fabricação: ela só existe quando o servidor
+    // a declara (flagProduction validado pelo parser); senão fica `null`.
     const dinheiro = (b: NichePricing): ParcelaPorContratacao["dinheiro"] => {
       const c = b.settlementModes!.cash;
       return c ? { valorEconomicoCentavos: c.economicValueCents, ajusteCentavos: c.cashAdjustmentCents } : null;
@@ -161,9 +184,9 @@ export function beneficiosPorOportunidade(p: PublicNichePricing): BeneficiosPorO
       participacoesPotenciais: regra.participacoes,
       valorPorParticipacaoCentavos: VALOR_POR_PARTICIPACAO,
       novo: parcela(p.founding.economicValueCents, regra.mei, regra.qa,
-                    p.founding.smallflagsMainFeeCents!, null, dinheiro(p.founding)),
+                    p.founding.smallflagsMainFeeCents!, producaoDeclarada(p.founding), dinheiro(p.founding)),
       fidelizado: parcela(p.fidelized.economicValueCents, regra.mei, regra.qa,
-                          p.fidelized.smallflagsMainFeeCents!, null, dinheiro(p.fidelized)),
+                          p.fidelized.smallflagsMainFeeCents!, producaoDeclarada(p.fidelized), dinheiro(p.fidelized)),
     };
   }
   return null;
