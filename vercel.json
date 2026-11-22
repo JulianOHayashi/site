@@ -1,4 +1,10 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "feat/oportunidades-cartoes-info-20261121": false
+    }
+  },
+  "buildCommand": "echo 'BLOQUEADO: branch oportunidades protegida (fase 1 do preview); build proibido' && exit 1",
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
