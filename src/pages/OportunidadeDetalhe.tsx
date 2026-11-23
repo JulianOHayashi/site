@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import ReferenciaOperacional from "../components/commercial/ReferenciaOperacional";
 import PainelPreco from "../components/commercial/PainelPreco";
+import CampanhaNatalInstagram from "../components/commercial/CampanhaNatalInstagram";
 import SeletorSegmento from "../components/commercial/SeletorSegmento";
 import { obterTerritorio } from "../lib/commercialTerritory";
 import { fetchCurrentFormation } from "../services/commercialService";
@@ -269,6 +270,8 @@ export default function OportunidadeDetalhe() {
                   ) : null
                 }
               />
+
+              <CampanhaNatalInstagram />
 
               <div className="card mt-6 p-6">
                 <h2 className="text-lg font-bold">Sobre esta oportunidade</h2>
