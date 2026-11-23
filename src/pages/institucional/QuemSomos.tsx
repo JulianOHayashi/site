@@ -32,6 +32,7 @@ export default function QuemSomos() {
           <p>
             A SmallFlags é uma{" "}
             <strong>startup capixaba, desenvolvida ao longo de 2026</strong>.
+            Seu fundador e CEO é <strong>Juliano Hayashi</strong>.
             Nosso projeto organiza publicidade visual em veículos por meio de
             bandeiras publicitárias instaladas sobre os veículos dos divulgadores.
             O Site gerencia a parceria com anunciantes e o App acompanha a
