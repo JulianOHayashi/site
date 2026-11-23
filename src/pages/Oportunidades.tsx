@@ -155,13 +155,13 @@ export default function Oportunidades() {
               <p className="mt-3 max-w-2xl text-base text-tinta/75">
                 Publicidade visual da sua marca com bandeiras instaladas sobre
                 veículos de motoristas participantes do SmallFlags App. Parte do valor de
-                cada oportunidade são contraprestações aos motoristas, que sua
-                empresa pode cumprir com benefícios em produtos das suas lojas
-                ou integralmente em dinheiro.
+                cada oportunidade são contraprestações aos motoristas
+                participantes, cumpridas nas formas habilitadas para a
+                contratação.
               </p>
               <p className="mt-2 max-w-2xl text-sm text-tinta/60">
                 Cada posição é contratada integralmente. Abra uma oportunidade
-                para ver as duas formas de cumprimento em detalhe; quando a
+                para ver em detalhe as formas de cumprimento habilitadas; quando a
                 contratação estiver disponível, o titular autenticado pode avançar
                 dali ao checkout.
               </p>

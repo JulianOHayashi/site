@@ -112,7 +112,7 @@ describe("/oportunidades — card comercial", () => {
     const total = await within(card).findByTestId("valor-total");
     const valor = within(total).getByText("R$ 32.939,00");
     expect(valor.className).toMatch(/font-display/);
-    expect(valor.className).toMatch(/text-\[2rem\]|text-4xl/);
+    expect(valor.className).toMatch(/text-4xl/);
     expect(within(total).getByText("Valor total da contratação")).toBeDefined();
   });
 
@@ -120,46 +120,74 @@ describe("/oportunidades — card comercial", () => {
     lista();
     const sup = await screen.findByTestId("card-supermarket");
     await within(sup).findByText("R$ 32.939,00");
-    expect(within(sup).getByText("R$ 23.854,32")).toBeDefined();
+    expect(within(sup).getByTestId("motoristas-primeira").textContent).toContain("Até R$ 23.854,32");
     for (const c of ["pharmacy", "womens_clothing", "mens_clothing", "footwear", "others"]) {
       const card = screen.getByTestId(`card-${c}`);
       expect(within(card).getByText("R$ 22.939,00")).toBeDefined();
-      expect(within(card).getByText("R$ 11.927,16")).toBeDefined();
+      expect(within(card).getByTestId("motoristas-primeira").textContent).toContain("Até R$ 11.927,16");
     }
   });
 
-  it("explica o benefício direto e a alternativa em dinheiro no próprio card", async () => {
+  it("cabeçalho: nome, unidades comerciais, situação real e o selo de exclusividade nos seis cards", async () => {
+    lista();
+    await screen.findAllByText("R$ 22.939,00");
+    const unidades: Record<string, number> = {
+      supermarket: 24, pharmacy: 12, womens_clothing: 12, mens_clothing: 12, footwear: 12, others: 12,
+    };
+    for (const [c, u] of Object.entries(unidades)) {
+      const k = screen.getByTestId(`card-${c}`);
+      expect(within(k).getByText(`${u} unidades comerciais`)).toBeDefined();
+      expect(within(k).getByTestId("status-oportunidade").textContent).toBe("Disponível");
+      // Outros exige a definição de um segmento comercial: exclusividade por segmento.
+      expect(within(k).getByTestId("selo-exclusividade").textContent).toBe(
+        c === "others" ? "Exclusividade por Segmento" : "Exclusividade de Nicho",
+      );
+    }
+  });
+
+  it.each([["prévia", PRECO_PRODUCTION], ["v4 cenário A", V4_A], ["somente DINHEIRO", "SO_DINHEIRO"]] as const)(
+    "%s: introdução neutra, remete às formas habilitadas sem prometer produtos", async (_n, resposta) => {
+    servir(resposta === "SO_DINHEIRO" ? fixture("preco-publico-sf-v15-r43-somente-dinheiro-20261116.json") : resposta);
+    lista();
+    await screen.findAllByTestId("valor-total");
+    const intro = screen.getByRole("heading", { level: 1, name: "Oportunidades comerciais" }).parentElement!.textContent!;
+    expect(intro).toContain("contraprestações aos motoristas participantes, cumpridas nas formas habilitadas para a contratação.");
+    expect(intro).toContain("ver em detalhe as formas de cumprimento habilitadas");
+    expect(intro).not.toMatch(/produtos das suas lojas|integralmente em dinheiro|as duas formas/);
+  });
+
+  it("produtos da própria loja: texto curto, sem detalhes técnicos no card", async () => {
     lista();
     const card = await screen.findByTestId("card-pharmacy");
     await within(card).findByText("R$ 22.939,00");
-    expect(within(card).getByTestId("destaque-beneficio-direto").textContent).toMatch(
-      /benefícios em produtos das suas lojas/,
+    expect(within(card).getByTestId("motoristas-primeira").textContent).toContain(
+      "Até este valor pode ser cumprido em produtos da própria loja, como contraprestação aos motoristas participantes.",
     );
-    expect(within(card).getByTestId("alternativa-dinheiro").textContent).toMatch(
-      /tudo em dinheiro.*repasses aos participantes/,
-    );
+    // Participações, modalidades, critérios e QA ficam no detalhe.
+    expect(within(card).queryByTestId("alternativa-dinheiro")).toBeNull();
+    expect(within(card).queryByTestId("valor-por-participacao")).toBeNull();
+    expect(card.textContent).not.toMatch(/participaç|inspeção|histórico de fidelidade|QA|garantid|tudo em dinheiro/i);
   });
 
-  it("R4.2: o card mostra o DINHEIRO do Cenário A e não afirma igualdade entre as formas", async () => {
+  it("R4.2: o card mostra a modalidade do total e não afirma igualdade entre as formas", async () => {
     lista();
     const card = await screen.findByTestId("card-supermarket");
     await within(card).findByText("R$ 32.939,00");
-    expect(within(card).getByText(/Para novo anunciante, com benefício direto/)).toBeDefined();
-    expect(within(card).getByTestId("alternativa-dinheiro").textContent).toMatch(/valor total R\$ 32\.817,32/);
-    expect(within(card).getByTestId("alternativa-dinheiro").textContent).not.toMatch(/32\.939/);
+    expect(within(card).getByTestId("valor-total").textContent).toMatch(/Primeira contratação · com benefício direto/);
+    expect(card.textContent).not.toMatch(/32\.817,32|mesmo valor/);
     cleanup();
     servir(V4_A);
     lista();
     const cardA = await screen.findByTestId("card-supermarket");
     await within(cardA).findByText("R$ 32.939,00");
-    expect(within(cardA).getByTestId("alternativa-dinheiro").textContent).toMatch(/valor total R\$ 32\.817,32/);
+    expect(within(cardA).getByTestId("valor-total").textContent).toMatch(/Primeira contratação · com benefício direto/);
     cleanup();
     servir(V4_B);
     lista();
     const cardB = await screen.findByTestId("card-supermarket");
     await within(cardB).findByText("R$ 32.939,00");
-    expect(within(cardB).getByText("Para novo anunciante")).toBeDefined();
-    expect(within(cardB).getByTestId("alternativa-dinheiro").textContent).not.toMatch(/32\.939|proposta comercial/);
+    expect(within(cardB).getByText("Primeira contratação")).toBeDefined();
+    expect(cardB.textContent).not.toMatch(/com benefício direto|em dinheiro/);
   });
 
   it("não exibe faturamento agregado dos seis anunciantes nem da formação", async () => {
@@ -182,93 +210,108 @@ describe("/oportunidades — card comercial", () => {
     expect(texto).not.toContain("34.866,16"); // 22.939,00 + 11.927,16
   });
 
-  it("prévia SF-v1.5 identificada como não contratável em cada card", async () => {
+  it("prévia SF-v1.5 identificada de forma compacta e acessível como não contratável em cada card", async () => {
     lista();
     await screen.findAllByText("R$ 22.939,00");
-    expect(screen.getAllByTestId("selo-previa")).toHaveLength(6);
-    expect(screen.getAllByTestId("selo-previa")[0].textContent).toMatch(/ainda não contratável/);
+    const ind = screen.getAllByTestId("indicador-previa");
+    expect(ind).toHaveLength(6);
+    for (const i of ind) {
+      expect(i.textContent).toBe("Prévia: valor proposto, ainda não contratável");
+      expect(i.querySelector(".sr-only")?.textContent).toMatch(/ainda não contratável/);
+    }
+    expect(screen.queryAllByTestId("selo-previa")).toHaveLength(0);
   });
 
   it("não expõe custo do fornecedor, valor por peça nem margens; só o total nominal de produção autorizado", async () => {
     lista();
     await screen.findAllByText("R$ 22.939,00");
     const texto = document.body.textContent ?? "";
-    // Permitido agora (pedido de 21/11/2026): o TOTAL nominal de fabricação, incluído no preço.
+    // Permitido (pedido de 21/11/2026): o TOTAL nominal de fabricação, incluído no preço.
     expect(texto).toContain("R$ 2.940,00");
     // Continua proibido: valor por peça, fornecedor, margem, composição interna.
     expect(texto).not.toMatch(/R\$ ?35,00|fornecedor|unitári|por bandeira|por peça|\(R\$[^)]*cada\)/i);
-    // "margem" só aparece na garantia negativa pedida.
-    const semGarantia = texto.split("sem margem de fabricação da SmallFlags").join("");
-    expect(semGarantia).not.toMatch(/margem/i);
+    expect(texto).not.toMatch(/margem/i);
     expect(texto).not.toMatch(/8\.963,00|10\.951,00|121,68|60,84|4\.200,00/); // parcelas internas e QA
     for (const f of ["src/components/commercial/OpportunityCard.tsx", "src/domain/pricing/apresentacaoComercial.ts"]) {
       expect(semComentarios(lerFonte(f))).not.toMatch(/flagUnitReferenceCents|flag_unit_reference/);
     }
+  });
+
+  it("nenhum valor monetário fixo no card: tudo vem de apresentacaoOportunidade", () => {
+    const fonte = semComentarios(lerFonte("src/components/commercial/OpportunityCard.tsx"));
+    expect(fonte).not.toMatch(/R\$\s?\d|\d{1,3}\.\d{3},\d{2}|\b(2940|294000|84)\b/);
+    expect(fonte).toMatch(/apresentacaoOportunidade\(precoVigente\)/);
   });
 });
 
 describe("/oportunidades — produção inicial, participação e renovação nos seis cards", () => {
   const SO_DINHEIRO = fixture("preco-publico-sf-v15-r43-somente-dinheiro-20261116.json");
   const POSICOES = [
-    ["supermarket", "168", "R$ 23.854,32", "R$ 32.939,00", "R$ 28.176,00"],
-    ["pharmacy", "84", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
-    ["womens_clothing", "84", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
-    ["mens_clothing", "84", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
-    ["footwear", "84", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
-    ["others", "84", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
+    ["supermarket", "R$ 23.854,32", "R$ 32.939,00", "R$ 28.176,00"],
+    ["pharmacy", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
+    ["womens_clothing", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
+    ["mens_clothing", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
+    ["footwear", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
+    ["others", "R$ 11.927,16", "R$ 22.939,00", "R$ 16.188,00"],
   ] as const;
   const card = (c: string) => screen.getByTestId(`card-${c}`);
   const semFabricacao = (base: unknown) => mexerV4(base, (b) => {
     for (const k of ["new_flag_units", "flag_unit_reference_cents", "flag_production_charge_cents", "flag_reuse_required"]) delete b[k];
   });
 
-  it.each([["prévia SF-v1.5", PRECO_PRODUCTION], ["v4 vigente (cenário A)", V4_A]] as const)(
-    "%s: as três informações em todos os seis cards", async (_n, resposta) => {
+  it.each([["prévia SF-v1.5", PRECO_PRODUCTION], ["v4 vigente (cenário A)", V4_A], ["v4 vigente (cenário B)", V4_B]] as const)(
+    "%s: total, produtos, produção e renovação em todos os seis cards", async (_n, resposta) => {
     servir(resposta);
     lista();
     await screen.findAllByText("R$ 22.939,00");
-    for (const [c, part, mei, total, renov] of POSICOES) {
+    for (const [c, mei, total, renov] of POSICOES) {
       const k = card(c);
       expect(within(within(k).getByTestId("valor-total")).getByText(total)).toBeDefined();
+      const m = within(k).getByTestId("motoristas-primeira");
+      expect(m.textContent).toContain(`Até ${mei}`);
+      expect(m.textContent).toMatch(/Em produtos da própria loja/);
       const prod = within(k).getByTestId("producao-inicial");
-      expect(prod.textContent).toMatch(/84 bandeiras físicas/);
-      expect(prod.textContent).toMatch(/Custo nominal de R\$ 2\.940,00, já incluído no valor total acima\. Não some esse valor de novo\./);
-      expect(prod.textContent).toMatch(/Só na primeira contratação/);
-      const p = within(k).getByTestId("destaque-beneficio-direto");
-      expect(within(p).getByTestId("valor-por-participacao").textContent).toBe("R$ 141,99 por participação aprovada");
-      expect(p.textContent).toContain(`${part} participações potenciais: até ${mei} deste valor`);
-      expect(p.textContent).toMatch(/não são motoristas distintos nem pagamentos\s+garantidos/);
+      expect(prod.textContent).toBe("Produção das bandeirasR$ 2.940,0084 bandeiras físicas. Custo já incluído no valor total.");
       const r = within(k).getByTestId("renovacao-fidelizada");
-      expect(r.textContent).toContain(renov);
-      expect(r.textContent).toMatch(/Na renovação, com benefício direto/);
-      expect(r.textContent).toMatch(/inspeção.*histórico de fidelidade.*manutenção da posição/);
-      expect(r.textContent).toMatch(/não uma opção a escolher/);
-      expect(r.textContent).toMatch(/orçadas e aceitas\s+separadamente, sem margem de fabricação da SmallFlags/);
+      expect(within(r).getByText(renov)).toBeDefined();
+      expect(within(r).getByTestId("motoristas-renovacao").textContent).toBe(
+        `Para os motoristas: até ${mei} em produtos da própria loja.`,
+      );
+      expect(r.textContent).toContain("Sem trocar as bandeiras já produzidas, mediante aprovação.");
+      // A explicação dos produtos não se repete dentro da renovação.
+      expect(r.textContent!.match(/produtos da própria loja/g)).toHaveLength(1);
+      const link = within(k).getByRole("link");
+      expect(link.textContent).toBe("Ver oportunidade");
+      expect(link.className).toMatch(/btn-primary/);
     }
   });
 
-  it("prévia: selo mantido em cada card e renovação marcada como valor proposto; v4 sem selo", async () => {
+  it("prévia: indicador em cada card; v4 vigente sem indicador de prévia", async () => {
     lista();
     await screen.findAllByText("R$ 22.939,00");
-    expect(screen.getAllByTestId("selo-previa")).toHaveLength(6);
-    expect(screen.getAllByTestId("renovacao-fidelizada").every((r) => /valor proposto na prévia/.test(r.textContent!))).toBe(true);
+    expect(screen.getAllByTestId("indicador-previa")).toHaveLength(6);
     cleanup();
     servir(V4_A);
     lista();
     await screen.findAllByText("R$ 22.939,00");
-    expect(screen.queryAllByTestId("selo-previa")).toHaveLength(0);
-    expect(document.body.textContent).not.toMatch(/valor proposto na prévia/);
+    expect(screen.queryAllByTestId("indicador-previa")).toHaveLength(0);
+    expect(document.body.textContent).not.toMatch(/Prévia|valor proposto/);
   });
 
   it("o valor total continua sendo o maior destaque do card", async () => {
     lista();
     await screen.findAllByText("R$ 22.939,00");
+    const GRANDE = "[class*='text-[2'], [class*='text-4xl'], [class*='text-3xl'], [class*='text-2xl']";
     for (const [c] of POSICOES) {
       const k = card(c);
-      const grandes = Array.from(k.querySelectorAll("[class*='text-[2rem]'], [class*='text-4xl'], [class*='text-3xl'], [class*='text-2xl'], [class*='text-xl']"))
-        .filter((e) => /R\$/.test(e.textContent ?? ""));
+      const grandes = Array.from(k.querySelectorAll(GRANDE)).filter((e) => /R\$/.test(e.textContent ?? ""));
       expect(grandes).toHaveLength(1);
       expect(within(k).getByTestId("valor-total").contains(grandes[0])).toBe(true);
+      // Os demais valores ficam em tamanho menor (text-xl).
+      const menores = Array.from(k.querySelectorAll("[class*='text-xl']")).filter((e) => /R\$/.test(e.textContent ?? ""));
+      expect(menores.length).toBe(3);
+      // O selo de exclusividade é menor que o preço.
+      expect(within(k).getByTestId("selo-exclusividade").className).toMatch(/text-sm/);
     }
   });
 
@@ -279,36 +322,33 @@ describe("/oportunidades — produção inicial, participação e renovação no
     expect(texto).not.toMatch(/35\.879,00|25\.879,00/); // total + fabricação
     expect(texto).not.toMatch(/(12|24|168) bandeiras/);
     expect(within(card("supermarket")).getByTestId("producao-inicial").textContent).not.toMatch(/168|24/);
-    expect(within(card("supermarket")).getByTestId("destaque-beneficio-direto").textContent).not.toMatch(/\b84 participações/);
     expect(within(card("pharmacy")).getByTestId("producao-inicial").textContent).not.toMatch(/\b12\b/);
   });
 
-  it("cenário B (mesmo valor nas duas formas): renovação sem rótulo de modalidade", async () => {
-    servir(V4_B);
-    lista();
-    await screen.findAllByText("R$ 22.939,00");
-    const r = within(card("supermarket")).getByTestId("renovacao-fidelizada");
-    expect(r.textContent).toContain("R$ 28.176,00");
-    expect(r.textContent).toMatch(/Na renovaçãoReutiliza/);
-  });
-
-  it("somente DINHEIRO habilitado: totais em dinheiro; nenhum valor do benefício direto como contratável", async () => {
+  it("somente DINHEIRO habilitado: totais em dinheiro; nenhum produto anunciado como disponível", async () => {
     servir(SO_DINHEIRO);
     lista();
     await screen.findAllByText("R$ 22.878,16");
     const sup = card("supermarket");
-    expect(within(within(sup).getByTestId("valor-total")).getByText("R$ 32.817,32")).toBeDefined();
+    const total = within(sup).getByTestId("valor-total");
+    expect(within(total).getByText("R$ 32.817,32")).toBeDefined();
+    expect(total.textContent).toMatch(/Primeira contratação · em dinheiro/);
     const r = within(sup).getByTestId("renovacao-fidelizada");
-    expect(r.textContent).toContain("R$ 28.054,32");
-    expect(r.textContent).toMatch(/Na renovação, em dinheiro/);
+    expect(within(r).getByText("R$ 28.054,32")).toBeDefined();
+    expect(within(r).getByTestId("motoristas-renovacao").textContent).toBe(
+      "Para os motoristas: até R$ 23.854,32, financiados em dinheiro.",
+    );
     expect(within(within(card("pharmacy")).getByTestId("renovacao-fidelizada")).getByText("R$ 16.127,16")).toBeDefined();
     const texto = document.body.textContent ?? "";
     expect(texto).not.toMatch(/32\.939,00|22\.939,00|28\.176,00|16\.188,00/);
-    expect(texto).not.toMatch(/com benefício direto/);
-    expect(within(sup).getByTestId("destaque-beneficio-direto").textContent).toMatch(/financiada em dinheiro/);
-    // Produção e participação continuam iguais: fazem parte das duas modalidades.
-    expect(within(sup).getByTestId("producao-inicial").textContent).toMatch(/84 bandeiras físicas.*R\$ 2\.940,00/);
-    expect(within(sup).getByTestId("valor-por-participacao").textContent).toBe("R$ 141,99 por participação aprovada");
+    // Nem os cards nem a introdução da página prometem produtos quando só o DINHEIRO está habilitado.
+    expect(texto).not.toMatch(/com benefício direto|produtos da própria loja|em produtos|produtos das suas lojas/i);
+    expect(texto).toContain("cumpridas nas formas habilitadas para a contratação");
+    expect(texto).not.toMatch(/as duas formas de cumprimento/);
+    expect(within(sup).getByTestId("motoristas-primeira").textContent).toMatch(/Contraprestação aos motoristas.*Até R\$ 23\.854,32.*financiada em dinheiro/);
+    // Produção continua igual: faz parte das duas modalidades.
+    expect(within(sup).getByTestId("producao-inicial").textContent).toMatch(/R\$ 2\.940,00.*84 bandeiras físicas/);
+    expect(screen.queryAllByTestId("indicador-previa")).toHaveLength(0);
   });
 
   it("v4 sem produção declarada pelo servidor: nada de produção nem de renovação sem bandeiras é inferido", async () => {
@@ -319,8 +359,8 @@ describe("/oportunidades — produção inicial, participação e renovação no
     await screen.findAllByText("R$ 22.939,00");
     expect(screen.queryAllByTestId("producao-inicial")).toHaveLength(0);
     expect(screen.queryAllByTestId("renovacao-fidelizada")).toHaveLength(0);
-    expect(document.body.textContent).not.toMatch(/2\.940,00|bandeiras físicas|sem novas bandeiras/);
-    expect(screen.getAllByTestId("valor-por-participacao")).toHaveLength(6);
+    expect(document.body.textContent).not.toMatch(/2\.940,00|bandeiras físicas|bandeiras já produzidas/);
+    expect(screen.getAllByTestId("motoristas-primeira")).toHaveLength(6);
   });
 
   it.each([
@@ -369,9 +409,11 @@ describe("/oportunidades — produção inicial, participação e renovação no
   ] as const)("%s: os cards não liberam contratação, não oferecem escolha e não gravam nada", async (_n, resposta) => {
     servir(resposta);
     lista();
-    await screen.findAllByTestId("destaque-beneficio-direto");
+    await screen.findAllByTestId("motoristas-primeira");
     expect(document.querySelector('a[href^="/checkout"]')).toBeNull();
-    for (const a of Array.from(document.querySelectorAll("article a"))) {
+    const links = Array.from(document.querySelectorAll("article a"));
+    expect(links).toHaveLength(6);
+    for (const a of links) {
       expect(a.getAttribute("href")).toMatch(/^\/oportunidades\/[a-z-]+$/);
     }
     expect(document.querySelectorAll("article input, article select, article button")).toHaveLength(0);

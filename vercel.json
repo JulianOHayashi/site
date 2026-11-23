@@ -1,10 +1,4 @@
 {
-  "git": {
-    "deploymentEnabled": {
-      "feat/oportunidades-cartoes-redesign-20261122": false
-    }
-  },
-  "buildCommand": "echo 'BLOQUEADO: branch do redesign protegida (fase 1 do preview); build proibido' && exit 1",
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [

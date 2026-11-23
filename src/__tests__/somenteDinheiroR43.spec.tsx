@@ -87,9 +87,11 @@ describe("R4.3 — modalidades habilitadas pelo servidor", () => {
     render(<MemoryRouter><OpportunityCard opportunity={oportunidade} precoVigente={preco} /></MemoryRouter>);
     const total = screen.getByTestId("valor-total");
     expect(within(total).getByText("R$ 32.817,32")).toBeTruthy();
-    expect(total.textContent).toContain("em dinheiro");
-    expect(screen.getByTestId("alternativa-dinheiro").textContent).toMatch(/Somente DINHEIRO/);
-    expect(screen.getByTestId("destaque-beneficio-direto").textContent).not.toMatch(/pode cumprir essa parte com benefícios/);
+    expect(total.textContent).toContain("Primeira contratação · em dinheiro");
+    // Somente DINHEIRO: o card não anuncia produtos da loja como disponíveis.
+    const motoristas = screen.getByTestId("motoristas-primeira");
+    expect(motoristas.textContent).toMatch(/financiada em dinheiro/);
+    expect(screen.getByRole("article").textContent).not.toMatch(/produtos da própria loja|em produtos|com benefício direto|R\$ 32\.939,00/);
   });
 
   it("preço de renovação fidelizada usa DINHEIRO, não benefício direto", async () => {
