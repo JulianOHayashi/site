@@ -80,6 +80,8 @@ describe("sem dados inventados", () => {
   it("quem somos informa a origem capixaba e o desenvolvimento em 2026", () => {
     montar("/quem-somos", QuemSomos);
     expect(screen.getByText("startup capixaba, desenvolvida ao longo de 2026")).toBeDefined();
+    expect(screen.getByText("Juliano Hayashi")).toBeDefined();
+    expect(document.querySelector("main")?.textContent).toContain("Seu fundador e CEO é Juliano Hayashi");
     const texto = document.querySelector("main")?.textContent ?? "";
     expect(texto).not.toMatch(/fundad[ao] em 2026|lançad[ao] em 2026/i);
   });
