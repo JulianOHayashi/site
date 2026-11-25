@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import EmBreve from "./pages/EmBreve";
 import NaoEncontrada from "./pages/NaoEncontrada";
 import SeoCabecalho from "./seo/SeoCabecalho";
+import WhatsAppFlutuante from "./components/WhatsAppComercial";
 import RevisaoContratacao from "./pages/RevisaoContratacao";
 import CheckoutPrecificacaoGuard from "./components/CheckoutPrecificacaoGuard";
 import Admin from "./pages/Admin";
@@ -173,6 +174,8 @@ export default function App() {
         <Route path="/portal/painel" element={<Navigate to="/portal/dashboard" replace />} />
         <Route path="*" element={<NaoEncontrada />} />
       </Routes>
+      {/* Só aparece nas páginas públicas (lista fechada em content/whatsapp). */}
+      <WhatsAppFlutuante />
     </BrowserRouter>
   );
 }

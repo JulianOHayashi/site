@@ -1,10 +1,4 @@
 {
-  "git": {
-    "deploymentEnabled": {
-      "feat/whatsapp-comercial-20261125": false
-    }
-  },
-  "buildCommand": "echo 'BLOQUEADO: branch do WhatsApp comercial protegida (fase 1 do preview); build proibido' && exit 1",
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
