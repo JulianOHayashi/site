@@ -40,7 +40,7 @@ export default function SiteFooter() {
   return (
     <footer className="relative mt-16 bg-superficie/50">
       <hr aria-hidden className="divisor-marca opacity-60" />
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 pb-28 pt-16 sm:px-6 sm:pb-24">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <Link to="/" className="inline-flex rounded-lg" aria-label="SmallFlags — início">

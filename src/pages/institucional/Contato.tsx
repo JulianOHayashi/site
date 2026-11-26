@@ -1,12 +1,15 @@
 import { Link } from "react-router-dom";
+import { IconeWhatsApp } from "../../components/WhatsAppComercial";
+import { WHATSAPP_COMERCIAL, WHATSAPP_COMERCIAL_URL } from "../../content/whatsapp";
 import {
   Abertura,
   PaginaInstitucional,
   Secao,
 } from "../../components/institucional/Institucional";
 
-/** /contato — canais informados pelo operador em 12/11/2026.
- * Telefone não é presumido como WhatsApp, sem horário/endereço inventados.
+/** /contato — canais informados pelo operador em 12/11/2026; WhatsApp
+ * comercial confirmado em 25/11/2026 (mesmo número e link do botão
+ * flutuante). Sem horário/endereço inventados.
  */
 
 const CAMINHOS = [
@@ -70,8 +73,35 @@ export default function Contato() {
       <Secao
         id="canais"
         titulo="Canais de atendimento — Grande Vitória"
-        intro={<p>Entre em contato por e-mail ou telefone.</p>}
+        intro={<p>Entre em contato por e-mail, telefone ou WhatsApp.</p>}
       >
+        <div
+          className="mb-4 flex flex-col gap-5 rounded-3xl border border-[#128C7E]/40 bg-[#25D366]/[0.08] p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
+          data-testid="contato-whatsapp"
+        >
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-bold">
+              <IconeWhatsApp className="h-6 w-6 text-[#128C7E]" />
+              WhatsApp
+            </h3>
+            <p className="mt-3 text-base font-semibold text-tinta">
+              {WHATSAPP_COMERCIAL.numeroNacional}
+            </p>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-tinta/70">
+              Entre em contato com nossa equipe para conhecer as oportunidades comerciais,
+              esclarecer dúvidas e receber informações sobre as contratações.
+            </p>
+          </div>
+          <a
+            href={WHATSAPP_COMERCIAL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn shrink-0 self-start border-2 border-[#128C7E] bg-[#25D366] text-noite hover:brightness-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#128C7E]/40 md:self-center"
+          >
+            <IconeWhatsApp className="h-5 w-5" />
+            Conversar pelo WhatsApp
+          </a>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8">
             <h3 className="text-lg font-bold">E-mail</h3>
@@ -119,11 +149,10 @@ export default function Contato() {
           </p>
         }
       >
-        <ul className="grid gap-4 sm:grid-cols-3">
+        <ul className="grid gap-4 sm:grid-cols-2">
           {[
             { nome: "Instagram", descricao: "Perfil oficial a confirmar." },
             { nome: "TikTok", descricao: "Perfil oficial a confirmar." },
-            { nome: "WhatsApp", descricao: "Número de atendimento a confirmar." },
           ].map((rede) => (
             <li
               key={rede.nome}
@@ -142,8 +171,7 @@ export default function Contato() {
           ))}
         </ul>
         <p className="mt-5 text-sm leading-6 text-tinta/65">
-          Enquanto isso, utilize o e-mail e o telefone publicados nesta página.
-          O telefone de contato não está identificado como canal de WhatsApp.
+          Enquanto isso, utilize o WhatsApp, o e-mail e o telefone publicados nesta página.
         </p>
       </Secao>
     </PaginaInstitucional>

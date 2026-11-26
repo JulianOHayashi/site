@@ -92,11 +92,17 @@ describe("sem dados inventados", () => {
     expect(container.querySelector('a[href="tel:+5527998803900"]')).not.toBeNull();
     const redes = container.querySelector("#redes-sociais");
     expect(redes).not.toBeNull();
-    for (const nome of ["Instagram", "TikTok", "WhatsApp"]) {
+    for (const nome of ["Instagram", "TikTok"]) {
       expect(within(redes as HTMLElement).getByRole("heading", { name: nome })).toBeDefined();
     }
     expect(redes!.querySelectorAll('a[href], button')).toHaveLength(0);
-    expect(container.querySelector('a[href^="https://instagram.com"], a[href^="https://tiktok.com"], a[href*="wa.me"]')).toBeNull();
+    expect(container.querySelector('a[href^="https://instagram.com"], a[href^="https://tiktok.com"]')).toBeNull();
+    // WhatsApp comercial (25/11/2026): um único link, com o mesmo número e mensagem do botão flutuante.
+    const wa = Array.from(container.querySelectorAll('a[href*="wa.me"]'));
+    expect(wa).toHaveLength(1);
+    expect(wa[0].getAttribute("href")).toBe(
+      "https://wa.me/5527998803900?text=Ol%C3%A1!%20Gostaria%20de%20conhecer%20as%20oportunidades%20comerciais%20da%20SmallFlags.",
+    );
   });
 
   it("trabalhe conosco não inventa canais, endereço ou horários", () => {
