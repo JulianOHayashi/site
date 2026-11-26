@@ -95,8 +95,15 @@ describe("sem dados inventados", () => {
     for (const nome of ["Instagram", "TikTok"]) {
       expect(within(redes as HTMLElement).getByRole("heading", { name: nome })).toBeDefined();
     }
-    expect(redes!.querySelectorAll('a[href], button')).toHaveLength(0);
-    expect(container.querySelector('a[href^="https://instagram.com"], a[href^="https://tiktok.com"]')).toBeNull();
+    expect(redes!.querySelectorAll('a[href], button')).toHaveLength(1);
+    const instagram = within(redes as HTMLElement).getByRole("link", { name: "Acessar Instagram" });
+    expect(instagram.getAttribute("href")).toBe("https://www.instagram.com/smallflagsBR/");
+    expect(instagram.getAttribute("target")).toBe("_blank");
+    expect(instagram.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(within(redes as HTMLElement).getByText("@smallflagsBR")).toBeDefined();
+    const tiktok = within(redes as HTMLElement).getByRole("heading", { name: "TikTok" }).closest("li");
+    expect(tiktok?.textContent).toContain("Em breve");
+    expect(tiktok?.querySelector("a[href]")).toBeNull();
     // WhatsApp comercial (25/11/2026): um único link, com o mesmo número e mensagem do botão flutuante.
     const wa = Array.from(container.querySelectorAll('a[href*="wa.me"]'));
     expect(wa).toHaveLength(1);

@@ -11,14 +11,15 @@ describe("canais de contato SmallFlags — Grande Vitória", () => {
     expect(fonte).toContain("(27) 99880-3900");
   });
 
-  it("reserva Instagram e TikTok sem inventar links", () => {
-    for (const rede of ["Instagram", "TikTok"]) {
-      expect(fonte).toContain(`nome: "${rede}"`);
-    }
+  it("publica o Instagram confirmado e mantém TikTok sem link", () => {
     expect(fonte).toContain('id="redes-sociais"');
+    expect(fonte).toContain("@smallflagsBR");
+    expect(fonte).toContain('href="https://www.instagram.com/smallflagsBR/"');
+    expect(fonte).toContain("Acessar Instagram");
+    expect(fonte).toContain("TikTok");
+    expect(fonte).toContain("Em breve");
     expect(fonte).not.toContain("Número de atendimento a confirmar.");
-    expect(fonte).not.toContain("https://www.instagram.com/");
-    expect(fonte).not.toContain("https://www.tiktok.com/");
+    expect(fonte).not.toMatch(/https?:\/\/(?:www\.)?tiktok\.com\//i);
   });
 
   it("WhatsApp comercial confirmado em 25/11/2026: só pela fonte única, sem API nem horário", () => {

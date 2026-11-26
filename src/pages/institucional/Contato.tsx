@@ -9,7 +9,8 @@ import {
 
 /** /contato — canais informados pelo operador em 12/11/2026; WhatsApp
  * comercial confirmado em 25/11/2026 (mesmo número e link do botão
- * flutuante). Sem horário/endereço inventados.
+ * flutuante). Instagram confirmado em 26/11/2026.
+ * Sem horário/endereço inventados.
  */
 
 const CAMINHOS = [
@@ -142,36 +143,45 @@ export default function Contato() {
       <Secao
         id="redes-sociais"
         titulo="Redes sociais"
-        intro={
-          <p>
-            Reservamos este espaço para nossos canais oficiais. Os links serão
-            disponibilizados quando forem confirmados pela SmallFlags.
-          </p>
-        }
+        intro={<p>Acompanhe a SmallFlags em nossos canais oficiais.</p>}
       >
         <ul className="grid gap-4 sm:grid-cols-2">
-          {[
-            { nome: "Instagram", descricao: "Perfil oficial a confirmar." },
-            { nome: "TikTok", descricao: "Perfil oficial a confirmar." },
-          ].map((rede) => (
-            <li
-              key={rede.nome}
-              className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8"
+          <li className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8">
+            <h3 className="flex items-center gap-2 text-xl font-bold">
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6 text-[#E1306C]">
+                <rect x="3" y="3" width="18" height="18" rx="5" />
+                <circle cx="12" cy="12" r="4" />
+                <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+              </svg>
+              Instagram
+            </h3>
+            <p className="mt-3 text-base font-semibold text-tinta">@smallflagsBR</p>
+            <p className="mt-2 text-sm leading-6 text-tinta/65">
+              Acompanhe nossas campanhas publicitárias, novidades e oportunidades comerciais.
+            </p>
+            <a
+              href="https://www.instagram.com/smallflagsBR/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary mt-6"
             >
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-xl font-bold">{rede.nome}</h3>
-                <span className="rounded-full bg-papel2 px-3 py-1 text-xs font-semibold text-tinta/60">
-                  Em breve
-                </span>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-tinta/65">
-                {rede.descricao}
-              </p>
-            </li>
-          ))}
+              Acessar Instagram
+            </a>
+          </li>
+          <li className="rounded-3xl border border-borda bg-superficie p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-xl font-bold">TikTok</h3>
+              <span className="rounded-full bg-papel2 px-3 py-1 text-xs font-semibold text-tinta/60">
+                Em breve
+              </span>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-tinta/65">
+              Perfil oficial a confirmar.
+            </p>
+          </li>
         </ul>
         <p className="mt-5 text-sm leading-6 text-tinta/65">
-          Enquanto isso, utilize o WhatsApp, o e-mail e o telefone publicados nesta página.
+          Para atendimento, utilize o WhatsApp, o e-mail e o telefone publicados nesta página.
         </p>
       </Secao>
     </PaginaInstitucional>
