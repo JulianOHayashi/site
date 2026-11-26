@@ -232,6 +232,25 @@ describe("WhatsApp comercial — o botão não cobre controles em nenhuma largur
     expect(recolhido(a)).toBe(false);
   });
 
+  it("ao perder o foco sem nenhuma rolagem, reavalia e recolhe sobre o controle", async () => {
+    const pos: Record<string, DOMRect | null> = { botao: rect(1187, 768, 60, 60), cta: null };
+    const a = montar(pos);
+    await rolar();
+    a.focus();
+    expect(document.activeElement).toBe(a);
+    pos.cta = rect(364, 766, 828, 64); // controle passou a ficar sob o botão
+    await rolar();
+    expect(recolhido(a)).toBe(false); // com foco, continua visível
+    let rolagens = 0;
+    const contar = () => { rolagens++; };
+    window.addEventListener("scroll", contar);
+    await act(async () => { a.blur(); }); // sai do foco sem rolar
+    window.removeEventListener("scroll", contar);
+    expect(rolagens).toBe(0);
+    expect(document.activeElement).not.toBe(a);
+    expect(recolhido(a)).toBe(true);
+  });
+
   it("o componente não usa mais breakpoint para recolher", () => {
     const fonte = readFileSync(resolve(process.cwd(), "src/components/WhatsAppComercial.tsx"), "utf8");
     expect(fonte).not.toMatch(/matchMedia|MOBILE_MEDIA|max-width/);

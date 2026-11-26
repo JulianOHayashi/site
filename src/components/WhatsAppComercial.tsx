@@ -85,11 +85,15 @@ export default function WhatsAppFlutuante() {
     observador.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "open"] });
     window.addEventListener("scroll", agendar, { passive: true });
     window.addEventListener("resize", agendar);
+    // Saída do foco (Tab, clique fora, blur) sem rolagem também reavalia.
+    const botaoAtual = ref.current;
+    botaoAtual?.addEventListener("blur", agendar);
     agendar();
     return () => {
       observador.disconnect();
       window.removeEventListener("scroll", agendar);
       window.removeEventListener("resize", agendar);
+      botaoAtual?.removeEventListener("blur", agendar);
       window.cancelAnimationFrame(quadro);
       window.clearTimeout(espera);
       setRecolhido(false);
