@@ -132,7 +132,7 @@ describe("WhatsApp comercial — página de contato", () => {
   });
 });
 
-describe("WhatsApp comercial — mobile não cobre controles", () => {
+describe("WhatsApp comercial — o botão não cobre controles em nenhuma largura", () => {
   const rect = (left: number, top: number, w: number, h: number) =>
     ({ left, top, right: left + w, bottom: top + h, width: w, height: h, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
 
@@ -162,23 +162,13 @@ describe("WhatsApp comercial — mobile não cobre controles", () => {
     expect(cobreControle(wa)).toBe(true);
   });
 
-  const montarMobile = (largo: boolean) => {
-    vi.stubGlobal("matchMedia", (q: string) => ({
-      matches: !largo, media: q, addEventListener: () => {}, removeEventListener: () => {},
-    }));
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => { cb(0); return 1; });
-  };
-
-  it.each([
-    ["mobile com controle sob o botão", false, true, true],
-    ["mobile sem controle sob o botão", false, false, false],
-    ["desktop com controle sob o botão (comportamento aprovado preservado)", true, true, false],
-  ])("%s", async (_n, largo, temControle, recolhe) => {
-    montarMobile(largo);
+  // Recolhimento em qualquer largura (25/11/2026): sem breakpoint e sem matchMedia.
+  const montar = (posicoes: Record<string, DOMRect | null>) => {
+    // rAF síncrono no jsdom; devolve 0 como "nenhum quadro pendente" (no navegador o id é zerado no callback).
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => { cb(0); return 0; });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-      if (this.dataset.testid === "whatsapp-flutuante") return rect(318, 772, 56, 56);
-      if (this.id === "cta" && temControle) return rect(250, 770, 120, 44);
-      return rect(0, 0, 10, 10);
+      const chave = this.dataset.testid === "whatsapp-flutuante" ? "botao" : this.id;
+      return posicoes[chave] ?? rect(0, 0, 10, 10);
     });
     render(
       <MemoryRouter initialEntries={["/contato"]}>
@@ -186,17 +176,64 @@ describe("WhatsApp comercial — mobile não cobre controles", () => {
         <WhatsAppFlutuante />
       </MemoryRouter>,
     );
-    await act(async () => { window.dispatchEvent(new Event("scroll")); });
-    const a = document.querySelector('[data-testid="whatsapp-flutuante"]') as HTMLElement;
+    return document.querySelector('[data-testid="whatsapp-flutuante"]') as HTMLElement;
+  };
+  const rolar = () => act(async () => { window.dispatchEvent(new Event("scroll")); });
+  const recolhido = (a: HTMLElement) => {
+    const r = a.getAttribute("data-recolhido") === "true";
+    expect(a.getAttribute("aria-hidden") === "true").toBe(r);
+    expect(a.getAttribute("tabindex") === "-1").toBe(r);
+    expect(/\binvisible\b/.test(a.className)).toBe(r);
+    expect(/\bpointer-events-none\b/.test(a.className)).toBe(r);
+    return r;
+  };
+
+  it.each([
+    ["mobile (390 px) com controle sob o botão", 390, true, true],
+    ["mobile (390 px) sem controle sob o botão", 390, false, false],
+    ["tablet/notebook (1024 px) com controle sob o botão", 1024, true, true],
+    ["desktop (1263 px, barra de rolagem clássica) com controle sob o botão", 1263, true, true],
+    ["desktop (1920 px) sem controle sob o botão", 1920, false, false],
+  ])("%s", async (_n, largura, temControle, recolhe) => {
+    const botao = rect(largura - 76, 772, largura >= 640 ? 60 : 56, largura >= 640 ? 60 : 56);
+    const a = montar({ botao, cta: temControle ? rect(largura - 300, 770, 290, 44) : null });
+    await rolar();
     expect(a).not.toBeNull(); // nunca desmontado: só recolhido
-    expect(a.getAttribute("data-recolhido") === "true").toBe(recolhe);
-    expect(a.getAttribute("aria-hidden") === "true").toBe(recolhe);
-    expect(a.getAttribute("tabindex") === "-1").toBe(recolhe);
-    expect(/\binvisible\b/.test(a.className)).toBe(recolhe);
-    expect(/\bpointer-events-none\b/.test(a.className)).toBe(recolhe);
+    expect(recolhido(a)).toBe(recolhe);
     // tamanho, cores e posição não mudam
     expect(a.className).toMatch(/h-14 w-14/);
+    expect(a.className).toMatch(/sm:h-\[3\.75rem\] sm:w-\[3\.75rem\]/);
     expect(a.className).toMatch(/bg-\[#25D366\]/);
     expect(a.style.right).toContain("1rem");
+  });
+
+  it("funciona sem matchMedia e reaparece quando a área fica livre", async () => {
+    vi.stubGlobal("matchMedia", undefined);
+    const pos: Record<string, DOMRect | null> = { botao: rect(1187, 768, 60, 60), cta: rect(364, 766, 828, 64) };
+    const a = montar(pos);
+    await rolar();
+    expect(recolhido(a)).toBe(true);
+    pos.cta = rect(364, 500, 828, 64); // rolou: a linha saiu de baixo do botão
+    await rolar();
+    expect(recolhido(a)).toBe(false);
+    pos.cta = rect(364, 790, 828, 64); // voltou a ficar sob o botão
+    await act(async () => { window.dispatchEvent(new Event("resize")); });
+    expect(recolhido(a)).toBe(true);
+  });
+
+  it("com foco de teclado no próprio botão, ele não some", async () => {
+    const pos: Record<string, DOMRect | null> = { botao: rect(1187, 768, 60, 60), cta: null };
+    const a = montar(pos);
+    await rolar();
+    expect(recolhido(a)).toBe(false);
+    a.focus();
+    pos.cta = rect(364, 766, 828, 64);
+    await rolar();
+    expect(recolhido(a)).toBe(false);
+  });
+
+  it("o componente não usa mais breakpoint para recolher", () => {
+    const fonte = readFileSync(resolve(process.cwd(), "src/components/WhatsAppComercial.tsx"), "utf8");
+    expect(fonte).not.toMatch(/matchMedia|MOBILE_MEDIA|max-width/);
   });
 });

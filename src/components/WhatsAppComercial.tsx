@@ -15,10 +15,7 @@ export function IconeWhatsApp({ className = "h-7 w-7" }: { className?: string })
   );
 }
 
-/** Largura em que o botão passa a se esconder sobre controles (abaixo de `sm`). */
-export const MOBILE_MEDIA = "(max-width: 639.98px)";
-
-/** Controles que o botão nunca pode cobrir no mobile. */
+/** Controles que o botão nunca pode cobrir, em qualquer largura. */
 export const SELETOR_CONTROLES =
   'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="tab"], [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
 
@@ -54,9 +51,10 @@ export function cobreControle(botao: HTMLElement, raiz: ParentNode = document): 
  * páginas públicas (lista fechada em `whatsAppFlutuanteVisivel`). Fica sob o
  * cabeçalho fixo (z-40 < z-50) e respeita a área segura do iPhone.
  *
- * Desktop: sempre visível, como aprovado. Mobile: sai de cena (sem ocupar o
- * toque nem o foco) enquanto houver link, botão, campo ou outro controle sob
- * ele — durante e depois da rolagem — e volta assim que a área fica livre.
+ * Em qualquer largura, sai de cena (sem ocupar o toque nem o foco) enquanto
+ * houver link, botão, campo ou outro controle sob ele — durante e depois da
+ * rolagem, no redimensionamento e quando o conteúdo muda — e volta assim que
+ * a área fica livre. Sem breakpoint: não depende de barra de rolagem nem zoom.
  */
 export default function WhatsAppFlutuante() {
   const { pathname } = useLocation();
@@ -65,8 +63,7 @@ export default function WhatsAppFlutuante() {
   const [recolhido, setRecolhido] = useState(false);
 
   useEffect(() => {
-    if (!visivel || typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia(MOBILE_MEDIA);
+    if (!visivel) return;
     let quadro = 0;
     let espera: number | undefined;
     const avaliar = () => {
@@ -74,7 +71,7 @@ export default function WhatsAppFlutuante() {
       const botao = ref.current;
       if (!botao) return;
       // Com foco no próprio botão (teclado), ele não some.
-      const cobrir = mq.matches && document.activeElement !== botao && cobreControle(botao);
+      const cobrir = document.activeElement !== botao && cobreControle(botao);
       setRecolhido(cobrir);
     };
     const agendar = () => {
@@ -88,13 +85,11 @@ export default function WhatsAppFlutuante() {
     observador.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "open"] });
     window.addEventListener("scroll", agendar, { passive: true });
     window.addEventListener("resize", agendar);
-    mq.addEventListener?.("change", agendar);
     agendar();
     return () => {
       observador.disconnect();
       window.removeEventListener("scroll", agendar);
       window.removeEventListener("resize", agendar);
-      mq.removeEventListener?.("change", agendar);
       window.cancelAnimationFrame(quadro);
       window.clearTimeout(espera);
       setRecolhido(false);
